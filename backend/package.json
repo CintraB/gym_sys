@@ -1,7 +1,7 @@
 {
-  "name": "sistema-academia",
+  "name": "gym-sys-backend",
   "version": "1.0.0",
-  "description": "",
+  "description": "API RESTful do Gym Sys para gestão de alunos, professores e treinos.",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",

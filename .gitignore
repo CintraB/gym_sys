@@ -1,2 +1,10 @@
 node_modules
 .env
+dist
+dist-ssr
+*.local
+
+# Editor
+.vscode/*
+!.vscode/extensions.json
+.idea
