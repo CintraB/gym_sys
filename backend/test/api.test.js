@@ -1,0 +1,384 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { criarApiDeTeste, criarProfessorELogar } from "./helpers.js";
+
+const ALUNO = {
+  cpf: "22222222222",
+  nome: "Aluno Teste",
+  senha: "senha123",
+  email: "aluno@teste.com",
+  titulo: "222222222222",
+};
+
+async function cenario() {
+  const api = await criarApiDeTeste();
+  const tokenProfessor = await criarProfessorELogar(api);
+  return { api, tokenProfessor };
+}
+
+async function comAluno(api, tokenProfessor) {
+  const criado = await api.post("/professores/alunos", ALUNO, { token: tokenProfessor });
+  assert.equal(criado.status, 201, JSON.stringify(criado.corpo));
+
+  const login = await api.post("/login", { cpf: ALUNO.cpf, senha: ALUNO.senha });
+  assert.equal(login.status, 200, JSON.stringify(login.corpo));
+
+  return { id: criado.corpo.aluno.id, token: login.corpo.token };
+}
+
+test("health check responde sem autenticação", async (t) => {
+  const { api } = await cenario();
+  t.after(() => api.encerrar());
+
+  const resposta = await api.get("/health");
+  assert.equal(resposta.status, 200);
+  assert.deepEqual(resposta.corpo, { status: "ok" });
+});
+
+test("login devolve token e o nome do usuário", async (t) => {
+  const { api } = await cenario();
+  t.after(() => api.encerrar());
+
+  const resposta = await api.post("/login", { cpf: "11111111111", senha: "senha123" });
+
+  assert.equal(resposta.status, 200);
+  assert.ok(resposta.corpo.token);
+  assert.equal(resposta.corpo.usuario.nome, "Professor Teste");
+  assert.equal(resposta.corpo.usuario.cargo, "professor");
+});
+
+test("login com senha errada devolve 401 sem revelar se o CPF existe", async (t) => {
+  const { api } = await cenario();
+  t.after(() => api.encerrar());
+
+  const senhaErrada = await api.post("/login", { cpf: "11111111111", senha: "errada" });
+  const cpfInexistente = await api.post("/login", { cpf: "99999999999", senha: "errada" });
+
+  assert.equal(senhaErrada.status, 401);
+  assert.equal(cpfInexistente.status, 401);
+  assert.equal(senhaErrada.corpo.message, cpfInexistente.corpo.message);
+});
+
+test("login aceita CPF com máscara", async (t) => {
+  const { api } = await cenario();
+  t.after(() => api.encerrar());
+
+  const resposta = await api.post("/login", { cpf: "111.111.111-11", senha: "senha123" });
+  assert.equal(resposta.status, 200);
+});
+
+test("rota protegida exige token", async (t) => {
+  const { api } = await cenario();
+  t.after(() => api.encerrar());
+
+  const resposta = await api.get("/professores/alunos");
+  assert.equal(resposta.status, 401);
+});
+
+test("token de aluno não acessa rotas de professor", async (t) => {
+  const { api, tokenProfessor } = await cenario();
+  t.after(() => api.encerrar());
+
+  const aluno = await comAluno(api, tokenProfessor);
+  const resposta = await api.get("/professores/alunos", { token: aluno.token });
+
+  assert.equal(resposta.status, 403);
+});
+
+test("token de professor não acessa rotas de aluno", async (t) => {
+  const { api, tokenProfessor } = await cenario();
+  t.after(() => api.encerrar());
+
+  const resposta = await api.get("/alunos/meutreino", { token: tokenProfessor });
+  assert.equal(resposta.status, 403);
+});
+
+test("cadastro de aluno valida os dados de entrada", async (t) => {
+  const { api, tokenProfessor } = await cenario();
+  t.after(() => api.encerrar());
+
+  const cpfCurto = await api.post(
+    "/professores/alunos",
+    { ...ALUNO, cpf: "123" },
+    { token: tokenProfessor }
+  );
+  const senhaCurta = await api.post(
+    "/professores/alunos",
+    { ...ALUNO, senha: "123" },
+    { token: tokenProfessor }
+  );
+
+  assert.equal(cpfCurto.status, 400);
+  assert.match(cpfCurto.corpo.message, /CPF/);
+  assert.equal(senhaCurta.status, 400);
+  assert.match(senhaCurta.corpo.message, /Senha/);
+});
+
+test("cadastro rejeita CPF duplicado", async (t) => {
+  const { api, tokenProfessor } = await cenario();
+  t.after(() => api.encerrar());
+
+  await comAluno(api, tokenProfessor);
+  const repetido = await api.post("/professores/alunos", ALUNO, { token: tokenProfessor });
+
+  assert.equal(repetido.status, 409);
+});
+
+test("treino usa o professor do token, ignorando id_professor do corpo", async (t) => {
+  const { api, tokenProfessor } = await cenario();
+  t.after(() => api.encerrar());
+
+  const aluno = await comAluno(api, tokenProfessor);
+
+  const criado = await api.post(
+    "/professores/treino",
+    {
+      id_aluno: aluno.id,
+      id_professor: 9999, // tentativa de registrar em nome de outro professor
+      exercicios: [
+        { id_exercicio: 1, numero_serie: 4, repeticoes: "10 a 15", carga: 20 },
+        { id_exercicio: 2, numero_serie: 3, repeticoes: "12", carga: 15 },
+      ],
+    },
+    { token: tokenProfessor }
+  );
+
+  assert.equal(criado.status, 201, JSON.stringify(criado.corpo));
+
+  const treino = await api.get("/alunos/meutreino", { token: aluno.token });
+  assert.equal(treino.corpo.treino.nome_professor, "Professor Teste");
+  assert.equal(treino.corpo.exercicios.length, 2);
+});
+
+test("treino rejeita exercícios incompletos", async (t) => {
+  const { api, tokenProfessor } = await cenario();
+  t.after(() => api.encerrar());
+
+  const aluno = await comAluno(api, tokenProfessor);
+
+  const semExercicios = await api.post(
+    "/professores/treino",
+    { id_aluno: aluno.id, exercicios: [] },
+    { token: tokenProfessor }
+  );
+  const seriesNegativas = await api.post(
+    "/professores/treino",
+    {
+      id_aluno: aluno.id,
+      exercicios: [
+        { id_exercicio: 1, numero_serie: 4, repeticoes: "10" },
+        { id_exercicio: 2, numero_serie: -1, repeticoes: "10" },
+      ],
+    },
+    { token: tokenProfessor }
+  );
+
+  assert.equal(semExercicios.status, 400);
+  assert.equal(seriesNegativas.status, 400);
+  assert.match(seriesNegativas.corpo.message, /Exercício 2/);
+});
+
+test("treino aceita exercício de cardio sem séries nem carga", async (t) => {
+  const { api, tokenProfessor } = await cenario();
+  t.after(() => api.encerrar());
+
+  const aluno = await comAluno(api, tokenProfessor);
+
+  // ESTEIRA — registrada só com a observação de tempo e intensidade.
+  const criado = await api.post(
+    "/professores/treino",
+    {
+      id_aluno: aluno.id,
+      exercicios: [
+        {
+          id_exercicio: 36,
+          numero_serie: 0,
+          repeticoes: "",
+          carga: "",
+          observacao_ex_usuario: "20 min / moderado",
+        },
+      ],
+    },
+    { token: tokenProfessor }
+  );
+
+  assert.equal(criado.status, 201, JSON.stringify(criado.corpo));
+
+  const treino = await api.get("/alunos/meutreino", { token: aluno.token });
+  assert.equal(treino.corpo.exercicios[0].carga, 0);
+  assert.equal(treino.corpo.exercicios[0].observacao_ex_usuario, "20 min / moderado");
+});
+
+test("novo treino substitui o anterior em vez de acumular exercícios", async (t) => {
+  const { api, tokenProfessor } = await cenario();
+  t.after(() => api.encerrar());
+
+  const aluno = await comAluno(api, tokenProfessor);
+
+  await api.post(
+    "/professores/treino",
+    {
+      id_aluno: aluno.id,
+      exercicios: [{ id_exercicio: 1, numero_serie: 4, repeticoes: "10", carga: 20 }],
+    },
+    { token: tokenProfessor }
+  );
+  await api.post(
+    "/professores/treino",
+    {
+      id_aluno: aluno.id,
+      exercicios: [
+        { id_exercicio: 3, numero_serie: 3, repeticoes: "12", carga: 30 },
+        { id_exercicio: 4, numero_serie: 3, repeticoes: "12", carga: 40 },
+      ],
+    },
+    { token: tokenProfessor }
+  );
+
+  const treino = await api.get("/alunos/meutreino", { token: aluno.token });
+  assert.equal(treino.corpo.exercicios.length, 2);
+
+  const historico = await api.get("/alunos/historico", { token: aluno.token });
+  assert.equal(historico.corpo.length, 2, "os dois treinos ficam no histórico");
+});
+
+test("aluno sem treino recebe resposta vazia, não erro", async (t) => {
+  const { api, tokenProfessor } = await cenario();
+  t.after(() => api.encerrar());
+
+  const aluno = await comAluno(api, tokenProfessor);
+  const treino = await api.get("/alunos/meutreino", { token: aluno.token });
+
+  assert.equal(treino.status, 200);
+  assert.equal(treino.corpo.treino, null);
+  assert.deepEqual(treino.corpo.exercicios, []);
+});
+
+test("pedido de treino não pode ser duplicado", async (t) => {
+  const { api, tokenProfessor } = await cenario();
+  t.after(() => api.encerrar());
+
+  const aluno = await comAluno(api, tokenProfessor);
+
+  const primeiro = await api.post("/alunos/pedidotreino", { observacao: "joelho" }, { token: aluno.token });
+  const segundo = await api.post("/alunos/pedidotreino", { observacao: "de novo" }, { token: aluno.token });
+
+  assert.equal(primeiro.status, 201);
+  assert.equal(segundo.status, 409);
+});
+
+test("montar o treino encerra o pedido em aberto do aluno", async (t) => {
+  const { api, tokenProfessor } = await cenario();
+  t.after(() => api.encerrar());
+
+  const aluno = await comAluno(api, tokenProfessor);
+  await api.post("/alunos/pedidotreino", { observacao: "quero treino novo" }, { token: aluno.token });
+
+  const antes = await api.get("/professores/treino/pedidos", { token: tokenProfessor });
+  assert.equal(antes.corpo.length, 1);
+  assert.equal(antes.corpo[0].nome_aluno, ALUNO.nome);
+
+  await api.post(
+    "/professores/treino",
+    {
+      id_aluno: aluno.id,
+      exercicios: [{ id_exercicio: 1, numero_serie: 4, repeticoes: "10", carga: 20 }],
+    },
+    { token: tokenProfessor }
+  );
+
+  const depois = await api.get("/professores/treino/pedidos", { token: tokenProfessor });
+  assert.equal(depois.corpo.length, 0);
+});
+
+test("desativar aluno impede novo login", async (t) => {
+  const { api, tokenProfessor } = await cenario();
+  t.after(() => api.encerrar());
+
+  await comAluno(api, tokenProfessor);
+  const desativado = await api.put(
+    "/professores/alunos/desativar",
+    { cpf: ALUNO.cpf },
+    { token: tokenProfessor }
+  );
+  assert.equal(desativado.status, 200);
+
+  const login = await api.post("/login", { cpf: ALUNO.cpf, senha: ALUNO.senha });
+  assert.equal(login.status, 401);
+});
+
+test("token de aluno desativado para de funcionar imediatamente", async (t) => {
+  const { api, tokenProfessor } = await cenario();
+  t.after(() => api.encerrar());
+
+  const aluno = await comAluno(api, tokenProfessor);
+  await api.put("/professores/alunos/desativar", { cpf: ALUNO.cpf }, { token: tokenProfessor });
+
+  const resposta = await api.get("/alunos/meutreino", { token: aluno.token });
+  assert.equal(resposta.status, 401);
+});
+
+test("busca de alunos filtra por nome e por CPF", async (t) => {
+  const { api, tokenProfessor } = await cenario();
+  t.after(() => api.encerrar());
+
+  await comAluno(api, tokenProfessor);
+
+  const porNome = await api.get("/professores/alunos?busca=Aluno", { token: tokenProfessor });
+  const porCpf = await api.get("/professores/alunos?busca=2222", { token: tokenProfessor });
+  const semResultado = await api.get("/professores/alunos?busca=zzzzz", { token: tokenProfessor });
+
+  assert.equal(porNome.corpo.length, 1);
+  assert.equal(porCpf.corpo.length, 1);
+  assert.equal(semResultado.corpo.length, 0);
+});
+
+test("resumo do dashboard conta alunos e pedidos", async (t) => {
+  const { api, tokenProfessor } = await cenario();
+  t.after(() => api.encerrar());
+
+  const aluno = await comAluno(api, tokenProfessor);
+  await api.post("/alunos/pedidotreino", { observacao: "oi" }, { token: aluno.token });
+
+  const resumo = await api.get("/professores/resumo", { token: tokenProfessor });
+
+  assert.equal(resumo.status, 200);
+  assert.equal(resumo.corpo.alunos_ativos, 1);
+  assert.equal(resumo.corpo.pedidos_abertos, 1);
+});
+
+test("erro do banco não vaza detalhes para o cliente", async (t) => {
+  const { api, tokenProfessor } = await cenario();
+  t.after(() => api.encerrar());
+
+  // id não numérico é barrado na rota, antes de virar erro do Postgres
+  const resposta = await api.get("/professores/aluno/abc", { token: tokenProfessor });
+
+  assert.equal(resposta.status, 400);
+  assert.equal(resposta.corpo.message, "Identificador inválido");
+  assert.ok(
+    !JSON.stringify(resposta.corpo).includes("SELECT"),
+    "a resposta não pode conter a query"
+  );
+});
+
+test("rota inexistente devolve 404 em JSON", async (t) => {
+  const { api } = await cenario();
+  t.after(() => api.encerrar());
+
+  const resposta = await api.get("/nao-existe");
+  assert.equal(resposta.status, 404);
+  assert.equal(resposta.corpo.message, "Rota não encontrada");
+});
+
+test("/me devolve o perfil do token", async (t) => {
+  const { api, tokenProfessor } = await cenario();
+  t.after(() => api.encerrar());
+
+  const resposta = await api.get("/me", { token: tokenProfessor });
+
+  assert.equal(resposta.status, 200);
+  assert.equal(resposta.corpo.cargo, "professor");
+  assert.equal(resposta.corpo.nome, "Professor Teste");
+  assert.equal(resposta.corpo.senha, undefined, "a senha nunca pode ser devolvida");
+});
