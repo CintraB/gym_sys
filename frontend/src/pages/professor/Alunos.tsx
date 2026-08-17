@@ -5,7 +5,7 @@ import { api, mensagemDeErro } from '../../lib/api'
 import { useRequisicao } from '../../lib/useRequisicao'
 import { mascararCpf, mascararTitulo, somenteDigitos, tempoRelativo } from '../../lib/formato'
 import { Botao } from '../../components/ui/Botao'
-import { Campo } from '../../components/ui/Campo'
+import { Campo, CampoSenha } from '../../components/ui/Campo'
 import { Cartao } from '../../components/ui/Cartao'
 import { Aviso } from '../../components/ui/Aviso'
 import { Esqueleto } from '../../components/ui/Carregando'
@@ -270,9 +270,8 @@ function PainelCadastro({
           dica="12 dígitos"
           required
         />
-        <Campo
+        <CampoSenha
           rotulo="Senha de acesso"
-          type="password"
           value={form.senha}
           onChange={(e) => atualizar('senha', e.target.value)}
           placeholder="Mínimo 6 caracteres"

@@ -5,7 +5,7 @@ import { useAuth } from '../auth/useAuth'
 import { mensagemDeErro } from '../lib/api'
 import { mascararCpf, somenteDigitos } from '../lib/formato'
 import { Botao } from '../components/ui/Botao'
-import { Campo } from '../components/ui/Campo'
+import { Campo, CampoSenha } from '../components/ui/Campo'
 import { Aviso } from '../components/ui/Aviso'
 import { Carregando } from '../components/ui/Carregando'
 
@@ -60,9 +60,8 @@ export default function Login() {
             onChange={(e) => setCpf(mascararCpf(e.target.value))}
             required
           />
-          <Campo
+          <CampoSenha
             rotulo="Senha"
-            type="password"
             autoComplete="current-password"
             placeholder="Sua senha"
             value={senha}
