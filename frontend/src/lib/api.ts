@@ -2,10 +2,25 @@ import axios from 'axios'
 
 const CHAVE_TOKEN = 'gymsys.token'
 
+const PORTA_API_DEV = 8080
+
+/**
+ * Endereço da API quando VITE_API_URL não está definido.
+ *
+ * Usa o mesmo host de onde a página foi aberta, e não "localhost": abrindo
+ * pelo celular em http://192.168.x.x:5173, "localhost" seria o próprio
+ * celular, e a chamada morreria em "não foi possível falar com o servidor".
+ *
+ * Em produção o VITE_API_URL é definido (`/api` atrás do proxy reverso) e este
+ * fallback não é usado.
+ */
+function enderecoPadraoDaApi() {
+  const { protocol, hostname } = window.location
+  return `${protocol}//${hostname}:${PORTA_API_DEV}`
+}
+
 export const api = axios.create({
-  // Vem do .env para que o mesmo build sirva no PC servidor de casa,
-  // onde o host deixa de ser localhost.
-  baseURL: import.meta.env.VITE_API_URL ?? 'http://localhost:8080',
+  baseURL: import.meta.env.VITE_API_URL || enderecoPadraoDaApi(),
   timeout: 15000,
 })
 
