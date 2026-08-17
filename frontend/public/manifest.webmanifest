@@ -1,0 +1,19 @@
+{
+  "name": "Gym Sys",
+  "short_name": "Gym Sys",
+  "description": "Gestão de treinos, alunos e professores da academia.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0b0f0e",
+  "theme_color": "#0b0f0e",
+  "lang": "pt-BR",
+  "icons": [
+    {
+      "src": "/logoapp.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
