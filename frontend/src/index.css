@@ -13,18 +13,24 @@
  *   --color-sobre-acento  texto por cima do preenchimento
  */
 @theme {
-  --color-fundo: #f7f8f7;
-  --color-superficie: #ffffff;
-  --color-superficie-2: #eef1ee;
-  --color-borda: #dce1dc;
-  --color-texto: #10130f;
-  --color-texto-suave: #5a635c;
+  /*
+   * Claro sem branco puro: o cartao era #ffffff sobre um fundo quase branco,
+   * e as duas superficies somadas davam clarao. Agora a superficie e um
+   * off-white e o fundo desce junto, para o cartao continuar parecendo
+   * elevado — se so o branco baixasse, a hierarquia sumiria.
+   */
+  --color-fundo: #eaece7;
+  --color-superficie: #f5f6f2;
+  --color-superficie-2: #e0e3da;
+  --color-borda: #d0d5c8;
+  --color-texto: #161a13;
+  --color-texto-suave: #565e52;
   --color-acento: #a3d51f;
   --color-acento-escuro: #7fa817;
-  --color-acento-texto: #46700c;
+  --color-acento-texto: #41660b;
   --color-sobre-acento: #0a0d0c;
-  --color-perigo: #c0392f;
-  --color-alerta: #a06800;
+  --color-perigo: #b5372c;
+  --color-alerta: #8a5800;
 
   --radius-xl: 1rem;
   --radius-2xl: 1.25rem;
