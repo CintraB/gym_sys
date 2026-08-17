@@ -130,8 +130,33 @@ arquivo indica o que conferir antes de fechar as constraints.
 Como só um professor pode cadastrar outro, o primeiro usuário é criado por script:
 
 ```plaintext
-npm run criar-professor -- --cpf 12345678901 --nome "Seu Nome" --senha "suaSenha" --email voce@exemplo.com
+npm run criar-professor -- --cpf 12345678901 --nome "Seu Nome" --senha "suaSenha" --email voce@exemplo.com --titulo 123456789012
 ```
+
+### Dados de exemplo
+
+Para ter com o que testar sem cadastrar tudo à mão:
+
+```plaintext
+npm run dados-exemplo
+```
+
+Cria dois professores e cinco alunos em situações diferentes — com treino, com pedido em aberto,
+com histórico, sem nada e inativo. Pode rodar mais de uma vez: quem já existe é pulado, e o script
+nunca sobrescreve nem apaga.
+
+| Perfil | CPF | Situação |
+|---|---|---|
+| professor | `111.111.111-11` | Cristhian Cintra |
+| professor | `999.999.999-11` | Marina Alves |
+| aluno | `222.222.222-22` | Ana Souza — treino de superiores |
+| aluno | `333.333.333-33` | Bruno Lima — pedido em aberto, sem treino |
+| aluno | `444.444.444-44` | Carla Dias — treino atual + histórico |
+| aluno | `555.555.555-55` | Diego Rocha — sem treino e sem pedido |
+| aluno | `666.666.666-66` | Elaine Costa — inativa, login recusado |
+
+Senha `senha123` para os usuários que o script criar. Não use em banco com dados reais: as contas
+nascem com senha conhecida.
 
 ## Execução
 
