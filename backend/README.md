@@ -1,261 +1,298 @@
 # Gym Sys - Backend
 
+API RESTful em Node.js (Express + PostgreSQL) para gestão de treinos, alunos e professores.
 
-Esta é uma aplicação de API RESTful em Node.js que utiliza Express e PostgreSQL para gerenciar uma aplicação de controle de treinos e alunos em uma academia.
+Faz parte do monorepo [gym_sys](https://github.com/CintraB/gym_sys) — veja o
+[README principal](../README.md) para a visão geral.
 
-Faz parte do monorepo [gym_sys](https://github.com/CintraB/gym_sys) — veja o [README principal](../README.md) para a visão geral do projeto.
-
+Requer **Node.js 20 ou superior**.
 
 ## Instalação
-
-
-Clone o repositório:
-
 
 ```plaintext
 git clone https://github.com/CintraB/gym_sys
 cd gym_sys/backend
-```
-Instale as dependências:
-
-
-```plaintext
 npm install
 ```
 
+## Modo demo (sem PostgreSQL)
+
+Para experimentar a aplicação sem instalar banco nenhum:
+
+```plaintext
+npm run demo
+```
+
+Sobe a API com um PostgreSQL em memória, já populado com professor, alunos, um treino montado e um
+pedido em aberto. Nada é salvo em disco.
+
+| Perfil | CPF | Senha |
+|---|---|---|
+| Professor | `111.111.111-11` | `demo123` |
+| Aluno | `222.222.222-22` | `demo123` |
 
 ## Configuração
 
-
-Antes de executar o aplicativo, é necessário configurar as variáveis de ambiente no arquivo `.env`.
-
-
 ```plaintext
-PORTA = 8080
-USER =
-HOST =
-DATABASE =
-PASSWORD =
-PORTA_DB = 5432
-TOKEN_SEG = a6d54962edf82134d8a0f731100cc9b1ea44bc31625f31727b76fe2b604c752983b0637c82a9536ced2bde1b16eea6bf80a53f2ad88cf98c795a5b83cb7c1470
-ENABLE_CORS=http://localhost:3000;https://www.google.com.br
+cp .env.example .env
 ```
 
+```plaintext
+PORTA=8080
+HOST_BIND=0.0.0.0
+DB_USER=
+DB_HOST=localhost
+DB_NAME=
+DB_PASSWORD=
+DB_PORT=5432
+TOKEN_SEG=
+JWT_EXPIRACAO=7d
+ENABLE_CORS=http://localhost:5173
+PROXIES_CONFIAVEIS=0
+LIMITE_LOGIN_JANELA_MS=900000
+LIMITE_LOGIN_MAXIMO=20
+LIMITE_GERAL_JANELA_MS=60000
+LIMITE_GERAL_MAXIMO=300
+```
+
+As variáveis do banco usam o prefixo `DB_` de propósito: nomes como `USER` e `HOST` já existem no
+ambiente em Linux/macOS, e o `dotenv` não sobrescreve o que já está definido — o `.env` seria
+ignorado em silêncio. A aplicação falha na inicialização, com mensagem clara, se faltar alguma.
+
+`TOKEN_SEG` é o segredo de assinatura do JWT. Gere o seu:
+
+```plaintext
+node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
+```
+
+`ENABLE_CORS` é uma lista de origens separadas por `;`. Vazio significa nenhuma origem liberada.
+
+## Banco de dados
+
+### Com Docker (recomendado para desenvolver)
+
+```plaintext
+npm run db:up
+```
+
+Sobe um PostgreSQL 16 em container e, **na primeira vez**, aplica schema, triggers e seed
+automaticamente. O comando só retorna quando o banco está aceitando conexões.
+
+| Comando | O que faz |
+|---|---|
+| `npm run db:up` | Sobe o banco |
+| `npm run db:down` | Para o banco, **preservando** os dados |
+| `npm run db:reset` | **Apaga** os dados e recria do zero |
+| `npm run db:logs` | Acompanha o log do Postgres |
+| `npm run db:psql` | Abre um `psql` dentro do container |
+
+Os dados ficam no volume `gymsys-dados` e sobrevivem a `db:down` e a reinícios da máquina. Usuário,
+senha, banco e porta saem do mesmo `.env` que a API usa — os defaults (`gymsys`/`gymsys`/`gymsys`)
+funcionam sem configurar nada.
+
+Como os scripts de init só rodam quando o volume é criado, mudar `db/schema.sql` depois disso não
+tem efeito sozinho: use `npm run db:reset` (perde os dados) ou aplique a alteração via `db:psql`.
+
+### Sem Docker
+
+Banco novo, nesta ordem:
+
+```plaintext
+psql -U <usuario> -d <banco> -f db/schema.sql
+psql -U <usuario> -d <banco> -f db/triggers.sql
+psql -U <usuario> -d <banco> -f db/seed.sql
+```
+
+O `seed.sql` popula o catálogo com 77 exercícios e roda **uma vez só** — a ordem das linhas define
+os `id_exercicio`. Os triggers ficam separados porque preenchem `atualizado_em` via plpgsql, que o
+banco emulado dos testes não executa.
+
+Se você **já tem um banco** da versão anterior, use a migração em vez do schema (faça backup antes):
+
+```plaintext
+pg_dump -U <usuario> <banco> > backup.sql
+psql -U <usuario> -d <banco> -f db/migracao-v2.sql
+```
+
+Ela dá chave primária a `ex_usuario`, cria a coluna `id_treino` e liga cada exercício ao treino do
+respectivo aluno. Como esse vínculo não existia, o backfill é o melhor palpite possível; o próprio
+arquivo indica o que conferir antes de fechar as constraints.
+
+### Detalhes do modelo
+
+- Timestamps são `criado_em` / `atualizado_em`.
+- O grupo muscular do exercício é a coluna `tipo` (`PEITO`, `COSTAS`, `CÁRDIO`, …).
+- `nome_exercicio` não é único: `CROSS OVER` aparece em BÍCEPS e em TRÍCEPS.
+- `usuario.titulo` é obrigatório, 12 dígitos.
+- Exercícios de cardio são gravados sem séries, repetições nem carga — só com a observação de tempo
+  e intensidade.
+
+Como só um professor pode cadastrar outro, o primeiro usuário é criado por script:
+
+```plaintext
+npm run criar-professor -- --cpf 12345678901 --nome "Seu Nome" --senha "suaSenha" --email voce@exemplo.com
+```
 
 ## Execução
 
-
-Execute o comando
-
-
 ```plaintext
-npm run dev
-```
-O servidor estará acessível em http://localhost:8080.
-
-
-Ao efetuar login será gerado um token JWT necessário para navegação no sistema.
-
-
-Exemplo token professor
-```plaintext
-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6Nywibm9tZSI6InRlY28gY29tIGhhc2giLCJjcGYiOiIxMjM1NTM3ODkzNiIsInByb2Zlc3NvciI6dHJ1ZSwiYXRpdm8iOnRydWUsImlhdCI6MTcxOTg3ODk0NiwiZXhwIjoxNzI3NjU0OTQ2fQ.HT4wNLBWhBvJtXsd3HZKElwoSegJQk-75eB1mw55a_Q
+npm run dev     # desenvolvimento, com reload
+npm start       # produção
+npm test        # suíte de testes (59)
 ```
 
+Os testes rodam sobre um PostgreSQL em memória — não precisam de banco nem de `.env`.
+`test/seguranca.test.js` verifica falsificação de token, escalada de privilégio, acesso a dados de
+terceiros, injeção de SQL, limites de payload, CORS e vazamento de informação em mensagens de erro.
 
-Exemplo token aluno
-```plaintext
-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6Niwibm9tZSI6InR1aSBjb20gaGFzaCIsImNwZiI6IjE0MzQ1Njc4OTM2IiwiYWx1bm8iOnRydWUsImF0aXZvIjp0cnVlLCJpYXQiOjE3MTk4NzkyMDUsImV4cCI6MTcyNzY1NTIwNX0.7xt7VE5-7MNsghw_A-wvjT6vLHrox7GZZQeFbNJBktg
+Por padrão o servidor escuta em `0.0.0.0`, então responde também pelo IP da máquina na rede local —
+é assim que o celular alcança a API. Atrás de um proxy reverso, mude para `HOST_BIND=127.0.0.1`.
+
+## Limite de tentativas
+
+`POST /login` aceita 20 tentativas malsucedidas por janela de 15 minutos, contadas por IP **e** CPF.
+Logins corretos não consomem o limite, e travar um CPF não impede outra pessoa da mesma rede de
+entrar. Há também um teto geral de 300 requisições por minuto por IP. Tudo ajustável pelo `.env`.
+
+Atrás de proxy reverso, defina `PROXIES_CONFIAVEIS=1` — senão o Express lê o IP do proxy, o limite
+vira global e um único atacante tranca todos os usuários.
+
+Os contadores ficam em memória: valem para um processo só, que é o caso deste deploy.
+
+## HTTPS
+
+O token trafega no cabeçalho `Authorization`; sem TLS ele vai em texto claro pela rede. A pasta
+[`deploy/`](../deploy/README.md) tem um `Caddyfile` pronto que resolve isso e ainda coloca front e
+API na mesma origem.
+
+## Autenticação
+
+`POST /login` devolve um JWT. As demais rotas exigem `Authorization: Bearer <token>`.
+
+O token carrega apenas `id` e `cargo`; o perfil é reconferido no banco a cada requisição, de modo que
+desativar um usuário invalida a sessão dele imediatamente. Validade padrão de 7 dias
+(`JWT_EXPIRACAO`).
+
+## Endpoints
+
+### Públicos
+
+| Verbo | Rota | Descrição |
+|---|---|---|
+| GET | `/` | Status do serviço |
+| GET | `/health` | Health check |
+| POST | `/login` | Autentica e devolve token |
+
+```json
+{ "cpf": "99999999999", "senha": "senha123" }
 ```
 
+Resposta: `{ "token": "...", "usuario": { "id": 1, "nome": "...", "cpf": "...", "cargo": "professor", "ativo": true } }`
 
-### Endpoints
-  - **Login**
-    - POST /login - Obtém retorno e token JWT válido para navegação no sistema.
-  - **Aluno**
-    - GET /alunos/meutreino - Obtém o treino do aluno logado.
-    - POST /alunos/pedidotreino - Solicitar novo treino. 
-  - **Professor**
-    - GET /professores/alunos - Obtém todos os alunos cadastrados.
-    - GET /professores/aluno/:id - Obtém aluno por ID.
-    - POST /professores/usuario/cpfoutitulo - Obtém usuario por consulta de CPF ou titulo.
-    - POST /professores/alunos - Realiza o cadastro de um aluno no sistema.
-    - PUT /professores/aluno/:id - Altera cadastro de aluno no sistema.
-    - PUT /professores/alunos/desativar - Desativar cadastro de usuario.
-    - PUT /professores/alunos/reativar - Reativar cadastro de usuario.
-    - GET /professores/professores - Obtém todos professores cadastrados no sistema.
-    - GET /professores/professor/:id - Obtém professor por ID.
-    - POST /professores/professores - Realiza o cadastro de um professor no sistema.
-    - POST /professores/treino - Realiza o cadastro de um treino no sistema.
-    - GET /professores/treino/inativar/:id - Inativa todos treinos do aluno no sistema.
-    - GET /professores/treino/reativar/:id - Reativa todos treinos do aluno no sistema.
-    - GET /professores/treino/pedidos - Lista todos pedidos de treino no sistema.
-    - POST /professores/treino/pedido/finalizado - Marca como finalizado um pedido para novo treino.
-    - GET /professores/exercicios - Obtém todos exercícios cadastrados no sistema.
+### Autenticado (qualquer perfil)
 
+| Verbo | Rota | Descrição |
+|---|---|---|
+| GET | `/me` | Perfil do usuário do token |
 
-**Tabela Login**
+### Aluno (`/alunos`)
 
+| Verbo | Rota | Descrição |
+|---|---|---|
+| GET | `/alunos/meutreino` | Treino ativo com os exercícios |
+| GET | `/alunos/historico` | Treinos anteriores |
+| GET | `/alunos/pedidotreino` | Pedido em aberto, se houver |
+| POST | `/alunos/pedidotreino` | Solicita novo treino |
 
-| VERBO | URL |
-|----------|----------|
-|POST| http://localhost:8080/login |
+O aluno vem do token — nenhuma dessas rotas recebe id.
 
+```json
+{ "observacao": "machucado na patela (joelho esquerdo)" }
+```
 
-Exemplo Json para realizar o login.
-```plaintext
+Só é permitido um pedido em aberto por aluno (`409` no segundo).
+
+### Professor (`/professores`)
+
+| Verbo | Rota | Descrição |
+|---|---|---|
+| GET | `/professores/resumo` | Contadores do painel |
+| GET | `/professores/alunos` | Lista alunos — aceita `?busca=` e `?incluirInativos=true` |
+| POST | `/professores/alunos` | Cadastra aluno |
+| GET | `/professores/aluno/:id` | Aluno por ID |
+| PUT | `/professores/aluno/:id` | Altera cadastro do aluno |
+| GET | `/professores/aluno/:id/treino` | Treino ativo do aluno |
+| PUT | `/professores/alunos/desativar` | Desativa usuário por CPF |
+| PUT | `/professores/alunos/reativar` | Reativa usuário por CPF |
+| POST | `/professores/usuario/cpfoutitulo` | Busca usuário por CPF ou título |
+| GET | `/professores/professores` | Lista professores |
+| POST | `/professores/professores` | Cadastra professor |
+| GET | `/professores/professor/:id` | Professor por ID |
+| GET | `/professores/exercicios` | Catálogo de exercícios |
+| POST | `/professores/treino` | Cadastra treino |
+| GET | `/professores/treino/pedidos` | Pedidos em aberto |
+| POST | `/professores/treino/pedido/finalizado` | Finaliza um pedido |
+| PUT | `/professores/treino/inativar/:id` | Inativa os treinos do aluno |
+| PUT | `/professores/treino/reativar/:id` | Reativa os treinos do aluno |
+
+Cadastro de aluno ou professor:
+
+```json
 {
-    "cpf": "99999999999",
-    "senha": "senha123"
+  "cpf": "99999999999",
+  "nome": "joao",
+  "senha": "senha123",
+  "email": "email@email.com",
+  "titulo": "555555555555"
 }
 ```
 
+CPF e título são normalizados no servidor — podem chegar com máscara. Título é obrigatório (12
+dígitos, coluna `NOT NULL`); senha exige no mínimo 6 caracteres.
 
-**Tabela Aluno**
+Cadastro de treino:
 
-
-| VERBO | URL |
-|----------|----------|
-|GET| http://localhost:8080/alunos/meutreino |
-|POST| http://localhost:8080/alunos/pedidotreino |
-
-- O usuário é retirado do token JWT conforme login realizado pelo aluno.
-
-Exemplo Json para realizar pedido de novo treino.
-```plaintext
+```json
 {
-    "observacao": "machucado na patela (joelho esquerdo)"
+  "id_aluno": 6,
+  "exercicios": [
+    { "id_exercicio": 3, "numero_serie": 4, "repeticoes": "10 a 15", "carga": 20, "observacao_ex_usuario": "c/ isometria" },
+    { "id_exercicio": 8, "numero_serie": 4, "repeticoes": "10 a 15", "carga": 15 }
+  ]
 }
 ```
 
-**Tabela Professor**
+O professor é obtido do token — `id_professor` no corpo é ignorado. Salvar um treino desativa o
+treino anterior do aluno e encerra o pedido em aberto dele, na mesma transação.
 
+Exercícios de cardio entram só com a observação: `numero_serie` 0, `repeticoes` e `carga` vazios.
 
-| VERBO | URL |
-|----------|----------|
-|GET| http://localhost:8080/professores/alunos |
-|GET| http://localhost:8080/professores/alunos/:id |
-|GET| http://localhost:8080/professores/professores |
-|GET| http://localhost:8080/professores/professores/:id |
-|GET| http://localhost:8080/professores/exercicios |
-|GET| http://localhost:8080/professores/treino/inativar/:id |
-|GET| http://localhost:8080/professores/treino/reativar/:id |
-|GET| http://localhost:8080/professores/treino/pedidos |
-|POST| http://localhost:8080/professores/alunos |
-|POST| http://localhost:8080/professores/usuario/cpfoutitulo |
-|POST| http://localhost:8080/professores/professores |
-|POST| http://localhost:8080/professores/treino |
-|POST| http://localhost:8080/professores/treino/pedido/finalizado |
-|PUT| http://localhost:8080/professores/alunos/desativar |
-|PUT| http://localhost:8080/professores/alunos/reativar |
-|PUT| http://localhost:8080/professores/aluno/:id |
-
-
-Exemplo Json para cadastrar aluno.
-```plaintext
-{
-    "cpf":"99999999999",
-    "nome":"joao",
-    "senha":"senha123",
-    "email":"email@email.com",
-    "titulo":"555555555555"
-}
+```json
+{ "id_exercicio": 36, "numero_serie": 0, "repeticoes": "", "carga": "", "observacao_ex_usuario": "20 min / moderado" }
 ```
 
-Exemplo Json para alterar aluno.
-```plaintext
-{
-    "cpf":"99999999999",
-    "nome":"joao",
-    "email":"email@email.com",
-    "titulo":"555555555555"
-}
+Desativar/reativar usuário e finalizar pedido:
+
+```json
+{ "cpf": "88888888888" }
+{ "id_pedido": 3 }
 ```
 
-Exemplo Json para cadastrar professor.
-```plaintext
-{
-    "cpf":"88888888888",
-    "nome":"maria",
-    "senha":"senha123",
-    "email":"email@email.com",
-    "titulo":"666666666666"
-}
-```
+## Erros
 
+Toda resposta de erro tem o formato `{ "message": "..." }`. Detalhes internos (query, tabela,
+constraint) nunca são devolvidos — vão para o log do servidor.
 
-Exemplo Json para cadastrar treino.
-```plaintext
-{
-    "id_user": 6,
-    "id_professor": 7,
-    "exercicios": [
-        {
-            "id_exercicio": 3,
-            "numero_serie": 4,
-            "repeticoes": "10 a 15",
-            "carga": 20,
-            "observacao_ex_usuario": "c/ isometria"
-        },
-        {
-            "id_exercicio": 8,
-            "numero_serie": 4,
-            "repeticoes": "10 a 15",
-            "carga": 15,
-            "observacao_ex_usuario": "pegada media"
-        }
-    ]
-}
-```
-Exemplo Json para marcar pedido de treino como finalizado.
-```plaintext
-{
-    "id_pedido": "3"
-}
-```
+| Status | Quando |
+|---|---|
+| 400 | Dados inválidos |
+| 401 | Token ausente, inválido, ou credenciais erradas |
+| 403 | Perfil sem permissão para a rota |
+| 404 | Recurso ou rota inexistente |
+| 409 | Conflito (CPF duplicado, pedido já em aberto) |
+| 500 | Erro interno |
 
-Exemplo Json para desativar ou reativar usuario.
-```plaintext
-{
-    "cpf":"88888888888"
-}
-```
+## Tecnologias
 
-Exemplo Json para procurar usuario por cpf ou titulo.
-```plaintext
-{
-    "cpf": "88888888888",
-    "titulo": "666666666666"
-}
-```
-
-- **Estrutura de Arquivos**
-  - server.js: Arquivo de entrada da aplicação.
-  - app.js: Configuração do aplicativo Express.
-  - config/dbConnect.js: Conexão com o banco de dados PostgreSQL.
-  - routes/index.js: Arquivo de roteamento principal.
-  - routes/loginRoutes.js: Rota relacionada ao login da aplicação.
-  - routes/alunoRoutes.js: Rotas relacionadas aos alunos.
-  - routes/professorRoutes.js: Rotas relacionadas aos professores.
-  - controllers/loginController.js: Controlador para operações relacionadas ao login.
-  - controllers/alunoController.js: Controlador para operações relacionadas aos alunos.
-  - controllers/professorController.js: Controlador para operações relacionadas aos professores.
-  - middlewares/geradorJwt.js: Middleware para gerar os tokens válidos.
-  - middlewares/HashcomSal.js: Middleware para criptografar as senhas antes de enviar ao banco.
-  - middlewares/loginVerificador.js: Middleware para comparar a hash da senha com a presente no banco.
-  - middlewares/autenticadorJwt.js: Middleware para validar as rotas de professor durante navegação.
-  - middlewares/autenticadorAluno.js: Middleware para validar as rotas de aluno durante a navegação.
-  - package.json: Arquivo de configuração do Node.js que lista as dependências do projeto.
-  - .env: Arquivo de variáveis de ambiente.
-
-
-- **Tecnologias Utilizadas**
-  - Node.js
-  - Express.js
-  - PostgreSQL
-  - dotenv
-  - nodemon
-  - pg (node-postgres)
-  - jsonwebtoken
-  - bcrypt
-  - cors
+Node.js · Express · PostgreSQL (`pg`) · `jose` (JWT) · `node:crypto` scrypt (senhas) · dotenv · cors
+· `pg-mem` (testes e modo demo)

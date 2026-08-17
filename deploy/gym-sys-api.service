@@ -1,0 +1,33 @@
+# Serviço systemd da API. Copiar para /etc/systemd/system/ e:
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now gym-sys-api
+#
+# Logs: journalctl -u gym-sys-api -f
+
+[Unit]
+Description=Gym Sys API
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+User=gymsys
+WorkingDirectory=/opt/gym-sys/backend
+EnvironmentFile=/opt/gym-sys/backend/.env
+ExecStart=/usr/bin/node server.js
+Restart=on-failure
+RestartSec=5
+
+# A API só precisa ser alcançada pelo Caddy, que roda na mesma máquina.
+# Sem isso ela fica exposta na rede na porta 8080, contornando o HTTPS.
+Environment=HOST_BIND=127.0.0.1
+
+# Endurecimento básico
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/gym-sys/backend
+
+[Install]
+WantedBy=multi-user.target

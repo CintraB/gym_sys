@@ -1,0 +1,72 @@
+# Caddy na frente do Gym Sys: HTTPS + mesma origem para front e API.
+#
+# Por que um proxy reverso e não só rodar os dois processos soltos:
+#   - HTTPS sem isso não existe (o token viaja em texto claro).
+#   - Front e API passam a responder na MESMA origem, então o CORS deixa de
+#     ser necessário e o token pode migrar para cookie httpOnly no futuro.
+#
+# Escolha UM dos dois blocos abaixo.
+
+# ---------------------------------------------------------------------------
+# OPÇÃO A — só rede local, sem domínio (mais simples)
+#
+# Caddy emite um certificado com a CA interna dele. Funciona offline, mas cada
+# aparelho precisa confiar nessa CA uma vez, senão o navegador acusa site
+# inseguro. O certificado raiz fica em:
+#   Linux: /var/lib/caddy/.local/share/caddy/pki/authorities/local/root.crt
+# Copie para o celular e instale em "Credenciais / Certificados confiáveis".
+#
+# Troque pelo IP fixo do seu servidor.
+# ---------------------------------------------------------------------------
+
+https://192.168.15.10 {
+	tls internal
+
+	# API primeiro: handle_path remove o prefixo /api antes de repassar,
+	# então o backend continua servindo /login, /me, /alunos... sem mudança.
+	handle_path /api/* {
+		reverse_proxy localhost:8080
+	}
+
+	# Front: arquivos estáticos do build do Vite.
+	handle {
+		root * /opt/gym-sys/frontend/dist
+		try_files {path} /index.html
+		file_server
+	}
+
+	encode gzip
+	log {
+		output file /var/log/caddy/gym-sys.log
+	}
+}
+
+# ---------------------------------------------------------------------------
+# OPÇÃO B — domínio próprio, certificado público (nada a instalar no celular)
+#
+# Precisa de um domínio apontando para casa. Com DuckDNS e desafio DNS o
+# certificado sai mesmo sem abrir porta 80 para a internet.
+#
+# Requer o build do Caddy com o plugin do DuckDNS:
+#   xcaddy build --with github.com/caddy-dns/duckdns
+#
+# Descomente e ajuste:
+# ---------------------------------------------------------------------------
+
+# https://academia.duckdns.org {
+# 	tls {
+# 		dns duckdns {env.DUCKDNS_TOKEN}
+# 	}
+#
+# 	handle_path /api/* {
+# 		reverse_proxy localhost:8080
+# 	}
+#
+# 	handle {
+# 		root * /opt/gym-sys/frontend/dist
+# 		try_files {path} /index.html
+# 		file_server
+# 	}
+#
+# 	encode gzip
+# }
