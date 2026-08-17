@@ -1,11 +1,23 @@
 {
   "name": "gym-sys-backend",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "API RESTful do Gym Sys para gestão de alunos, professores e treinos.",
-  "main": "index.js",
+  "type": "module",
+  "main": "server.js",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "nodemon server.js"
+    "dev": "node --watch server.js",
+    "start": "node server.js",
+    "test": "node --test",
+    "criar-professor": "node scripts/criarProfessor.js",
+    "demo": "node scripts/demo.js",
+    "db:up": "docker compose up -d --wait",
+    "db:down": "docker compose down",
+    "db:reset": "docker compose down -v && docker compose up -d --wait",
+    "db:logs": "docker compose logs -f db",
+    "db:psql": "docker compose exec db psql"
   },
   "keywords": [],
   "author": "",
@@ -14,10 +26,11 @@
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
-    "jsonwebtoken": "^9.0.2",
+    "express-rate-limit": "^8.6.2",
+    "jose": "^6.2.9",
     "pg": "^8.11.5"
   },
   "devDependencies": {
-    "nodemon": "^3.1.1"
+    "pg-mem": "^3.0.14"
   }
 }

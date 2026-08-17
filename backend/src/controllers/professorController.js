@@ -1,568 +1,425 @@
-const { query } = require("express");
-const pool = require("../config/dbConnect.js");
-const criarHashComSal = require("../middlewares/HashcomSal.js");
-const jwt = require('jsonwebtoken');
-const { decode } = jwt;
-
-class ProfessorController {
-
-    static ListarAlunos = async (req, res) => {
-        try {
-            //mostrar alunos ativos
-            const result = await pool.query("SELECT id, nome, cpf, email, titulo, aluno, professor, ativo FROM usuario WHERE aluno = TRUE AND ativo = true;");
-            res.status(200).json(result.rows);
-        } catch (error) {
-            res.status(500).json(error);
-        }
-    }
-
-    static ListarAlunoPorID = async (req, res) => {
-        try {
-            const id = req.params.id;
-            const query_verifica = 'SELECT id, nome, cpf, email, titulo, aluno, professor, ativo FROM usuario WHERE id = $1;'
-            const valores = [id];
-            const result = await pool.query(query_verifica, valores);
-
-            if (result.rows.length > 0 && result.rows[0].ativo == true && result.rows[0].aluno == true) {
-                res.status(200).json(result.rows[0]);
-            } else {
-                res.status(404).json({ message: 'Aluno não encontrado ou inativo' });
-            }
-        } catch (error) {
-            res.status(500).json(error);
-        }
-    }
-
-    static ListarUsuarioPorCPFouTitulo = async (req, res) => {
-        try {
-            const cpf = req.body.cpf;
-            const titulo = req.body.titulo;
-            if (cpf.length > 0 || titulo.length > 0) {
-                const verifica = await verifica_existencia_usuario([cpf, titulo]);
-                if (verifica == false) {
-                    const query = 'SELECT id, nome, cpf, email, titulo, aluno, professor FROM usuario WHERE ativo = TRUE AND (cpf = $1 OR titulo = $2);';
-                    const valores = [cpf, titulo];
-                    const result = await pool.query(query, valores);
-
-                    res.status(200).json(result.rows[0]);
-                } else {
-                    res.status(404).json({ message: 'Aluno não encontrado ou inexistente' });
-                }
-            } else {
-                res.status(400).json({ error: 'Dados Invalidos' });
-            }
-        } catch (error) {
-            res.status(500).json(error);
-        }
-    }
-
-    static DesativarUsuario = async (req, res) => {
-        try {
-            const valores_usuario = [req.body.cpf];
-            const verifica = await verifica_existencia_usuario(valores_usuario); //se existe retorna falso
-            const [cpf] = valores_usuario;
-            if (verifica == false) {
-                const query = 'UPDATE usuario SET ativo = false WHERE cpf = $1;';
-                const valores = [cpf];
-                await pool.query(query, valores);
-                const query_dados = 'SELECT id, nome, cpf, email, titulo, aluno, professor, ativo FROM usuario WHERE cpf = $1;'
-                const dados = await pool.query(query_dados, valores);
-
-                //inativando treinos
-                const query_treino = 'UPDATE treino SET ativo = false WHERE id_aluno = $1;';
-                const id = [dados.rows[0].id];
-                await pool.query(query_treino, id);
-
-                //inativando tabela ex
-                const query_ex = 'UPDATE ex_usuario SET ativo = false WHERE id_user = $1';
-                await pool.query(query_ex, id);
-
-                res.status(200).json({ message: 'Usuário alterado para inativo', dados: dados.rows });
-            } else {
-                res.status(400).json({ message: "Usuario inativo ou inexistente" });
-            }
-
-        } catch (error) {
-            res.status(500).json(error);
-        }
-    }
-
-    static ReativarUsuario = async (req, res) => {
-        try {
-            const valores_usuario = [req.body.cpf];
-            const verifica = await verifica_existencia_usuario_inativo(valores_usuario);
-            const [cpf] = valores_usuario;
-            if (verifica) {
-                const query = 'UPDATE usuario SET ativo = true WHERE cpf = $1;';
-                const valores = [cpf];
-                await pool.query(query, valores);
-                const query_dados = 'SELECT id, nome, cpf, email, titulo, aluno, professor, ativo FROM usuario WHERE cpf = $1;'
-                const dados = await pool.query(query_dados, valores);
-
-                res.status(200).json({ message: 'Usuário alterado para ativo', dados: dados.rows });
-            } else {
-                res.status(400).json({ message: "Usuario não encontrado" });
-            }
-        } catch (error) {
-            res.status(500).json(error);
-        }
-    }
-
-    static ListarProfessorPorID = async (req, res) => {
-        try {
-            const id = req.params.id;
-            const query_verifica = 'SELECT id, nome, cpf, email, titulo, aluno, professor, ativo FROM usuario WHERE id = $1;'
-            const valores = [id];
-            const result = await pool.query(query_verifica, valores);
-
-            if (result.rows.length > 0 && result.rows[0].ativo == true && result.rows[0].professor == true) {
-                res.status(200).json(result.rows[0]);
-            } else {
-                res.status(404).json({ message: 'Professor não encontrado ou inativo' });
-            }
-        } catch (error) {
-            res.status(500).json(error);
-        }
-    }
-
-    static ListarProfessores = async (req, res) => {
-        try {
-            const result = await pool.query("SELECT id, nome, cpf, email, titulo, aluno, professor, ativo FROM usuario WHERE professor = TRUE;");
-            res.status(200).json(result.rows);
-        } catch (error) {
-            res.status(500).json(error);
-        }
-    }
-
-    static CadastrarAlunos = async (req, res) => {
-        try {
-            //cpf,nome,senha,email,titulo,aluno,professor,ativo => campos tabela aluno // regras de negocio -> aluno sempre true, ativo sempre true, professor sempre falso.
-            const valores_usuario = [req.body.cpf, req.body.nome, req.body.senha, req.body.email, req.body.titulo];
-
-            const valida = await validar_usuario(valores_usuario);
-            if (valida) {
-                //verificar cadastro existente
-                const cadastro = await verifica_existencia_usuario(valores_usuario);
-                if (cadastro) {
-                    const [cpf, nome, senha, email, titulo] = valores_usuario;
-                    const hashSenha = await criarHashComSal(senha);
-                    const query = 'INSERT INTO usuario(cpf,nome,senha,email,titulo) VALUES ($1,$2,$3,$4,$5);';
-                    const values = [cpf, nome, hashSenha, email, titulo];
-
-                await pool.query(query, values);
-
-                //Pegar ID do professor que fez o cadastro e registrar no banco de dados na coluna atualizado_por
-                const token = req.headers.authorization?.split(" ")[1];
-                const ID_PESSOA = await retira_dados_jwt(token); //ID do professor que realizou o cadastro
-                
-                //Pegar ID do cadastro que acabou de ser realizado
-                const query_cadastro = 'SELECT ID FROM usuario WHERE CPF = $1';
-                const ID_NOVO_CADASTRO = await pool.query(query_cadastro,[cpf]);
-                
-                const insert_modificacao_id = `
-                UPDATE usuario 
-                SET atualizado_por = $2 
-                WHERE id = $1;`;
-
-                await pool.query(insert_modificacao_id, [ID_NOVO_CADASTRO.rows[0].id, ID_PESSOA]); //UPDATE no banco quem fez o cadastro.
-
-                    res.status(200).json({ message: "Aluno cadastrado com sucesso" });
-                } else {
-                    res.status(400).json({ error: 'Usuario ja cadastrado' });
-                }
-
-            } else {
-                res.status(400).json({ error: 'Dados Invalidos' });
-            }
-
-
-        } catch (error) {
-            res.status(500).json(error);
-        }
-    }
-
-    static AlterarAluno = async (req, res) => {
-        try {
-            const id = req.params.id;
-            const { cpf, nome, email, titulo } = req.body;
-
-            // Verificar se os valores estão presentes e não são nulos ou vazios
-            let updates = [];
-            let valores = [];
-            let index = 1;
-
-            if (cpf) {
-                updates.push(`cpf = $${index}`);
-                valores.push(cpf);
-                index++;
-            }
-            if (nome) {
-                updates.push(`nome = $${index}`);
-                valores.push(nome);
-                index++;
-            }
-            if (email) {
-                updates.push(`email = $${index}`);
-                valores.push(email);
-                index++;
-            }
-            if (titulo) {
-                updates.push(`titulo = $${index}`);
-                valores.push(titulo);
-                index++;
-            }
-
-            // Se não houver campos para atualizar, retorne um erro
-            if (updates.length === 0) {
-                return res.status(400).json({ error: 'Nenhum dado para atualizar' });
-            }
-
-            // Adicionar o ID ao final dos valores
-            valores.push(id);
-
-            // Construir a consulta SQL dinamicamente
-            const query = `
-                UPDATE usuario
-                SET ${updates.join(', ')}
-                WHERE id = $${index} AND ativo = true AND aluno = true
-                RETURNING id, nome, cpf, email, titulo, aluno, professor;
-            `;
-
-            // Executar a consulta no banco de dados
-            const result = await pool.query(query, valores);
-
-            //Pegar ID do professor que fez alteração e registrar no banco de dados
-            const token = req.headers.authorization?.split(" ")[1];
-            let ID_PESSOA = await retira_dados_jwt(token);
-
-            const insert_modificacao_id = `
-            UPDATE usuario 
-            SET atualizado_por = $2 
-            WHERE id = $1;`;
-
-            await pool.query(insert_modificacao_id, [id, ID_PESSOA]);
-
-            // Verificar se o usuário foi encontrado e atualizado
-            if (result.rows.length > 0) {
-                res.status(200).json({ message: 'Dados do aluno alterados com sucesso', dados: result.rows[0] });
-            } else {
-                res.status(404).json({ message: 'Aluno não encontrado' });
-            }
-
-        } catch (error) {
-            res.status(500).json(error);
-        }
-    }
-
-    static CadastrarProfessores = async (req, res) => {
-        try {
-            //INSERT INTO usuario(cpf,nome,senha,email,titulo,aluno,professor,ativo)
-            const valores_professor = [req.body.cpf, req.body.nome, req.body.senha, req.body.email, req.body.titulo];
-            const valida = await validar_usuario(valores_professor);
-
-            if (valida) {
-                //verificar cadastro existente
-                const cadastro = await verifica_existencia_usuario(valores_professor);
-                if (cadastro) {
-                    const aln = false, prof = true, atv = true;
-                    const [cpf, nome, senha, email, titulo] = valores_professor;
-                    const hashSenha = await criarHashComSal(senha);
-                    const query = 'INSERT INTO usuario(cpf,nome,senha,email,titulo,aluno,professor,ativo) VALUES ($1,$2,$3,$4,$5,$6,$7,$8);';
-                    const values = [cpf, nome, hashSenha, email, titulo, aln, prof, atv];
-
-                await pool.query(query, values);
-
-                //Pegar ID do professor que fez o cadastro e registrar no banco de dados na coluna atualizado_por
-                const token = req.headers.authorization?.split(" ")[1];
-                const ID_PESSOA = await retira_dados_jwt(token); //ID do professor que realizou o cadastro
-                
-                //Pegar ID do cadastro que acabou de ser realizado
-                const query_cadastro = 'SELECT ID FROM usuario WHERE CPF = $1';
-                const ID_NOVO_CADASTRO = await pool.query(query_cadastro,[cpf]);
-                
-                const insert_modificacao_id = `
-                UPDATE usuario 
-                SET atualizado_por = $2 
-                WHERE id = $1;`;
-
-                await pool.query(insert_modificacao_id, [ID_NOVO_CADASTRO.rows[0].id, ID_PESSOA]); //UPDATE no banco quem fez o cadastro.
-
-                    res.status(200).json({ message: "Professor cadastrado com sucesso"});
-                } else {
-                    res.status(400).json({ error: 'Professor ja cadastrado' });
-                }
-
-            } else {
-                res.status(400).json({ error: 'Dados Invalidos' });
-            }
-
-
-
-        } catch (error) {
-            res.status(500).json(error);
-        }
-    }
-
-
-    static ListarExercicios = async (req, res) => {
-        try {
-            //mostrar todos exercicios cadastrados no sistema
-            const result = await pool.query("SELECT * FROM exercicio;");
-
-            res.status(200).json(result.rows);
-        } catch (error) {
-            res.status(500).json(error);
-        }
-    }
-
-    static CadastrarTreino = async (req, res) => {
-        const client = await pool.connect();
-        try {
-            await client.query('BEGIN');
-
-            const { id_user, id_professor, exercicios } = req.body;
-
-            // Verificar se os dados estão presentes
-            if (![id_user, id_professor].every(value => value !== undefined && value !== '') ||
-                !Array.isArray(exercicios) ||
-                exercicios.length === 0 ||
-                !exercicios.every(exercicio =>
-                    [exercicio.id_exercicio, exercicio.numero_serie, exercicio.repeticoes, exercicio.carga].every(value => value !== undefined && value !== '')
-                )) {
-                return res.status(400).json({ error: 'Dados inválidos' });
-            }
-
-            // Verifica se o usuário existe
-            const qry = 'SELECT nome, cpf, titulo FROM usuario WHERE ativo = TRUE AND id = $1';
-            const dados = [id_user];
-            const resposta = await client.query(qry, dados);
-
-            // Verifica se o professor existe
-            const query_professor = 'SELECT nome, cpf, titulo FROM usuario WHERE professor = TRUE AND ativo = TRUE AND id = $1';
-            const dados_professor = [id_professor];
-            const resposta_professor = await client.query(query_professor, dados_professor);
-
-            if (resposta.rows.length > 0 && resposta_professor.rows.length > 0) {
-                // Adicionar o início do treino na tabela de treino
-                const consulta = 'INSERT INTO treino(id_aluno, id_professor) VALUES ($1, $2) RETURNING id_treino';
-                const valores_treino = [id_user, id_professor];
-                const result_treino = await client.query(consulta, valores_treino);
-
-                // ID do treino recém-inserido
-                const id_treino = result_treino.rows[0].id_treino;
-
-                // Construir a query dinamicamente para os exercícios
-                let query_exercicios = 'INSERT INTO ex_usuario(id_user, id_exercicio, numero_serie, repeticoes, carga, observacao_ex_usuario) VALUES ';
-                const valores_exercicios = [];
-                let placeholderIndex = 1;
-
-                exercicios.forEach((exercicio) => {
-                    const { id_exercicio, numero_serie, repeticoes, carga, observacao_ex_usuario } = exercicio;
-                    query_exercicios += `($${placeholderIndex++}, $${placeholderIndex++}, $${placeholderIndex++}, $${placeholderIndex++}, $${placeholderIndex++}, $${placeholderIndex++}),`;
-                    valores_exercicios.push(id_user, id_exercicio, numero_serie, repeticoes, carga, observacao_ex_usuario);
-                });
-
-                // Remover a última vírgula
-                query_exercicios = query_exercicios.slice(0, -1);
-
-                // Executar a query para os exercícios
-                await client.query(query_exercicios, valores_exercicios);
-
-                await client.query('COMMIT');
-                res.status(200).json({ message: "Treino cadastrado com sucesso" });
-            } else {
-                await client.query('ROLLBACK');
-                if (resposta.rows.length === 0) {
-                    res.status(400).json({ error: 'Usuário não encontrado' });
-                } else {
-                    res.status(400).json({ error: 'Professor não encontrado ou não ativo' });
-                }
-            }
-
-        } catch (error) {
-            await client.query('ROLLBACK');
-            res.status(500).json(error);
-        } finally {
-            client.release();
-        }
-    }
-
-    static InativarTreino = async (req, res) => {
-        const client = await pool.connect();
-        try {
-            await client.query('BEGIN');
-
-            const id = req.params.id;
-            const query_verifica = 'SELECT id, nome, cpf, email, titulo, aluno, professor, ativo FROM usuario WHERE id = $1 AND ativo = true;';
-            const valores = [id];
-            const result = await client.query(query_verifica, valores);
-
-            if (result.rows.length > 0 && result.rows[0].ativo == true && result.rows[0].aluno == true) {
-                const query_tabela_treino = 'UPDATE treino SET ativo = false WHERE id_aluno = $1 AND ativo = true;';
-                const valor_treino = [id];
-                await client.query(query_tabela_treino, valor_treino);
-
-                const query_tabela_exusuario = 'UPDATE ex_usuario SET ativo = false WHERE id_user = $1 AND ativo = true;';
-                const valor_tabela_exusuario = [id];
-                await client.query(query_tabela_exusuario, valor_tabela_exusuario);
-
-                await client.query('COMMIT');
-                res.status(200).json({ message: "Treino inativado com sucesso" });
-            } else {
-                await client.query('ROLLBACK');
-                res.status(404).json({ message: 'Aluno não encontrado ou inativo' });
-            }
-
-        } catch (error) {
-            await client.query('ROLLBACK');
-            res.status(500).json(error);
-        } finally {
-            client.release();
-        }
-    }
-
-    static ReativarTreino = async (req, res) => {
-        const client = await pool.connect();
-        try {
-            await client.query('BEGIN');
-
-            const id = req.params.id;
-            const query_verifica = 'SELECT id, nome, cpf, email, titulo, aluno, professor, ativo FROM usuario WHERE id = $1 AND ativo = true;';
-            const valores = [id];
-            const result = await client.query(query_verifica, valores);
-
-            if (result.rows.length > 0 && result.rows[0].ativo == true && result.rows[0].aluno == true) {
-                const query_tabela_treino = 'UPDATE treino SET ativo = true WHERE id_aluno = $1;';
-                const valor_treino = [id];
-                await client.query(query_tabela_treino, valor_treino);
-
-                const query_tabela_exusuario = 'UPDATE ex_usuario SET ativo = true WHERE id_user = $1;';
-                const valor_tabela_exusuario = [id];
-                await client.query(query_tabela_exusuario, valor_tabela_exusuario);
-
-                await client.query('COMMIT');
-                res.status(200).json({ message: "Treino reativado com sucesso" });
-            } else {
-                await client.query('ROLLBACK');
-                res.status(404).json({ message: 'Aluno não encontrado ou inativo' });
-            }
-        } catch (error) {
-            await client.query('ROLLBACK');
-            res.status(500).json(error);
-        } finally {
-            client.release();
-        }
-    }
-
-    static PedidoDeTreino = async (req, res) => {
-        //marcar pedido de treino como concluído
-        const id_pedido = req.body.id_pedido;
-
-        const query = 'SELECT * FROM pedido_treino WHERE ativo = true AND id_pedido = $1;';
-        const result = await pool.query(query, [id_pedido]);
-
-        if (result.rows.length > 0) {
-            const query_treino = 'UPDATE pedido_treino SET ativo = false WHERE id_pedido = $1;';
-            await pool.query(query_treino, [id_pedido]);
-
-            res.status(200).json({ message: 'Pedido finalizado com sucesso.' });
-        } else {
-            res.status(404).json({ message: 'Pedido não encontrado ou já finalizado.' });
-        }
-
-
-    }
-
-    static ListarPedidosDeTreino = async (req, res) => {
-        try {
-            const query = 'SELECT * FROM pedido_treino WHERE ativo = true;';
-            const result = await pool.query(query);
-
-            res.status(200).json(result.rows);
-        } catch (error) {
-            res.status(500).json(error);
-        }
-    }
+import { db } from "../config/db.js";
+import { criarHashComSal } from "../lib/senha.js";
+import {
+  asyncHandler,
+  erroConflito,
+  erroNaoEncontrado,
+  erroRequisicao,
+} from "../lib/erros.js";
+import {
+  normalizarDigitos,
+  validarCadastroUsuario,
+  validarExerciciosTreino,
+} from "../lib/validacao.js";
+import { SQL_EXERCICIOS_DO_TREINO } from "./alunoController.js";
+
+const CAMPOS_PUBLICOS = "id, nome, cpf, email, titulo, aluno, professor, ativo";
+
+/* ------------------------------------------------------------------ alunos */
+
+export const listarAlunos = asyncHandler(async (req, res) => {
+  const busca = (req.query.busca ?? "").toString().trim();
+  const incluirInativos = req.query.incluirInativos === "true";
+
+  const condicoes = ["aluno = TRUE"];
+  const valores = [];
+
+  if (!incluirInativos) {
+    condicoes.push("ativo = TRUE");
+  }
+  if (busca) {
+    valores.push(`%${busca}%`, `%${normalizarDigitos(busca) || busca}%`);
+    condicoes.push(`(nome ILIKE $${valores.length - 1} OR cpf LIKE $${valores.length})`);
+  }
+
+  const { rows } = await db.query(
+    `SELECT ${CAMPOS_PUBLICOS} FROM usuario WHERE ${condicoes.join(" AND ")} ORDER BY nome`,
+    valores
+  );
+
+  res.json(rows);
+});
+
+export const listarAlunoPorId = asyncHandler(async (req, res) => {
+  const { rows } = await db.query(
+    `SELECT ${CAMPOS_PUBLICOS} FROM usuario WHERE id = $1 AND aluno = TRUE AND ativo = TRUE`,
+    [req.params.id]
+  );
+
+  if (rows.length === 0) {
+    throw erroNaoEncontrado("Aluno não encontrado ou inativo");
+  }
+  res.json(rows[0]);
+});
+
+export const buscarUsuarioPorCpfOuTitulo = asyncHandler(async (req, res) => {
+  const cpf = normalizarDigitos(req.body?.cpf);
+  const titulo = normalizarDigitos(req.body?.titulo);
+
+  if (!cpf && !titulo) {
+    throw erroRequisicao("Informe CPF ou título");
+  }
+
+  const { rows } = await db.query(
+    `SELECT ${CAMPOS_PUBLICOS} FROM usuario
+      WHERE ativo = TRUE AND (($1 <> '' AND cpf = $1) OR ($2 <> '' AND titulo = $2))`,
+    [cpf, titulo]
+  );
+
+  if (rows.length === 0) {
+    throw erroNaoEncontrado("Usuário não encontrado");
+  }
+  res.json(rows[0]);
+});
+
+async function cadastrarUsuario(req, { professor }) {
+  const dados = validarCadastroUsuario(req.body);
+
+  const { rows: existentes } = await db.query(
+    "SELECT id FROM usuario WHERE cpf = $1 OR ($2::text IS NOT NULL AND titulo = $2)",
+    [dados.cpf, dados.titulo]
+  );
+  if (existentes.length > 0) {
+    throw erroConflito("Já existe um usuário com esse CPF ou título");
+  }
+
+  const hashSenha = await criarHashComSal(dados.senha);
+  const { rows } = await db.query(
+    `INSERT INTO usuario (cpf, nome, senha, email, titulo, aluno, professor, ativo, atualizado_por)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, TRUE, $8)
+     RETURNING ${CAMPOS_PUBLICOS}`,
+    [
+      dados.cpf,
+      dados.nome,
+      hashSenha,
+      dados.email,
+      dados.titulo,
+      !professor,
+      professor,
+      req.usuario.id,
+    ]
+  );
+
+  return rows[0];
 }
 
-async function validar_usuario(dados_usuario) {
-    //verificar se os campos estão presentes
-    if (dados_usuario.every(value => value !== undefined && value !== '')) {
+export const cadastrarAluno = asyncHandler(async (req, res) => {
+  const aluno = await cadastrarUsuario(req, { professor: false });
+  res.status(201).json({ message: "Aluno cadastrado com sucesso", aluno });
+});
 
-        //verifica se os dados são do tipo correto
-        const [cpf, nome, senha, email, titulo] = dados_usuario;
+export const cadastrarProfessor = asyncHandler(async (req, res) => {
+  const professor = await cadastrarUsuario(req, { professor: true });
+  res.status(201).json({ message: "Professor cadastrado com sucesso", professor });
+});
 
-        // Verificar se CPF é um número com 11 dígitos
-        const cpfValido = /^\d{11}$/.test(cpf);
+export const alterarAluno = asyncHandler(async (req, res) => {
+  const atualizacoes = [];
+  const valores = [];
 
-        // Verificar se nome é uma string
-        const nomeValido = typeof nome === 'string';
+  const campos = {
+    cpf: req.body?.cpf !== undefined ? normalizarDigitos(req.body.cpf) : undefined,
+    nome: req.body?.nome?.trim(),
+    email: req.body?.email?.trim(),
+    titulo: req.body?.titulo !== undefined ? normalizarDigitos(req.body.titulo) : undefined,
+  };
 
-        // Verificar se email é uma string e contém '@'
-        const emailValido = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)*$/.test(email);
-
-        // Verificar se título é um número com 12 dígitos
-        const tituloValido = /^\d{12}$/.test(titulo);
-
-        if (cpfValido && nomeValido && emailValido && tituloValido) {
-            return true;
-        }
+  for (const [coluna, valor] of Object.entries(campos)) {
+    if (valor) {
+      valores.push(valor);
+      atualizacoes.push(`${coluna} = $${valores.length}`);
     }
-    return false;
+  }
+
+  if (atualizacoes.length === 0) {
+    throw erroRequisicao("Nenhum dado para atualizar");
+  }
+
+  valores.push(req.usuario.id);
+  atualizacoes.push(`atualizado_por = $${valores.length}`);
+  valores.push(req.params.id);
+
+  const { rows } = await db.query(
+    `UPDATE usuario SET ${atualizacoes.join(", ")}
+      WHERE id = $${valores.length} AND ativo = TRUE AND aluno = TRUE
+      RETURNING ${CAMPOS_PUBLICOS}`,
+    valores
+  );
+
+  if (rows.length === 0) {
+    throw erroNaoEncontrado("Aluno não encontrado ou inativo");
+  }
+  res.json({ message: "Dados do aluno alterados com sucesso", aluno: rows[0] });
+});
+
+/** Desativa o usuário e, em cascata, seus treinos e exercícios. */
+export const desativarUsuario = asyncHandler(async (req, res) => {
+  const cpf = normalizarDigitos(req.body?.cpf);
+  if (!cpf) {
+    throw erroRequisicao("Informe o CPF");
+  }
+
+  const cliente = await db.connect();
+  try {
+    await cliente.query("BEGIN");
+
+    const { rows } = await cliente.query(
+      `UPDATE usuario SET ativo = FALSE, atualizado_por = $2
+        WHERE cpf = $1 AND ativo = TRUE
+        RETURNING ${CAMPOS_PUBLICOS}`,
+      [cpf, req.usuario.id]
+    );
+
+    if (rows.length === 0) {
+      await cliente.query("ROLLBACK");
+      throw erroNaoEncontrado("Usuário não encontrado ou já inativo");
+    }
+
+    const id = rows[0].id;
+    await cliente.query("UPDATE treino SET ativo = FALSE WHERE id_aluno = $1", [id]);
+    await cliente.query("UPDATE ex_usuario SET ativo = FALSE WHERE id_user = $1", [id]);
+
+    await cliente.query("COMMIT");
+    res.json({ message: "Usuário desativado", usuario: rows[0] });
+  } catch (erro) {
+    await cliente.query("ROLLBACK").catch(() => {});
+    throw erro;
+  } finally {
+    cliente.release();
+  }
+});
+
+export const reativarUsuario = asyncHandler(async (req, res) => {
+  const cpf = normalizarDigitos(req.body?.cpf);
+  if (!cpf) {
+    throw erroRequisicao("Informe o CPF");
+  }
+
+  const { rows } = await db.query(
+    `UPDATE usuario SET ativo = TRUE, atualizado_por = $2
+      WHERE cpf = $1 AND ativo = FALSE
+      RETURNING ${CAMPOS_PUBLICOS}`,
+    [cpf, req.usuario.id]
+  );
+
+  if (rows.length === 0) {
+    throw erroNaoEncontrado("Usuário não encontrado ou já ativo");
+  }
+  res.json({ message: "Usuário reativado", usuario: rows[0] });
+});
+
+/* ------------------------------------------------------------- professores */
+
+export const listarProfessores = asyncHandler(async (_req, res) => {
+  const { rows } = await db.query(
+    `SELECT ${CAMPOS_PUBLICOS} FROM usuario WHERE professor = TRUE ORDER BY nome`
+  );
+  res.json(rows);
+});
+
+export const listarProfessorPorId = asyncHandler(async (req, res) => {
+  const { rows } = await db.query(
+    `SELECT ${CAMPOS_PUBLICOS} FROM usuario WHERE id = $1 AND professor = TRUE AND ativo = TRUE`,
+    [req.params.id]
+  );
+
+  if (rows.length === 0) {
+    throw erroNaoEncontrado("Professor não encontrado ou inativo");
+  }
+  res.json(rows[0]);
+});
+
+/* ----------------------------------------------------------------- treinos */
+
+export const listarExercicios = asyncHandler(async (_req, res) => {
+  const { rows } = await db.query(
+    "SELECT id_exercicio, nome_exercicio, tipo FROM exercicio ORDER BY tipo, nome_exercicio"
+  );
+  res.json(rows);
+});
+
+/**
+ * Cadastra um treino. O professor vem do token, nunca do corpo — antes o
+ * cliente escolhia o id_professor e podia registrar treino em nome de outro.
+ * O treino anterior do aluno é desativado: só um treino fica ativo por vez.
+ */
+export const cadastrarTreino = asyncHandler(async (req, res) => {
+  const idAluno = Number(req.body?.id_aluno ?? req.body?.id_user);
+  if (!Number.isInteger(idAluno) || idAluno <= 0) {
+    throw erroRequisicao("Aluno inválido");
+  }
+
+  const exercicios = validarExerciciosTreino(req.body?.exercicios);
+
+  const cliente = await db.connect();
+  try {
+    await cliente.query("BEGIN");
+
+    const { rows: alunos } = await cliente.query(
+      "SELECT id FROM usuario WHERE id = $1 AND aluno = TRUE AND ativo = TRUE",
+      [idAluno]
+    );
+    if (alunos.length === 0) {
+      await cliente.query("ROLLBACK");
+      throw erroNaoEncontrado("Aluno não encontrado ou inativo");
+    }
+
+    // Um treino ativo por aluno. Sem isso os exercicios antigos continuavam
+    // ativos e apareciam misturados com os novos em "meu treino".
+    await cliente.query("UPDATE treino SET ativo = FALSE WHERE id_aluno = $1 AND ativo = TRUE", [
+      idAluno,
+    ]);
+    await cliente.query("UPDATE ex_usuario SET ativo = FALSE WHERE id_user = $1 AND ativo = TRUE", [
+      idAluno,
+    ]);
+
+    const { rows: criado } = await cliente.query(
+      "INSERT INTO treino (id_aluno, id_professor) VALUES ($1, $2) RETURNING id_treino, criado_em",
+      [idAluno, req.usuario.id]
+    );
+    const idTreino = criado[0].id_treino;
+
+    const valores = [];
+    const grupos = exercicios.map((exercicio) => {
+      valores.push(
+        idTreino,
+        idAluno,
+        exercicio.id_exercicio,
+        exercicio.numero_serie,
+        exercicio.repeticoes,
+        exercicio.carga,
+        exercicio.observacao_ex_usuario
+      );
+      const base = valores.length - 7;
+      return `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, $${base + 6}, $${base + 7})`;
+    });
+
+    await cliente.query(
+      `INSERT INTO ex_usuario
+         (id_treino, id_user, id_exercicio, numero_serie, repeticoes, carga, observacao_ex_usuario)
+       VALUES ${grupos.join(", ")}`,
+      valores
+    );
+
+    // Montar o treino encerra o pedido em aberto do aluno.
+    await cliente.query(
+      "UPDATE pedido_treino SET ativo = FALSE WHERE id_aluno = $1 AND ativo = TRUE",
+      [idAluno]
+    );
+
+    await cliente.query("COMMIT");
+    res.status(201).json({ message: "Treino cadastrado com sucesso", id_treino: idTreino });
+  } catch (erro) {
+    await cliente.query("ROLLBACK").catch(() => {});
+    throw erro;
+  } finally {
+    cliente.release();
+  }
+});
+
+/** Treino ativo de um aluno, para o professor revisar antes de montar outro. */
+export const treinoDoAluno = asyncHandler(async (req, res) => {
+  const { rows: treinos } = await db.query(
+    `SELECT t.id_treino, t.criado_em, u.nome AS nome_professor
+       FROM treino t
+       JOIN usuario u ON u.id = t.id_professor
+      WHERE t.id_aluno = $1 AND t.ativo = TRUE
+      ORDER BY t.criado_em DESC
+      LIMIT 1`,
+    [req.params.id]
+  );
+
+  const treino = treinos[0] ?? null;
+  if (!treino) {
+    return res.json({ treino: null, exercicios: [] });
+  }
+
+  const { rows: exercicios } = await db.query(SQL_EXERCICIOS_DO_TREINO, [treino.id_treino]);
+  res.json({ treino, exercicios });
+});
+
+async function alterarStatusTreino(idAluno, ativo) {
+  const cliente = await db.connect();
+  try {
+    await cliente.query("BEGIN");
+
+    const { rows } = await cliente.query(
+      "SELECT id FROM usuario WHERE id = $1 AND aluno = TRUE AND ativo = TRUE",
+      [idAluno]
+    );
+    if (rows.length === 0) {
+      await cliente.query("ROLLBACK");
+      throw erroNaoEncontrado("Aluno não encontrado ou inativo");
+    }
+
+    await cliente.query("UPDATE treino SET ativo = $2 WHERE id_aluno = $1", [idAluno, ativo]);
+    await cliente.query("UPDATE ex_usuario SET ativo = $2 WHERE id_user = $1", [idAluno, ativo]);
+
+    await cliente.query("COMMIT");
+  } catch (erro) {
+    await cliente.query("ROLLBACK").catch(() => {});
+    throw erro;
+  } finally {
+    cliente.release();
+  }
 }
 
+export const inativarTreino = asyncHandler(async (req, res) => {
+  await alterarStatusTreino(req.params.id, false);
+  res.json({ message: "Treino inativado com sucesso" });
+});
 
-async function verifica_existencia_usuario(dados_usuario) {
-    const [cpf, titulo] = dados_usuario;
-    const query = 'SELECT nome,cpf,titulo FROM usuario WHERE ativo = TRUE AND (cpf = $1 OR titulo = $2);';
-    const values = [cpf, titulo];
-    const result = await pool.query(query, values);
+export const reativarTreino = asyncHandler(async (req, res) => {
+  await alterarStatusTreino(req.params.id, true);
+  res.json({ message: "Treino reativado com sucesso" });
+});
 
+/* ----------------------------------------------------------------- pedidos */
 
-    if (result.rows.length > 0) {
+export const listarPedidos = asyncHandler(async (_req, res) => {
+  const { rows } = await db.query(
+    `SELECT p.id_pedido, p.id_aluno, p.observacao, p.criado_em, u.nome AS nome_aluno, u.cpf
+       FROM pedido_treino p
+       JOIN usuario u ON u.id = p.id_aluno
+      WHERE p.ativo = TRUE
+      ORDER BY p.criado_em`
+  );
+  res.json(rows);
+});
 
-        return false;
-    } else {
+export const finalizarPedido = asyncHandler(async (req, res) => {
+  const idPedido = Number(req.body?.id_pedido);
+  if (!Number.isInteger(idPedido)) {
+    throw erroRequisicao("Pedido inválido");
+  }
 
-        return true;
-    }
-}
+  const { rows } = await db.query(
+    "UPDATE pedido_treino SET ativo = FALSE WHERE id_pedido = $1 AND ativo = TRUE RETURNING id_pedido",
+    [idPedido]
+  );
 
-async function verifica_existencia_usuario_inativo(dados_usuario) {
-    const [cpf] = dados_usuario;
-    const query = 'SELECT nome,cpf,titulo FROM usuario WHERE ativo = FALSE AND cpf = $1;';
-    const values = [cpf];
-    const result = await pool.query(query, values);
+  if (rows.length === 0) {
+    throw erroNaoEncontrado("Pedido não encontrado ou já finalizado");
+  }
+  res.json({ message: "Pedido finalizado com sucesso" });
+});
 
-    if (result.rows.length == 0) {
+/* ---------------------------------------------------------------- dashboard */
 
-        return false;
-    } else {
+export const resumo = asyncHandler(async (_req, res) => {
+  const { rows } = await db.query(
+    `SELECT
+       (SELECT COUNT(*) FROM usuario WHERE aluno = TRUE AND ativo = TRUE)     AS alunos_ativos,
+       (SELECT COUNT(*) FROM usuario WHERE aluno = TRUE AND ativo = FALSE)    AS alunos_inativos,
+       (SELECT COUNT(*) FROM pedido_treino WHERE ativo = TRUE)                AS pedidos_abertos,
+       (SELECT COUNT(*) FROM treino WHERE ativo = TRUE)                       AS treinos_ativos`
+  );
 
-        return true;
-    }
-}
-
-async function retira_dados_jwt(token) {
-
-    const segredo = process.env.TOKEN_SEG;
-
-    try {
-        jwt.verify(token, segredo);
-        const { id } = decode(token);
-
-        // Consultar o banco de dados para verificar se o usuário é professor
-        const query = "SELECT professor FROM usuario WHERE id = $1 AND ativo = TRUE";
-        const { rows } = await pool.query(query, [id]);
-
-        if (rows.length === 0 || !rows[0].professor) {
-            return res.status(403).json({ message: 'Acesso negado. Usuário não é um professor' });
-        }
-
-        return id;
-    } catch (error) {
-        return res.status(401).json({ message: 'Falha ao autenticar o Token' });
-    }
-}
-
-module.exports = ProfessorController;
+  const linha = rows[0];
+  res.json({
+    alunos_ativos: Number(linha.alunos_ativos),
+    alunos_inativos: Number(linha.alunos_inativos),
+    pedidos_abertos: Number(linha.pedidos_abertos),
+    treinos_ativos: Number(linha.treinos_ativos),
+  });
+});

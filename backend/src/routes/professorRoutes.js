@@ -1,42 +1,42 @@
-const express = require("express");
-const ProfessorController = require("../controllers/professorController.js");
-const autenticadorTokenJwt = require("../middlewares/autenticadorJwt.js");
-const professoresRoutes = express.Router();
+import { Router } from "express";
+import * as professor from "../controllers/professorController.js";
+import { erroRequisicao } from "../lib/erros.js";
 
-professoresRoutes.use(autenticadorTokenJwt);
+const rotas = Router();
 
-const ROTAS = {
-    ALUNOS: "/alunos",
-    ALUNO_ID: "/aluno/:id",
-    USUARIO_CPF_TITULO: "/usuario/cpfoutitulo",
-    ALUNO_INATIVAR: "/alunos/desativar",
-    ALUNO_REATIVAR: "/alunos/reativar",
-    PROFESSORES: "/professores",
-    ALUNO_ID: "/aluno/:id",
-    PROFESSORES_ID: "/professor/:id",
-    TREINO: "/treino",
-    PEDIDOS_TREINO: "/treino/pedidos",
-    PEDIDO_TREINO_FINALIZADO: "/treino/pedido/finalizado",
-    INATIVAR_TREINO: "/treino/inativar/:id",
-    REATIVAR_TREINO: "/treino/reativar/:id",
-    EXERCICIOS: "/exercicios"
-   };
+// Sem isso um /aluno/abc chegava ao Postgres e virava 500 ("invalid input
+// syntax for integer") em vez de um 400 explicando o problema.
+rotas.param("id", (_req, _res, next, valor) => {
+  const id = Number(valor);
+  next(Number.isInteger(id) && id > 0 ? undefined : erroRequisicao("Identificador inválido"));
+});
 
-professoresRoutes.get(ROTAS.ALUNOS,ProfessorController.ListarAlunos);
-professoresRoutes.post(ROTAS.ALUNOS,ProfessorController.CadastrarAlunos);
-professoresRoutes.get(ROTAS.ALUNO_ID,ProfessorController.ListarAlunoPorID);
-professoresRoutes.put(ROTAS.ALUNO_ID,ProfessorController.AlterarAluno);
-professoresRoutes.put(ROTAS.ALUNO_INATIVAR,ProfessorController.DesativarUsuario);
-professoresRoutes.put(ROTAS.ALUNO_REATIVAR,ProfessorController.ReativarUsuario);
-professoresRoutes.get(ROTAS.PROFESSORES,ProfessorController.ListarProfessores);
-professoresRoutes.get(ROTAS.PROFESSORES_ID,ProfessorController.ListarProfessorPorID);
-professoresRoutes.post(ROTAS.PROFESSORES,ProfessorController.CadastrarProfessores);
-professoresRoutes.post(ROTAS.USUARIO_CPF_TITULO,ProfessorController.ListarUsuarioPorCPFouTitulo);
-professoresRoutes.get(ROTAS.INATIVAR_TREINO,ProfessorController.InativarTreino);
-professoresRoutes.get(ROTAS.REATIVAR_TREINO,ProfessorController.ReativarTreino);
-professoresRoutes.get(ROTAS.PEDIDOS_TREINO,ProfessorController.ListarPedidosDeTreino);
-professoresRoutes.post(ROTAS.PEDIDO_TREINO_FINALIZADO,ProfessorController.PedidoDeTreino);
-professoresRoutes.post(ROTAS.TREINO,ProfessorController.CadastrarTreino);
-professoresRoutes.get(ROTAS.EXERCICIOS,ProfessorController.ListarExercicios);
+rotas.get("/resumo", professor.resumo);
 
-module.exports = professoresRoutes;
+// Alunos
+rotas.get("/alunos", professor.listarAlunos);
+rotas.post("/alunos", professor.cadastrarAluno);
+rotas.put("/alunos/desativar", professor.desativarUsuario);
+rotas.put("/alunos/reativar", professor.reativarUsuario);
+rotas.get("/aluno/:id", professor.listarAlunoPorId);
+rotas.put("/aluno/:id", professor.alterarAluno);
+rotas.get("/aluno/:id/treino", professor.treinoDoAluno);
+rotas.post("/usuario/cpfoutitulo", professor.buscarUsuarioPorCpfOuTitulo);
+
+// Professores
+rotas.get("/professores", professor.listarProfessores);
+rotas.post("/professores", professor.cadastrarProfessor);
+rotas.get("/professor/:id", professor.listarProfessorPorId);
+
+// Treinos
+rotas.get("/exercicios", professor.listarExercicios);
+rotas.post("/treino", professor.cadastrarTreino);
+rotas.get("/treino/pedidos", professor.listarPedidos);
+rotas.post("/treino/pedido/finalizado", professor.finalizarPedido);
+rotas.put("/treino/inativar/:id", professor.inativarTreino);
+rotas.put("/treino/reativar/:id", professor.reativarTreino);
+// Aliases em GET mantidos por compatibilidade com a versão anterior da API.
+rotas.get("/treino/inativar/:id", professor.inativarTreino);
+rotas.get("/treino/reativar/:id", professor.reativarTreino);
+
+export default rotas;

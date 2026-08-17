@@ -1,18 +1,11 @@
-const express = require("express");
-const AlunosController = require("../controllers/alunoController.js");
-const autenticadorTokenAlunoJwt = require("../middlewares/autenticadorAlunojwt.js");
-const alunosRoutes = express.Router();
+import { Router } from "express";
+import * as aluno from "../controllers/alunoController.js";
 
-alunosRoutes.use(autenticadorTokenAlunoJwt);
+const rotas = Router();
 
-const ROTAS = {
-    TREINO: "/meutreino",
-    PEDIDO: "/pedidotreino"
-}
+rotas.get("/meutreino", aluno.meuTreino);
+rotas.get("/historico", aluno.meuHistorico);
+rotas.get("/pedidotreino", aluno.meuPedido);
+rotas.post("/pedidotreino", aluno.pedirNovoTreino);
 
-alunosRoutes.get(ROTAS.TREINO,AlunosController.ListarExercicio);
-alunosRoutes.post(ROTAS.PEDIDO,AlunosController.PedirNovoTreino);
-
-
-
-module.exports = alunosRoutes;
+export default rotas;

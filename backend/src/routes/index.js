@@ -1,29 +1,18 @@
-const express = require("express");
-const loginRoutes = require("./loginRoutes.js");
-const professorRoutes = require("./professorRoutes");
-const alunosRoutes = require("./alunoRoutes");
+import { Router } from "express";
+import { autenticar, exigirPerfil } from "../middlewares/auth.js";
+import { login, eu } from "../controllers/authController.js";
+import alunoRoutes from "./alunoRoutes.js";
+import professorRoutes from "./professorRoutes.js";
 
-const autenticadorTokenAlunoJwt = require("../middlewares/autenticadorAlunojwt.js");
-const autenticadorTokenJwt = require("../middlewares/autenticadorJwt.js");
+const rotas = Router();
 
-const routes = (app) => {
-  /*app.use( (req,res,next) => { 
-    console.log("salve");
-    next();
-  })*/
+rotas.get("/", (_req, res) => res.json({ status: "ok", servico: "gym-sys-api" }));
+rotas.get("/health", (_req, res) => res.json({ status: "ok" }));
 
+rotas.post("/login", login);
+rotas.get("/me", autenticar, eu);
 
-  app.route("/").get((req, res) => res.status(200).send("API UP"));
+rotas.use("/alunos", autenticar, exigirPerfil("aluno"), alunoRoutes);
+rotas.use("/professores", autenticar, exigirPerfil("professor"), professorRoutes);
 
-  app.use(express.json());
-  app.use(loginRoutes);
-
-  // Rotas de alunos com middleware específico
-  app.use("/alunos", autenticadorTokenAlunoJwt, alunosRoutes);
-
-  // Rotas de professores com middleware específico e prefixo "/professores"
-  app.use("/professores", autenticadorTokenJwt, professorRoutes);
-
-};
-
-module.exports = routes;
+export default rotas;
