@@ -1,0 +1,51 @@
+# PostgreSQL do Gym Sys em container.
+#
+#   npm run db:up      sobe o banco (cria e popula na primeira vez)
+#   npm run db:logs     acompanha o log
+#   npm run db:psql     abre um psql dentro do container
+#   npm run db:down     para o banco, preservando os dados
+#   npm run db:reset    APAGA os dados e recria do zero
+#
+# As variáveis vêm do mesmo backend/.env que a API usa, então não há dois
+# lugares para manter em sincronia. Os defaults abaixo fazem funcionar mesmo
+# sem .env nenhum.
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: gymsys-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-gymsys}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-gymsys}
+      POSTGRES_DB: ${DB_NAME:-gymsys}
+      # Acelera o boot e evita divergência de locale entre máquinas.
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+      # Fazem `psql` e `pg_isready` dentro do container já saberem usuário e
+      # banco. Assim os scripts npm não dependem de expansão de variável no
+      # shell do host — que difere entre cmd.exe e bash.
+      PGUSER: ${DB_USER:-gymsys}
+      PGDATABASE: ${DB_NAME:-gymsys}
+    ports:
+      # A porta local vem do .env, a de dentro do container é sempre 5432.
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - dados:/var/lib/postgresql/data
+      # Rodados uma única vez, na criação do volume, em ordem alfabética.
+      # Por isso o prefixo numérico: montar a pasta db/ inteira faria o
+      # migracao-v2.sql rodar antes do schema e quebrar.
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./db/triggers.sql:/docker-entrypoint-initdb.d/02-triggers.sql:ro
+      - ./db/seed.sql:/docker-entrypoint-initdb.d/03-seed.sql:ro
+    healthcheck:
+      # `npm run db:up` espera este healthcheck: sem ele a API tentaria
+      # conectar antes de o Postgres aceitar conexões.
+      test: ["CMD-SHELL", "pg_isready"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+
+volumes:
+  dados:
+    name: gymsys-dados
