@@ -47,7 +47,7 @@ export function AppShell({ itens, children }: { itens: ItemNav[]; children: Reac
             </div>
           </div>
           <div className="mb-2 px-1">
-            <SeletorTema />
+            <SeletorTema compacto />
           </div>
           <button
             type="button"

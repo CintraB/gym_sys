@@ -9,8 +9,15 @@ const OPCOES: Array<{ valor: Tema; rotulo: string; icone: typeof Sun }> = [
   { valor: 'sistema', rotulo: 'Sistema', icone: Monitor },
 ]
 
-/** Três opções em vez de um interruptor: "sistema" é um estado de verdade. */
-export function SeletorTema() {
+/**
+ * Três opções em vez de um interruptor: "sistema" é um estado de verdade.
+ *
+ * `compacto` mostra só os ícones. A barra lateral tem 256px, e os três rótulos
+ * pedem 267px — com `flex-1` os botões não encolhem abaixo do próprio conteúdo
+ * (min-width: auto), então eles escapavam da borda arredondada e invadiam a
+ * área de conteúdo. Onde não cabe rótulo, não se coloca rótulo.
+ */
+export function SeletorTema({ compacto = false }: { compacto?: boolean }) {
   const { tema, trocarTema } = useTema()
 
   return (
@@ -25,23 +32,26 @@ export function SeletorTema() {
           type="button"
           role="radio"
           aria-checked={tema === valor}
+          aria-label={compacto ? rotulo : undefined}
+          title={compacto ? rotulo : undefined}
           onClick={() => trocarTema(valor)}
           className={cn(
-            'flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm transition-colors',
+            'flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg py-2 text-sm transition-colors',
+            compacto ? 'px-0' : 'px-3',
             tema === valor
               ? 'bg-superficie font-medium text-texto shadow-sm'
               : 'text-texto-suave hover:text-texto',
           )}
         >
-          <Icone className="size-4" aria-hidden />
-          {rotulo}
+          <Icone className="size-4 shrink-0" aria-hidden />
+          {!compacto && <span className="truncate">{rotulo}</span>}
         </button>
       ))}
     </div>
   )
 }
 
-/** Versão compacta para a barra superior: alterna claro/escuro direto. */
+/** Versão de um botão só, para a barra superior do celular. */
 export function BotaoTema() {
   const { tema, trocarTema } = useTema()
   const escuroAtivo =
