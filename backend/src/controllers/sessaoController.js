@@ -5,6 +5,7 @@ import {
   erroNaoEncontrado,
   erroRequisicao,
 } from "../lib/erros.js";
+import { sugerirBloco } from "./alunoController.js";
 
 /**
  * Execução de treinos.
@@ -35,11 +36,13 @@ const SQL_EXERCICIOS_DA_SESSAO = `
 
 async function carregarSessao(idSessao) {
   const { rows } = await db.query(
-    `SELECT s.id_sessao, s.id_treino, s.id_aluno, s.iniciado_em, s.finalizado_em,
-            s.duracao_segundos, u.nome AS nome_professor
+    `SELECT s.id_sessao, s.id_treino, s.id_bloco, s.id_aluno, s.iniciado_em,
+            s.finalizado_em, s.duracao_segundos, u.nome AS nome_professor,
+            b.letra AS bloco_letra, b.nome AS bloco_nome
        FROM sessao_treino s
        JOIN treino t ON t.id_treino = s.id_treino
        JOIN usuario u ON u.id = t.id_professor
+       LEFT JOIN treino_bloco b ON b.id_bloco = s.id_bloco
       WHERE s.id_sessao = $1`,
     [idSessao]
   );
@@ -91,18 +94,47 @@ export const iniciarSessao = asyncHandler(async (req, res) => {
     }
     const idTreino = treinos[0].id_treino;
 
+    // O bloco pedido precisa ser do treino ativo — senão daria para iniciar o
+    // bloco de outro aluno passando o id na requisição.
+    const { rows: blocos } = await cliente.query(
+      "SELECT id_bloco FROM treino_bloco WHERE id_treino = $1 ORDER BY ordem",
+      [idTreino]
+    );
+    if (blocos.length === 0) {
+      await cliente.query("ROLLBACK");
+      throw erroNaoEncontrado("Este treino não tem blocos");
+    }
+
+    const pedido = req.body?.id_bloco;
+    let idBloco;
+    if (pedido === undefined || pedido === null) {
+      idBloco = await sugerirBloco(req.usuario.id, blocos);
+    } else {
+      // Number(true) é 1 e Number([]) é 0: sem checar o tipo antes, um booleano
+      // no corpo viraria o id de um bloco de verdade.
+      const numerico =
+        typeof pedido === "number" || (typeof pedido === "string" && /^\d+$/.test(pedido));
+      idBloco = numerico ? Number(pedido) : NaN;
+
+      if (!Number.isInteger(idBloco) || !blocos.some((bloco) => bloco.id_bloco === idBloco)) {
+        await cliente.query("ROLLBACK");
+        throw erroNaoEncontrado("Bloco não encontrado no seu treino");
+      }
+    }
+
     const { rows: criada } = await cliente.query(
-      "INSERT INTO sessao_treino (id_treino, id_aluno) VALUES ($1, $2) RETURNING id_sessao",
-      [idTreino, req.usuario.id]
+      "INSERT INTO sessao_treino (id_treino, id_bloco, id_aluno) VALUES ($1, $2, $3) RETURNING id_sessao",
+      [idTreino, idBloco, req.usuario.id]
     );
     const idSessao = criada[0].id_sessao;
 
     // Uma linha por exercício já na abertura: simplifica contar "5/6" e
     // deixa registrado o que foi pulado, não só o que foi feito.
+    // Só os exercícios do bloco escolhido — esse é o tamanho de um dia.
     await cliente.query(
       `INSERT INTO sessao_exercicio (id_sessao, id_ex_usuario)
-       SELECT $1::int, id FROM ex_usuario WHERE id_treino = $2 ORDER BY id`,
-      [idSessao, idTreino]
+       SELECT $1::int, id FROM ex_usuario WHERE id_bloco = $2 ORDER BY id`,
+      [idSessao, idBloco]
     );
 
     await cliente.query("COMMIT");
@@ -255,6 +287,8 @@ async function listarSessoesDe(idAluno) {
             s.finalizado_em,
             s.duracao_segundos,
             u.nome AS nome_professor,
+            b.letra AS bloco_letra,
+            b.nome  AS bloco_nome,
             COUNT(se.id)                                        AS total_exercicios,
             -- SUM(CASE) em vez de COUNT(...) FILTER: o banco emulado dos
             -- testes aceita o FILTER mas ignora o predicado, contando tudo.
@@ -262,9 +296,11 @@ async function listarSessoesDe(idAluno) {
        FROM sessao_treino s
        JOIN treino t  ON t.id_treino = s.id_treino
        JOIN usuario u ON u.id = t.id_professor
+       LEFT JOIN treino_bloco b ON b.id_bloco = s.id_bloco
        LEFT JOIN sessao_exercicio se ON se.id_sessao = s.id_sessao
       WHERE s.id_aluno = $1 AND s.finalizado_em IS NOT NULL
-      GROUP BY s.id_sessao, s.iniciado_em, s.finalizado_em, s.duracao_segundos, u.nome
+      GROUP BY s.id_sessao, s.iniciado_em, s.finalizado_em, s.duracao_segundos, u.nome,
+               b.letra, b.nome
       ORDER BY s.iniciado_em DESC
       LIMIT 100`,
     [idAluno]

@@ -2,7 +2,7 @@ import { Link, useParams } from 'react-router-dom'
 import { ArrowLeft, CalendarCheck, Timer } from 'lucide-react'
 import { api } from '../../lib/api'
 import { useRequisicao } from '../../lib/useRequisicao'
-import { formatarData, formatarDuracao, tempoRelativo } from '../../lib/formato'
+import { formatarData, formatarDuracao, rotularBloco, tempoRelativo } from '../../lib/formato'
 import { Cartao } from '../../components/ui/Cartao'
 import { Aviso } from '../../components/ui/Aviso'
 import { Esqueleto } from '../../components/ui/Carregando'
@@ -71,7 +71,14 @@ export default function Frequencia() {
                 <li key={sessao.id_sessao}>
                   <Cartao className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="font-medium">{formatarData(sessao.iniciado_em)}</p>
+                      <p className="font-medium">
+                        {formatarData(sessao.iniciado_em)}
+                        {sessao.bloco_letra && (
+                          <span className="ml-2 text-sm font-normal text-acento-texto">
+                            {rotularBloco(sessao.bloco_letra, sessao.bloco_nome)}
+                          </span>
+                        )}
+                      </p>
                       <p className="mt-0.5 text-sm text-texto-suave">
                         {sessao.concluidos}/{sessao.total_exercicios} exercícios
                       </p>

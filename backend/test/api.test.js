@@ -147,7 +147,9 @@ test("treino usa o professor do token, ignorando id_professor do corpo", async (
 
   const treino = await api.get("/alunos/meutreino", { token: aluno.token });
   assert.equal(treino.corpo.treino.nome_professor, "Professor Teste");
-  assert.equal(treino.corpo.exercicios.length, 2);
+  assert.equal(treino.corpo.blocos.length, 1, "sem divisão, vira um bloco A");
+  assert.equal(treino.corpo.blocos[0].letra, "A");
+  assert.equal(treino.corpo.blocos[0].exercicios.length, 2);
 });
 
 test("treino rejeita exercícios incompletos", async (t) => {
@@ -205,8 +207,8 @@ test("treino aceita exercício de cardio sem séries nem carga", async (t) => {
   assert.equal(criado.status, 201, JSON.stringify(criado.corpo));
 
   const treino = await api.get("/alunos/meutreino", { token: aluno.token });
-  assert.equal(treino.corpo.exercicios[0].carga, 0);
-  assert.equal(treino.corpo.exercicios[0].observacao_ex_usuario, "20 min / moderado");
+  assert.equal(treino.corpo.blocos[0].exercicios[0].carga, 0);
+  assert.equal(treino.corpo.blocos[0].exercicios[0].observacao_ex_usuario, "20 min / moderado");
 });
 
 test("novo treino substitui o anterior em vez de acumular exercícios", async (t) => {
@@ -236,7 +238,7 @@ test("novo treino substitui o anterior em vez de acumular exercícios", async (t
   );
 
   const treino = await api.get("/alunos/meutreino", { token: aluno.token });
-  assert.equal(treino.corpo.exercicios.length, 2);
+  assert.equal(treino.corpo.blocos[0].exercicios.length, 2);
 
   const historico = await api.get("/alunos/historico", { token: aluno.token });
   assert.equal(historico.corpo.length, 2, "os dois treinos ficam no histórico");
@@ -251,7 +253,7 @@ test("aluno sem treino recebe resposta vazia, não erro", async (t) => {
 
   assert.equal(treino.status, 200);
   assert.equal(treino.corpo.treino, null);
-  assert.deepEqual(treino.corpo.exercicios, []);
+  assert.deepEqual(treino.corpo.blocos, []);
 });
 
 test("pedido de treino não pode ser duplicado", async (t) => {

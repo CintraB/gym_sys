@@ -19,6 +19,8 @@ const ALUNO = {
   titulo: "222222222222",
 };
 
+const EXERCICIO = { id_exercicio: 1, numero_serie: 3, repeticoes: "10", carga: 10 };
+
 async function cenario() {
   const api = await criarApiDeTeste();
   const tokenProfessor = await criarProfessorELogar(api);
@@ -414,6 +416,82 @@ test("identificadores não numéricos na rota não chegam ao banco", async (t) =
     const resposta = await api.get(encodeURI(rota), { token: tokenProfessor });
     assert.equal(resposta.status, 400, `esperava 400 em ${rota}, veio ${resposta.status}`);
   }
+});
+
+/* ------------------------------------------------ blocos de treino */
+
+test("id_bloco de outro aluno não inicia sessão", async (t) => {
+  const { api, tokenProfessor, aluno } = await cenario();
+  t.after(() => api.encerrar());
+
+  const vitima = await api.post(
+    "/professores/alunos",
+    { ...ALUNO, cpf: "44444444444", titulo: "444444444444", email: "v@teste.com" },
+    { token: tokenProfessor }
+  );
+  await api.post(
+    "/professores/treino",
+    { id_aluno: vitima.corpo.aluno.id, blocos: [{ exercicios: [EXERCICIO] }] },
+    { token: tokenProfessor }
+  );
+  const loginVitima = await api.post("/login", { cpf: "44444444444", senha: ALUNO.senha });
+  const treinoVitima = await api.get("/alunos/meutreino", { token: loginVitima.corpo.token });
+  const blocoDaVitima = treinoVitima.corpo.blocos[0].id_bloco;
+
+  // O atacante tem treino próprio, então o erro não pode ser "sem treino".
+  await api.post(
+    "/professores/treino",
+    { id_aluno: aluno.id, blocos: [{ exercicios: [EXERCICIO] }] },
+    { token: tokenProfessor }
+  );
+
+  const invasao = await api.post(
+    "/alunos/treino/sessao",
+    { id_bloco: blocoDaVitima },
+    { token: aluno.token }
+  );
+
+  assert.equal(invasao.status, 404);
+  const abertas = await api.get("/alunos/treino/sessao", { token: aluno.token });
+  assert.equal(abertas.corpo, null, "nenhuma sessão pode ter sido criada");
+});
+
+test("id_bloco com tipo inesperado não derruba nem cria sessão", async (t) => {
+  const { api, tokenProfessor, aluno } = await cenario();
+  t.after(() => api.encerrar());
+
+  await api.post(
+    "/professores/treino",
+    { id_aluno: aluno.id, blocos: [{ exercicios: [EXERCICIO] }] },
+    { token: tokenProfessor }
+  );
+
+  for (const id_bloco of ["abc", "1 OR 1=1", -1, 0, 99999, {}, [], true]) {
+    const resposta = await api.post("/alunos/treino/sessao", { id_bloco }, { token: aluno.token });
+    assert.equal(
+      resposta.status,
+      404,
+      `esperava 404 para id_bloco=${JSON.stringify(id_bloco)}, veio ${resposta.status}`
+    );
+    assert.ok(!JSON.stringify(resposta.corpo).includes("SELECT"));
+  }
+});
+
+test("nome de bloco longo demais vira 400, não erro do banco", async (t) => {
+  const { api, tokenProfessor, aluno } = await cenario();
+  t.after(() => api.encerrar());
+
+  const resposta = await api.post(
+    "/professores/treino",
+    {
+      id_aluno: aluno.id,
+      blocos: [{ nome: "N".repeat(200), exercicios: [EXERCICIO] }],
+    },
+    { token: tokenProfessor }
+  );
+
+  assert.equal(resposta.status, 400);
+  assert.ok(!JSON.stringify(resposta.corpo).includes("varchar"));
 });
 
 /* --------------------------------------------------- limites e recusas */

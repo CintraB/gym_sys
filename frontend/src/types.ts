@@ -49,9 +49,21 @@ export interface Treino {
   nome_professor: string
 }
 
+/** Um dia do treino: o A/B/C/D das fichas de academia. */
+export interface Bloco {
+  id_bloco: number
+  letra: string
+  /** Opcional. Em branco, a tela mostra só "Treino A". */
+  nome: string | null
+  ordem: number
+  exercicios: ExercicioDoTreino[]
+}
+
 export interface TreinoCompleto {
   treino: Treino | null
-  exercicios: ExercicioDoTreino[]
+  blocos: Bloco[]
+  /** Qual bloco propor hoje — o seguinte ao último finalizado. */
+  bloco_sugerido?: number | null
 }
 
 export interface ItemHistorico {
@@ -103,12 +115,15 @@ export interface SessaoExercicio {
 export interface Sessao {
   id_sessao: number
   id_treino: number
+  id_bloco: number | null
   id_aluno: number
   iniciado_em: string
   /** Null enquanto o treino está em andamento. */
   finalizado_em: string | null
   duracao_segundos: number | null
   nome_professor: string
+  bloco_letra: string | null
+  bloco_nome: string | null
 }
 
 export interface SessaoCompleta {
@@ -122,8 +137,16 @@ export interface ItemHistoricoSessao {
   finalizado_em: string
   duracao_segundos: number
   nome_professor: string
+  bloco_letra: string | null
+  bloco_nome: string | null
   total_exercicios: number
   concluidos: number
+}
+
+/** Linha do formulário de montagem de um bloco. */
+export interface LinhaBloco {
+  nome: string
+  exercicios: LinhaExercicio[]
 }
 
 export interface FrequenciaAluno {

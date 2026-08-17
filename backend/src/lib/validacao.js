@@ -11,6 +11,9 @@ const TAMANHO_EMAIL = 255;
 const TAMANHO_REPETICOES = 30;
 const TAMANHO_OBSERVACAO = 60;
 const MAXIMO_EXERCICIOS = 60;
+const MAXIMO_BLOCOS = 8;
+const TAMANHO_NOME_BLOCO = 60;
+const LETRAS = "ABCDEFGH";
 
 export function normalizarDigitos(valor) {
   return typeof valor === "string" ? valor.replace(/\D/g, "") : "";
@@ -51,6 +54,48 @@ export function validarCadastroUsuario(corpo) {
   }
 
   return { cpf, nome, senha, email, titulo };
+}
+
+/**
+ * Normaliza o treino em blocos (o A/B/C/D das fichas).
+ *
+ * Aceita dois formatos: `{ blocos: [...] }` e o antigo `{ exercicios: [...] }`,
+ * que vira um bloco "A" único. Todo treino tem pelo menos um bloco, então o
+ * resto do código nunca precisa lidar com exercício solto.
+ *
+ * As letras são atribuídas pela posição (A, B, C...), não pelo que o cliente
+ * mandar: assim não dá para criar dois blocos "A" nem pular letra.
+ */
+export function validarBlocosTreino(corpo) {
+  const bruto = Array.isArray(corpo?.blocos)
+    ? corpo.blocos
+    : [{ nome: null, exercicios: corpo?.exercicios }];
+
+  if (bruto.length === 0) {
+    throw erroRequisicao("Informe ao menos um bloco");
+  }
+  if (bruto.length > MAXIMO_BLOCOS) {
+    throw erroRequisicao(`Um treino aceita no máximo ${MAXIMO_BLOCOS} blocos`);
+  }
+
+  return bruto.map((bloco, indice) => {
+    const letra = LETRAS[indice];
+    const nome = (bloco?.nome ?? "").toString().trim();
+
+    if (nome.length > TAMANHO_NOME_BLOCO) {
+      throw erroRequisicao(`Bloco ${letra}: nome passa de ${TAMANHO_NOME_BLOCO} caracteres`);
+    }
+
+    let exercicios;
+    try {
+      exercicios = validarExerciciosTreino(bloco?.exercicios);
+    } catch (erro) {
+      // Sem o prefixo, "Exercício 2: carga inválida" não diz de qual bloco.
+      throw erroRequisicao(`Bloco ${letra}: ${erro.message}`);
+    }
+
+    return { letra, nome: nome || null, ordem: indice + 1, exercicios };
+  });
 }
 
 /** Valida os exercícios enviados no cadastro de um treino. */

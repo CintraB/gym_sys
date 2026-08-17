@@ -76,6 +76,19 @@ CREATE TABLE IF NOT EXISTS treino (
     criado_em     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Divisao do treino em blocos (o A/B/C/D das fichas de academia).
+--
+-- Todo treino tem pelo menos um bloco: treino sem divisao e um bloco "A"
+-- sozinho. Isso evita dois caminhos no codigo — nao existe exercicio solto.
+CREATE TABLE IF NOT EXISTS treino_bloco (
+    id_bloco   SERIAL PRIMARY KEY,
+    id_treino  INTEGER     NOT NULL REFERENCES treino (id_treino) ON DELETE CASCADE,
+    letra      VARCHAR(2)  NOT NULL,
+    -- Opcional: "Peito e Triceps". Em branco, a tela mostra so "Treino A".
+    nome       VARCHAR(60),
+    ordem      SMALLINT    NOT NULL DEFAULT 1
+);
+
 -- Exercicios de um treino.
 --
 -- id_treino e a ligacao correta e e o que torna o historico possivel: sem ele
@@ -87,6 +100,7 @@ CREATE TABLE IF NOT EXISTS treino (
 CREATE TABLE IF NOT EXISTS ex_usuario (
     id                     SERIAL PRIMARY KEY,
     id_treino              INTEGER      NOT NULL REFERENCES treino (id_treino) ON DELETE CASCADE,
+    id_bloco               INTEGER      NOT NULL REFERENCES treino_bloco (id_bloco) ON DELETE CASCADE,
     id_user                INTEGER      NOT NULL REFERENCES usuario (id),
     id_exercicio           INTEGER      NOT NULL REFERENCES exercicio (id_exercicio),
     numero_serie           INTEGER      NOT NULL DEFAULT 0,
@@ -108,6 +122,9 @@ CREATE TABLE IF NOT EXISTS ex_usuario (
 CREATE TABLE IF NOT EXISTS sessao_treino (
     id_sessao         SERIAL PRIMARY KEY,
     id_treino         INTEGER   NOT NULL REFERENCES treino (id_treino) ON DELETE CASCADE,
+    -- Qual bloco foi executado nesta sessao. E o que permite o historico dizer
+    -- "Treino B" e a sugestao saber qual vem em seguida.
+    id_bloco          INTEGER   REFERENCES treino_bloco (id_bloco),
     id_aluno          INTEGER   NOT NULL REFERENCES usuario (id),
     iniciado_em       TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     -- NULL enquanto o treino está em andamento.
@@ -130,6 +147,10 @@ CREATE INDEX IF NOT EXISTS idx_ex_usuario_user    ON ex_usuario (id_user, ativo)
 CREATE INDEX IF NOT EXISTS idx_pedido_aluno_ativo ON pedido_treino (id_aluno, ativo);
 CREATE INDEX IF NOT EXISTS idx_exercicio_tipo     ON exercicio (tipo);
 CREATE INDEX IF NOT EXISTS idx_sessao_aluno       ON sessao_treino (id_aluno, iniciado_em);
+CREATE INDEX IF NOT EXISTS idx_bloco_treino       ON treino_bloco (id_treino, ordem);
+CREATE INDEX IF NOT EXISTS idx_ex_usuario_bloco   ON ex_usuario (id_bloco);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_bloco_letra_por_treino
+    ON treino_bloco (id_treino, letra);
 
 -- No máximo uma sessão em andamento por aluno. Garantido no banco, e não só
 -- no código, porque dois toques rápidos em "Iniciar" chegariam em paralelo.

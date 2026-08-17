@@ -8,10 +8,10 @@ import {
 } from "../lib/erros.js";
 import {
   normalizarDigitos,
+  validarBlocosTreino,
   validarCadastroUsuario,
-  validarExerciciosTreino,
 } from "../lib/validacao.js";
-import { SQL_EXERCICIOS_DO_TREINO } from "./alunoController.js";
+import { carregarBlocosDoTreino } from "./alunoController.js";
 
 const CAMPOS_PUBLICOS = "id, nome, cpf, email, titulo, aluno, professor, ativo";
 
@@ -261,7 +261,7 @@ export const cadastrarTreino = asyncHandler(async (req, res) => {
     throw erroRequisicao("Aluno inválido");
   }
 
-  const exercicios = validarExerciciosTreino(req.body?.exercicios);
+  const blocos = validarBlocosTreino(req.body);
 
   const cliente = await db.connect();
   try {
@@ -291,27 +291,36 @@ export const cadastrarTreino = asyncHandler(async (req, res) => {
     );
     const idTreino = criado[0].id_treino;
 
-    const valores = [];
-    const grupos = exercicios.map((exercicio) => {
-      valores.push(
-        idTreino,
-        idAluno,
-        exercicio.id_exercicio,
-        exercicio.numero_serie,
-        exercicio.repeticoes,
-        exercicio.carga,
-        exercicio.observacao_ex_usuario
+    for (const bloco of blocos) {
+      const { rows: blocoCriado } = await cliente.query(
+        "INSERT INTO treino_bloco (id_treino, letra, nome, ordem) VALUES ($1, $2, $3, $4) RETURNING id_bloco",
+        [idTreino, bloco.letra, bloco.nome, bloco.ordem]
       );
-      const base = valores.length - 7;
-      return `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, $${base + 6}, $${base + 7})`;
-    });
+      const idBloco = blocoCriado[0].id_bloco;
 
-    await cliente.query(
-      `INSERT INTO ex_usuario
-         (id_treino, id_user, id_exercicio, numero_serie, repeticoes, carga, observacao_ex_usuario)
-       VALUES ${grupos.join(", ")}`,
-      valores
-    );
+      const valores = [];
+      const grupos = bloco.exercicios.map((exercicio) => {
+        valores.push(
+          idTreino,
+          idBloco,
+          idAluno,
+          exercicio.id_exercicio,
+          exercicio.numero_serie,
+          exercicio.repeticoes,
+          exercicio.carga,
+          exercicio.observacao_ex_usuario
+        );
+        const base = valores.length - 8;
+        return `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, $${base + 6}, $${base + 7}, $${base + 8})`;
+      });
+
+      await cliente.query(
+        `INSERT INTO ex_usuario
+           (id_treino, id_bloco, id_user, id_exercicio, numero_serie, repeticoes, carga, observacao_ex_usuario)
+         VALUES ${grupos.join(", ")}`,
+        valores
+      );
+    }
 
     // Montar o treino encerra o pedido em aberto do aluno.
     await cliente.query(
@@ -343,11 +352,10 @@ export const treinoDoAluno = asyncHandler(async (req, res) => {
 
   const treino = treinos[0] ?? null;
   if (!treino) {
-    return res.json({ treino: null, exercicios: [] });
+    return res.json({ treino: null, blocos: [] });
   }
 
-  const { rows: exercicios } = await db.query(SQL_EXERCICIOS_DO_TREINO, [treino.id_treino]);
-  res.json({ treino, exercicios });
+  res.json({ treino, blocos: await carregarBlocosDoTreino(treino.id_treino) });
 });
 
 async function alterarStatusTreino(idAluno, ativo) {

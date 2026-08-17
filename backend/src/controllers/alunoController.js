@@ -3,6 +3,7 @@ import { asyncHandler, erroConflito } from "../lib/erros.js";
 
 const SQL_EXERCICIOS_DO_TREINO = `
   SELECT eu.id,
+         eu.id_bloco,
          eu.id_exercicio,
          eu.numero_serie,
          eu.carga,
@@ -16,28 +17,81 @@ const SQL_EXERCICIOS_DO_TREINO = `
    ORDER BY eu.id
 `;
 
-/** Treino ativo do aluno logado, com os exercícios já resolvidos. */
-export const meuTreino = asyncHandler(async (req, res) => {
-  const { rows: treinos } = await db.query(
+/**
+ * Blocos de um treino com seus exercícios dentro.
+ *
+ * Todo treino tem pelo menos um bloco (o "A" de quem não divide), então quem
+ * consome isso nunca precisa tratar exercício solto.
+ */
+export async function carregarBlocosDoTreino(idTreino) {
+  const { rows: blocos } = await db.query(
+    "SELECT id_bloco, letra, nome, ordem FROM treino_bloco WHERE id_treino = $1 ORDER BY ordem",
+    [idTreino]
+  );
+  const { rows: exercicios } = await db.query(SQL_EXERCICIOS_DO_TREINO, [idTreino]);
+
+  return blocos.map((bloco) => ({
+    ...bloco,
+    exercicios: exercicios.filter((exercicio) => exercicio.id_bloco === bloco.id_bloco),
+  }));
+}
+
+/**
+ * Qual bloco propor ao aluno hoje: o seguinte ao último que ele finalizou,
+ * voltando ao primeiro depois do último. Sem histórico, o primeiro.
+ */
+export async function sugerirBloco(idAluno, blocos) {
+  if (blocos.length === 0) return null;
+
+  const { rows } = await db.query(
+    // O desempate por id_sessao não é detalhe: duas sessões no mesmo segundo
+    // deixam a ordenação só por iniciado_em indefinida, e a sugestão trava no
+    // mesmo bloco.
+    `SELECT id_bloco FROM sessao_treino
+      WHERE id_aluno = $1 AND finalizado_em IS NOT NULL AND id_bloco IS NOT NULL
+      ORDER BY iniciado_em DESC, id_sessao DESC
+      LIMIT 1`,
+    [idAluno]
+  );
+
+  const ultimo = rows[0]?.id_bloco ?? null;
+  const posicao = blocos.findIndex((bloco) => bloco.id_bloco === ultimo);
+
+  // Não achou (primeira vez, ou o treino mudou desde a última sessão): começa
+  // do primeiro bloco.
+  if (posicao === -1) return blocos[0].id_bloco;
+  return blocos[(posicao + 1) % blocos.length].id_bloco;
+}
+
+async function treinoAtivoDoAluno(idAluno) {
+  const { rows } = await db.query(
     `SELECT t.id_treino, t.criado_em, u.nome AS nome_professor
        FROM treino t
        JOIN usuario u ON u.id = t.id_professor
       WHERE t.id_aluno = $1 AND t.ativo = TRUE
       ORDER BY t.criado_em DESC
       LIMIT 1`,
-    [req.usuario.id]
+    [idAluno]
   );
+  return rows[0] ?? null;
+}
 
-  const treino = treinos[0] ?? null;
+/** Treino ativo do aluno logado, dividido em blocos. */
+export const meuTreino = asyncHandler(async (req, res) => {
+  const treino = await treinoAtivoDoAluno(req.usuario.id);
   if (!treino) {
-    return res.json({ treino: null, exercicios: [] });
+    return res.json({ treino: null, blocos: [], bloco_sugerido: null });
   }
 
-  const { rows: exercicios } = await db.query(SQL_EXERCICIOS_DO_TREINO, [treino.id_treino]);
-  res.json({ treino, exercicios });
+  const blocos = await carregarBlocosDoTreino(treino.id_treino);
+  res.json({
+    treino,
+    blocos,
+    bloco_sugerido: await sugerirBloco(req.usuario.id, blocos),
+  });
 });
 
-/** Treinos anteriores — possível agora que ex_usuario aponta para id_treino. */
+/** Prescrições anteriores — diferente do histórico de execuções. */
 export const meuHistorico = asyncHandler(async (req, res) => {
   const { rows } = await db.query(
     `SELECT t.id_treino,
@@ -88,4 +142,4 @@ export const pedirNovoTreino = asyncHandler(async (req, res) => {
   res.status(201).json({ message: "Pedido realizado com sucesso", pedido: rows[0] });
 });
 
-export { SQL_EXERCICIOS_DO_TREINO };
+export { SQL_EXERCICIOS_DO_TREINO, treinoAtivoDoAluno };

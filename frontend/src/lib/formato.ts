@@ -114,6 +114,12 @@ export function formatarCronometro(segundos: number) {
   return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`
 }
 
+/** "A — Peito e Tríceps", ou só "Treino A" quando não tem nome. */
+export function rotularBloco(letra: string | null, nome: string | null) {
+  if (!letra) return 'Treino'
+  return nome ? `${letra} — ${nome}` : `Treino ${letra}`
+}
+
 export function primeiroNome(nome: string) {
   return nome.trim().split(/\s+/)[0]
 }

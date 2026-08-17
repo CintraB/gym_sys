@@ -7,8 +7,10 @@ import {
   formatarData,
   formatarDataHora,
   formatarDuracao,
+  rotularBloco,
   tempoRelativo,
 } from '../../lib/formato'
+import { Selo } from '../../components/ui/Selo'
 import { Cartao } from '../../components/ui/Cartao'
 import { Aviso } from '../../components/ui/Aviso'
 import { Carregando, Esqueleto } from '../../components/ui/Carregando'
@@ -68,7 +70,14 @@ export default function Historico() {
                   className="flex w-full items-center justify-between gap-3 rounded-2xl border border-borda bg-superficie p-4 text-left transition-colors hover:border-acento/40"
                 >
                   <div className="min-w-0">
-                    <p className="font-medium">{formatarData(sessao.iniciado_em)}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium">{formatarData(sessao.iniciado_em)}</p>
+                      {sessao.bloco_letra && (
+                        <Selo tom="acento">
+                          {rotularBloco(sessao.bloco_letra, sessao.bloco_nome)}
+                        </Selo>
+                      )}
+                    </div>
                     <p className="mt-0.5 text-sm text-texto-suave">
                       {sessao.concluidos}/{sessao.total_exercicios} exercícios ·{' '}
                       {sessao.nome_professor}

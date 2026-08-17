@@ -8,8 +8,10 @@ import {
   formatarCronometro,
   formatarData,
   formatarDuracao,
+  rotularBloco,
   tempoRelativo,
 } from '../../lib/formato'
+import { Abas } from '../../components/ui/Abas'
 import { Botao } from '../../components/ui/Botao'
 import { AreaTexto } from '../../components/ui/Campo'
 import { Cartao } from '../../components/ui/Cartao'
@@ -78,19 +80,28 @@ function ModoLeitura({
   const [erro, setErro] = useState<string | null>(null)
   const [iniciando, setIniciando] = useState(false)
   const [painelPedido, setPainelPedido] = useState(false)
+  const [painelBloco, setPainelBloco] = useState(false)
+  const [blocoVisto, setBlocoVisto] = useState<number | null>(null)
 
   const pedido = useRequisicao<PedidoProprio | null>(
     () => api.get<PedidoProprio | null>('/alunos/pedidotreino').then((r) => r.data),
     [],
   )
 
-  const grupos = useMemo(() => agrupar(treino.dados?.exercicios ?? []), [treino.dados])
+  const blocos = treino.dados?.blocos ?? []
+  const sugerido = treino.dados?.bloco_sugerido ?? blocos[0]?.id_bloco ?? null
 
-  async function iniciar() {
+  // A aba abre no bloco sugerido, mas o aluno pode navegar para conferir os
+  // outros dias sem que isso mude o que vai iniciar.
+  const blocoAtivo = blocos.find((b) => b.id_bloco === (blocoVisto ?? sugerido)) ?? blocos[0]
+  const grupos = useMemo(() => agrupar(blocoAtivo?.exercicios ?? []), [blocoAtivo])
+
+  async function iniciar(idBloco: number | null) {
     setErro(null)
+    setPainelBloco(false)
     setIniciando(true)
     try {
-      await api.post('/alunos/treino/sessao')
+      await api.post('/alunos/treino/sessao', idBloco ? { id_bloco: idBloco } : {})
       aoIniciar()
     } catch (e) {
       setErro(mensagemDeErro(e, 'Não foi possível iniciar o treino.'))
@@ -118,7 +129,11 @@ function ModoLeitura({
 
             {erro && <Aviso tipo="erro">{erro}</Aviso>}
 
-            <Botao onClick={iniciar} carregando={iniciando} className="w-full">
+            <Botao
+              onClick={() => (blocos.length > 1 ? setPainelBloco(true) : iniciar(null))}
+              carregando={iniciando}
+              className="w-full"
+            >
               <Play className="size-4" aria-hidden />
               Iniciar treino
             </Botao>
@@ -126,6 +141,18 @@ function ModoLeitura({
               O tempo começa a contar agora e é registrado ao finalizar.
             </p>
           </Cartao>
+
+          {blocos.length > 1 && (
+            <Abas
+              abas={blocos.map((bloco) => ({
+                id: bloco.id_bloco,
+                rotulo: rotularBloco(bloco.letra, bloco.nome),
+                detalhe: `${bloco.exercicios.length} exercícios`,
+              }))}
+              ativa={blocoAtivo?.id_bloco ?? 0}
+              aoTrocar={(id) => setBlocoVisto(Number(id))}
+            />
+          )}
 
           {grupos.map(([grupo, exercicios]) => (
             <section key={grupo}>
@@ -186,6 +213,39 @@ function ModoLeitura({
           pedido.recarregar()
         }}
       />
+
+      <Painel
+        aberto={painelBloco}
+        aoFechar={() => setPainelBloco(false)}
+        titulo="Qual treino hoje?"
+      >
+        <ul className="space-y-2">
+          {blocos.map((bloco) => (
+            <li key={bloco.id_bloco}>
+              <button
+                type="button"
+                onClick={() => iniciar(bloco.id_bloco)}
+                className={cn(
+                  'flex w-full items-center justify-between gap-3 rounded-2xl border p-4 text-left transition-colors',
+                  bloco.id_bloco === sugerido
+                    ? 'border-acento/40 bg-acento/[0.08]'
+                    : 'border-borda hover:border-borda/80',
+                )}
+              >
+                <span className="min-w-0">
+                  <span className="block font-medium">
+                    {rotularBloco(bloco.letra, bloco.nome)}
+                  </span>
+                  <span className="mt-0.5 block text-sm text-texto-suave">
+                    {bloco.exercicios.length} exercícios
+                  </span>
+                </span>
+                {bloco.id_bloco === sugerido && <Selo tom="acento">sugerido</Selo>}
+              </button>
+            </li>
+          ))}
+        </ul>
+      </Painel>
     </div>
   )
 }
@@ -276,9 +336,16 @@ function ModoExecucao({ dados, aoMudar }: { dados: SessaoCompleta; aoMudar: () =
               {formatarCronometro(segundos)}
             </span>
           </div>
-          <span className="text-sm tabular-nums text-texto-suave">
-            {feitos}/{total}
-          </span>
+          <div className="flex items-center gap-2.5">
+            {dados.sessao.bloco_letra && (
+              <Selo tom="acento">
+                {rotularBloco(dados.sessao.bloco_letra, dados.sessao.bloco_nome)}
+              </Selo>
+            )}
+            <span className="text-sm tabular-nums text-texto-suave">
+              {feitos}/{total}
+            </span>
+          </div>
         </div>
 
         <div
