@@ -86,6 +86,20 @@ abre sem rede, mostrando o último treino carregado.
 No iPhone funciona direto. No Android a instalação completa exige HTTPS — que é
 o que a configuração de [`deploy/`](deploy/README.md) entrega.
 
+## Estado atual
+
+Funcional de ponta a ponta e usado em desenvolvimento contra PostgreSQL em
+container. Ainda **não está em produção** — falta subir no servidor doméstico
+com HTTPS.
+
+O que já funciona: cadastro de alunos, treinos em blocos, execução com
+cronômetro, histórico, frequência, perfil duplo professor/aluno, tema
+claro/escuro e instalação como PWA.
+
+As lacunas conhecidas — troca de senha, edição de treino, cadastro de
+exercícios pela interface, painel de administração e testes de frontend — estão
+listadas e priorizadas no [ROADMAP.md](ROADMAP.md).
+
 ## Documentação
 
 - [backend/README.md](backend/README.md) — instalação, banco, variáveis de
