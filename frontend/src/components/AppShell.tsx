@@ -44,7 +44,15 @@ export function AppShell({ itens, children }: { itens: ItemNav[]; children: Reac
             <Avatar nome={usuario?.nome ?? ''} />
             <div className="min-w-0">
               <p className="truncate text-sm font-medium">{usuario?.nome}</p>
-              <p className="text-xs capitalize text-texto-suave">{usuario?.cargo}</p>
+              {/* Rótulo do papel, não da pessoa: o sistema não guarda gênero,
+                  então "Professora" não teria como ser resolvido aqui. */}
+              <p className="text-xs text-texto-suave">
+                {usuario?.perfis.professor && usuario?.perfis.aluno
+                  ? 'Professor e aluno'
+                  : usuario?.perfis.professor
+                    ? 'Professor'
+                    : 'Aluno'}
+              </p>
             </div>
           </div>
           <div className="mb-2 px-1">

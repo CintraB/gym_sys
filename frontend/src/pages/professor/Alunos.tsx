@@ -3,7 +3,13 @@ import { Link } from 'react-router-dom'
 import { CalendarCheck, Dumbbell, Search, UserPlus, Users } from 'lucide-react'
 import { api, mensagemDeErro } from '../../lib/api'
 import { useRequisicao } from '../../lib/useRequisicao'
-import { mascararCpf, mascararTitulo, somenteDigitos, tempoRelativo } from '../../lib/formato'
+import {
+  contar,
+  mascararCpf,
+  mascararTitulo,
+  somenteDigitos,
+  tempoRelativo,
+} from '../../lib/formato'
 import { Botao } from '../../components/ui/Botao'
 import { Campo, CampoSenha } from '../../components/ui/Campo'
 import { Cartao } from '../../components/ui/Cartao'
@@ -44,8 +50,10 @@ export default function Alunos() {
     if (aluno.ativo) {
       const confirmado = await confirmar({
         titulo: `Desativar ${aluno.nome}?`,
+        // Sem gênero cadastrado, "os treinos dele" erra para metade dos alunos.
+        // Frase neutra resolve sem inventar um campo no banco.
         mensagem:
-          'Os treinos dele são inativados e o login para de funcionar. Dá para reativar depois.',
+          'Os treinos são inativados e o login para de funcionar. Dá para reativar depois.',
         acao: 'Desativar',
         perigo: true,
       })
@@ -55,7 +63,9 @@ export default function Alunos() {
     setErro(null)
     try {
       await api.put(`/professores/alunos/${acao}`, { cpf: aluno.cpf })
-      setSucesso(`${aluno.nome} foi ${aluno.ativo ? 'desativado' : 'reativado'}.`)
+      setSucesso(
+        `Cadastro de ${aluno.nome} ${aluno.ativo ? 'desativado' : 'reativado'} com sucesso.`,
+      )
       alunos.recarregar()
     } catch (e) {
       setErro(mensagemDeErro(e))
@@ -68,7 +78,9 @@ export default function Alunos() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Alunos</h1>
           <p className="mt-1 text-sm text-texto-suave">
-            {alunos.dados ? `${alunos.dados.length} encontrado(s)` : 'Carregando...'}
+            {alunos.dados
+              ? contar(alunos.dados.length, 'aluno encontrado', 'alunos encontrados')
+              : 'Carregando...'}
           </p>
         </div>
         <Botao onClick={() => setPainelAberto(true)} tamanho="sm" className="shrink-0">

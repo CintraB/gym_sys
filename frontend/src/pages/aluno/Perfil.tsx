@@ -26,7 +26,11 @@ export default function Perfil() {
         </div>
         <div className="min-w-0">
           <p className="truncate text-lg font-medium">{usuario?.nome}</p>
-          <p className="text-sm text-texto-suave">Aluno da academia</p>
+          {/* Sem gênero cadastrado, "Aluno da academia" erra para as alunas.
+              O rótulo descreve a conta, não a pessoa. */}
+          <p className="text-sm text-texto-suave">
+            {usuario?.perfis.professor ? 'Conta de professor e aluno' : 'Conta de aluno'}
+          </p>
         </div>
       </Cartao>
 

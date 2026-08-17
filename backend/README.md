@@ -103,6 +103,14 @@ psql -U <usuario> -d <banco> -f db/triggers.sql
 psql -U <usuario> -d <banco> -f db/seed.sql
 ```
 
+Migrações, para bancos que já têm dados — aplicar na ordem, e só as que faltam:
+
+| Arquivo | O que faz |
+|---|---|
+| `db/migracao-v2.sql` | PK em `ex_usuario` e vínculo com `treino` |
+| `db/migracao-v3-sessoes.sql` | Tabelas de execução de treino |
+| `db/migracao-v4-blocos.sql` | Divisão em blocos A/B/C/D |
+
 O `seed.sql` popula o catálogo com 77 exercícios e roda **uma vez só** — a ordem das linhas define
 os `id_exercicio`. Os triggers ficam separados porque preenchem `atualizado_em` via plpgsql, que o
 banco emulado dos testes não executa.
@@ -126,8 +134,13 @@ arquivo indica o que conferir antes de fechar as constraints.
 - `usuario.titulo` é obrigatório, 12 dígitos.
 - Exercícios de cardio são gravados sem séries, repetições nem carga — só com a observação de tempo
   e intensidade.
-- `treino` é a **prescrição** do professor; `sessao_treino` é **cada vez que ela foi executada**.
-  Um índice único parcial garante no máximo uma sessão em andamento por aluno.
+- `treino` é a **prescrição** do professor, `treino_bloco` é cada dia dela
+  (A/B/C/D), e `sessao_treino` é **cada vez que um bloco foi executado**. Um
+  índice único parcial garante no máximo uma sessão em andamento por aluno.
+- Todo treino tem pelo menos um bloco: sem divisão, vira um "A" sozinho. Assim
+  nenhuma consulta precisa tratar exercício fora de bloco.
+- `aluno` e `professor` são flags independentes — a mesma pessoa pode ter as
+  duas.
 - A duração de uma sessão é sempre calculada no servidor a partir de `iniciado_em`. O corpo da
   requisição de finalizar é ignorado: não há como o cliente inflar o tempo.
 
@@ -224,6 +237,11 @@ Resposta: `{ "token": "...", "usuario": { "id": 1, "nome": "...", "cpf": "...", 
 |---|---|---|
 | GET | `/me` | Perfil do usuário do token |
 
+A resposta traz `cargo` (o perfil principal, que decide onde o app abre) e
+`perfis`, com as duas capacidades. A mesma pessoa pode ser professor **e**
+aluno — o caso de quem dá aula e também treina — e nesse caso alcança as duas
+áreas.
+
 ### Aluno (`/alunos`)
 
 | Verbo | Rota | Descrição |
@@ -287,17 +305,30 @@ Cadastro de aluno ou professor:
 CPF e título são normalizados no servidor — podem chegar com máscara. Título é obrigatório (12
 dígitos, coluna `NOT NULL`); senha exige no mínimo 6 caracteres.
 
-Cadastro de treino:
+Cadastro de treino, dividido em blocos (o A/B/C/D das fichas):
 
 ```json
 {
   "id_aluno": 6,
-  "exercicios": [
-    { "id_exercicio": 3, "numero_serie": 4, "repeticoes": "10 a 15", "carga": 20, "observacao_ex_usuario": "c/ isometria" },
-    { "id_exercicio": 8, "numero_serie": 4, "repeticoes": "10 a 15", "carga": 15 }
+  "blocos": [
+    {
+      "nome": "Peito e Tríceps",
+      "exercicios": [
+        { "id_exercicio": 3, "numero_serie": 4, "repeticoes": "10 a 15", "carga": 20, "observacao_ex_usuario": "c/ isometria" },
+        { "id_exercicio": 8, "numero_serie": 4, "repeticoes": "10 a 15", "carga": 15 }
+      ]
+    },
+    { "nome": null, "exercicios": [ { "id_exercicio": 58, "numero_serie": 4, "repeticoes": "8 a 10", "carga": 60 } ] }
   ]
 }
 ```
+
+A letra de cada bloco vem da posição no array (A, B, C…), nunca do que o cliente
+mandar — assim não dá para criar dois blocos "A" nem pular letra. O nome é
+opcional; em branco, a tela mostra só "Treino A". Máximo de 8 blocos.
+
+O formato antigo, com `exercicios` na raiz, continua aceito e vira um bloco "A"
+único.
 
 O professor é obtido do token — `id_professor` no corpo é ignorado. Salvar um treino desativa o
 treino anterior do aluno e encerra o pedido em aberto dele, na mesma transação.

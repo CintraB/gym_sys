@@ -162,7 +162,8 @@ export const alternarExercicio = asyncHandler(async (req, res) => {
 
   const concluido = req.body?.concluido;
   if (typeof concluido !== "boolean") {
-    throw erroRequisicao("Informe concluido como true ou false");
+    // "concluido" sem acento de proposito: e o nome do campo no JSON.
+    throw erroRequisicao('Informe "concluido" como true ou false');
   }
 
   // O IN é o que impede marcar exercício da sessão de outro aluno: o item só

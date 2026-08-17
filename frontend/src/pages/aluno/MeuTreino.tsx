@@ -176,7 +176,7 @@ function ModoLeitura({
         <Vazio
           icone={Dumbbell}
           titulo="Você ainda não tem treino"
-          descricao="Peça um treino ao seu professor. Assim que ele montar, aparece aqui."
+          descricao="Peça um treino ao seu professor. Assim que estiver montado, aparece aqui."
         />
       )}
 
