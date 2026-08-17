@@ -6,8 +6,9 @@
     <meta name="theme-color" content="#0b0f0e" />
     <meta name="description" content="Gestão de treinos, alunos e professores da academia." />
 
-    <!-- Instalável na tela inicial do celular -->
-    <link rel="manifest" href="/manifest.webmanifest" />
+    <!-- Instalável na tela inicial do celular.
+         O <link rel="manifest"> e o registro do service worker são injetados
+         pelo vite-plugin-pwa; o manifesto é declarado no vite.config.ts. -->
     <link rel="icon" type="image/png" href="/logoapp.png" />
     <link rel="apple-touch-icon" href="/logoapp.png" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
