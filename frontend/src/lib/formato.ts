@@ -114,6 +114,11 @@ export function formatarCronometro(segundos: number) {
   return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`
 }
 
+/** contar(1, 'exercício') -> "1 exercício"; contar(3, ...) -> "3 exercícios". */
+export function contar(quantidade: number, singular: string, plural = `${singular}s`) {
+  return `${quantidade} ${quantidade === 1 ? singular : plural}`
+}
+
 /** "A — Peito e Tríceps", ou só "Treino A" quando não tem nome. */
 export function rotularBloco(letra: string | null, nome: string | null) {
   if (!letra) return 'Treino'

@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, ReactNode } from 'react'
+import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from 'react'
 import { Loader2 } from 'lucide-react'
 import { cn } from '../../lib/cn'
 
@@ -25,17 +25,15 @@ interface Props extends ButtonHTMLAttributes<HTMLButtonElement> {
   children?: ReactNode
 }
 
-export function Botao({
-  variante = 'primario',
-  tamanho = 'md',
-  carregando = false,
-  className,
-  children,
-  disabled,
-  ...resto
-}: Props) {
+// forwardRef porque a confirmação precisa dar foco a um botão específico ao
+// abrir — em ação destrutiva, o Cancelar.
+export const Botao = forwardRef<HTMLButtonElement, Props>(function Botao(
+  { variante = 'primario', tamanho = 'md', carregando = false, className, children, disabled, ...resto },
+  ref,
+) {
   return (
     <button
+      ref={ref}
       {...resto}
       disabled={disabled || carregando}
       className={cn(
@@ -51,4 +49,4 @@ export function Botao({
       {children}
     </button>
   )
-}
+})

@@ -12,6 +12,7 @@ import { Esqueleto } from '../../components/ui/Carregando'
 import { Vazio } from '../../components/ui/Vazio'
 import { Selo } from '../../components/ui/Selo'
 import { Painel } from '../../components/ui/Painel'
+import { useConfirmacao } from '../../components/ui/Confirmacao'
 import { useDebounce } from '../../lib/useDebounce'
 import type { Aluno } from '../../types'
 
@@ -22,6 +23,8 @@ export default function Alunos() {
   const [incluirInativos, setIncluirInativos] = useState(false)
   const [painelAberto, setPainelAberto] = useState(false)
   const [sucesso, setSucesso] = useState<string | null>(null)
+  const [erro, setErro] = useState<string | null>(null)
+  const { confirmar, dialogo } = useConfirmacao()
 
   const buscaAdiada = useDebounce(busca, 300)
 
@@ -37,16 +40,25 @@ export default function Alunos() {
 
   async function alternarStatus(aluno: Aluno) {
     const acao = aluno.ativo ? 'desativar' : 'reativar'
-    if (aluno.ativo && !confirm(`Desativar ${aluno.nome}? Os treinos dele serão inativados.`)) {
-      return
+
+    if (aluno.ativo) {
+      const confirmado = await confirmar({
+        titulo: `Desativar ${aluno.nome}?`,
+        mensagem:
+          'Os treinos dele são inativados e o login para de funcionar. Dá para reativar depois.',
+        acao: 'Desativar',
+        perigo: true,
+      })
+      if (!confirmado) return
     }
 
+    setErro(null)
     try {
       await api.put(`/professores/alunos/${acao}`, { cpf: aluno.cpf })
       setSucesso(`${aluno.nome} foi ${aluno.ativo ? 'desativado' : 'reativado'}.`)
       alunos.recarregar()
     } catch (e) {
-      alert(mensagemDeErro(e))
+      setErro(mensagemDeErro(e))
     }
   }
 
@@ -66,6 +78,7 @@ export default function Alunos() {
       </header>
 
       {sucesso && <Aviso tipo="sucesso">{sucesso}</Aviso>}
+      {erro && <Aviso tipo="erro">{erro}</Aviso>}
 
       <div className="space-y-3">
         <div className="relative">
@@ -179,6 +192,8 @@ export default function Alunos() {
           alunos.recarregar()
         }}
       />
+
+      {dialogo}
     </div>
   )
 }

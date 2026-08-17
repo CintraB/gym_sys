@@ -4,6 +4,7 @@ import { api, mensagemDeErro } from '../../lib/api'
 import { useRequisicao } from '../../lib/useRequisicao'
 import { useCronometro } from '../../lib/useCronometro'
 import {
+  contar,
   descreverSerie,
   formatarCronometro,
   formatarData,
@@ -147,7 +148,7 @@ function ModoLeitura({
               abas={blocos.map((bloco) => ({
                 id: bloco.id_bloco,
                 rotulo: rotularBloco(bloco.letra, bloco.nome),
-                detalhe: `${bloco.exercicios.length} exercícios`,
+                detalhe: contar(bloco.exercicios.length, 'exercício'),
               }))}
               ativa={blocoAtivo?.id_bloco ?? 0}
               aoTrocar={(id) => setBlocoVisto(Number(id))}
@@ -237,7 +238,7 @@ function ModoLeitura({
                     {rotularBloco(bloco.letra, bloco.nome)}
                   </span>
                   <span className="mt-0.5 block text-sm text-texto-suave">
-                    {bloco.exercicios.length} exercícios
+                    {contar(bloco.exercicios.length, 'exercício')}
                   </span>
                 </span>
                 {bloco.id_bloco === sugerido && <Selo tom="acento">sugerido</Selo>}

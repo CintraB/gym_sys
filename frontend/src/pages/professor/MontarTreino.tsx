@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { Dumbbell, Plus, Trash2, X } from 'lucide-react'
 import { api, mensagemDeErro } from '../../lib/api'
 import { useRequisicao } from '../../lib/useRequisicao'
-import { descreverSerieCurta, formatarData, rotularBloco } from '../../lib/formato'
+import { contar, descreverSerieCurta, formatarData, rotularBloco } from '../../lib/formato'
 import { Botao } from '../../components/ui/Botao'
 import { Campo, Selecao } from '../../components/ui/Campo'
 import { Cartao, TituloSecao } from '../../components/ui/Cartao'
@@ -11,6 +11,7 @@ import { Aviso } from '../../components/ui/Aviso'
 import { Esqueleto } from '../../components/ui/Carregando'
 import { Selo } from '../../components/ui/Selo'
 import { Abas } from '../../components/ui/Abas'
+import { useConfirmacao } from '../../components/ui/Confirmacao'
 import { cn } from '../../lib/cn'
 import type { Aluno, Exercicio, LinhaBloco, LinhaExercicio, TreinoCompleto } from '../../types'
 
@@ -36,6 +37,7 @@ export default function MontarTreino() {
   const [erro, setErro] = useState<string | null>(null)
   const [sucesso, setSucesso] = useState<string | null>(null)
   const [enviando, setEnviando] = useState(false)
+  const { confirmar, dialogo } = useConfirmacao()
 
   const alunos = useRequisicao<Aluno[]>(
     () => api.get<Aluno[]>('/professores/alunos').then((r) => r.data),
@@ -89,10 +91,20 @@ export default function MontarTreino() {
     setAtivo(blocos.length)
   }
 
-  function removerBloco(indice: number) {
+  async function removerBloco(indice: number) {
     const letra = LETRAS[indice]
     const quantos = blocos[indice].exercicios.length
-    if (!confirm(`Remover o bloco ${letra} e seus ${quantos} exercício(s)?`)) return
+
+    const confirmado = await confirmar({
+      titulo: `Remover o bloco ${letra}?`,
+      mensagem:
+        quantos === 1
+          ? 'O exercício desse bloco será descartado, e os blocos seguintes são renomeados.'
+          : `Os ${quantos} exercícios desse bloco serão descartados, e os blocos seguintes são renomeados.`,
+      acao: 'Remover',
+      perigo: true,
+    })
+    if (!confirmado) return
 
     setBlocos((atuais) => atuais.filter((_, i) => i !== indice))
     setAtivo((atual) => Math.max(0, atual >= indice ? atual - 1 : atual))
@@ -176,7 +188,7 @@ export default function MontarTreino() {
             abas={blocos.map((bloco, i) => ({
               id: i,
               rotulo: rotularBloco(LETRAS[i], bloco.nome.trim() || null),
-              detalhe: `${bloco.exercicios.length} exercícios`,
+              detalhe: contar(bloco.exercicios.length, 'exercício'),
             }))}
             ativa={ativo}
             aoTrocar={(id) => setAtivo(Number(id))}
@@ -296,6 +308,8 @@ export default function MontarTreino() {
           </Botao>
         </section>
       )}
+
+      {dialogo}
     </div>
   )
 }
@@ -340,7 +354,7 @@ function TreinoVigente({
             className="flex w-full items-center justify-between gap-3 rounded-xl border border-borda px-3 py-2.5 text-left text-sm transition-colors hover:border-acento/40"
           >
             <span className="font-medium">{rotularBloco(bloco.letra, bloco.nome)}</span>
-            <span className="text-texto-suave">{bloco.exercicios.length} exercícios</span>
+            <span className="text-texto-suave">{contar(bloco.exercicios.length, 'exercício')}</span>
           </button>
 
           {aberto === bloco.id_bloco && (
