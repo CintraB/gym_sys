@@ -371,6 +371,39 @@ test("rota inexistente devolve 404 em JSON", async (t) => {
   assert.equal(resposta.corpo.message, "Rota não encontrada");
 });
 
+test("quem é professor e aluno alcança as duas áreas", async (t) => {
+  const { api } = await cenario();
+  t.after(() => api.encerrar());
+
+  // O professor do cenário passa a ser aluno também — o caso de quem dá aula
+  // e treina na mesma academia.
+  api.memoria.public.none("UPDATE usuario SET aluno = TRUE WHERE cpf = '11111111111'");
+
+  const login = await api.post("/login", { cpf: "11111111111", senha: "senha123" });
+  assert.deepEqual(login.corpo.usuario.perfis, { aluno: true, professor: true });
+  assert.equal(login.corpo.usuario.cargo, "professor", "o cargo principal continua professor");
+
+  const token = login.corpo.token;
+  const areaProfessor = await api.get("/professores/alunos", { token });
+  const areaAluno = await api.get("/alunos/meutreino", { token });
+
+  assert.equal(areaProfessor.status, 200);
+  assert.equal(areaAluno.status, 200, "com aluno = true, a área do aluno abre");
+});
+
+test("perfil único não ganha acesso ao outro lado", async (t) => {
+  const { api, tokenProfessor } = await cenario();
+  t.after(() => api.encerrar());
+
+  const criado = await api.post("/professores/alunos", ALUNO, { token: tokenProfessor });
+  assert.equal(criado.status, 201);
+  const login = await api.post("/login", { cpf: ALUNO.cpf, senha: ALUNO.senha });
+
+  assert.deepEqual(login.corpo.usuario.perfis, { aluno: true, professor: false });
+  const tentativa = await api.get("/professores/alunos", { token: login.corpo.token });
+  assert.equal(tentativa.status, 403);
+});
+
 test("/me devolve o perfil do token", async (t) => {
   const { api, tokenProfessor } = await cenario();
   t.after(() => api.encerrar());

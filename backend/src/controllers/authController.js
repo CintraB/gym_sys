@@ -4,8 +4,19 @@ import { verificarSenha } from "../lib/senha.js";
 import { asyncHandler, erroNaoAutorizado, erroRequisicao } from "../lib/erros.js";
 import { normalizarDigitos } from "../lib/validacao.js";
 
+/**
+ * Perfil principal — o que decide para onde o app abre.
+ *
+ * `aluno` e `professor` são flags independentes: a mesma pessoa pode ser as
+ * duas coisas (o professor que também treina na academia). Por isso o cargo
+ * sozinho não basta, e a resposta leva junto `perfis` com as duas capacidades.
+ */
 function perfilDe(usuario) {
   return usuario.professor ? "professor" : "aluno";
+}
+
+function perfisDe(usuario) {
+  return { aluno: Boolean(usuario.aluno), professor: Boolean(usuario.professor) };
 }
 
 export const login = asyncHandler(async (req, res) => {
@@ -38,6 +49,7 @@ export const login = asyncHandler(async (req, res) => {
       nome: usuario.nome,
       cpf: usuario.cpf,
       cargo,
+      perfis: perfisDe(usuario),
       ativo: usuario.ativo,
     },
   });
@@ -46,5 +58,14 @@ export const login = asyncHandler(async (req, res) => {
 /** Perfil do usuário do token — usado pelo front para reidratar a sessão. */
 export const eu = asyncHandler(async (req, res) => {
   const { id, nome, cpf, email, titulo, ativo } = req.usuario;
-  res.json({ id, nome, cpf, email, titulo, ativo, cargo: perfilDe(req.usuario) });
+  res.json({
+    id,
+    nome,
+    cpf,
+    email,
+    titulo,
+    ativo,
+    cargo: perfilDe(req.usuario),
+    perfis: perfisDe(req.usuario),
+  });
 });

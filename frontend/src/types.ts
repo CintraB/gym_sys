@@ -6,7 +6,10 @@ export interface Usuario {
   cpf: string
   email?: string | null
   titulo?: string | null
+  /** Perfil principal — decide para onde o app abre depois do login. */
   cargo: Cargo
+  /** As duas capacidades. Quem dá aula e também treina tem as duas. */
+  perfis: { aluno: boolean; professor: boolean }
   ativo: boolean
 }
 

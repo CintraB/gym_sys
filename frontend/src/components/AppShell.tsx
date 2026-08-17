@@ -5,6 +5,7 @@ import { useAuth } from '../auth/useAuth'
 import { iniciais, primeiroNome } from '../lib/formato'
 import { cn } from '../lib/cn'
 import { BotaoTema, SeletorTema } from './ui/SeletorTema'
+import { TrocarArea } from './TrocarArea'
 
 export interface ItemNav {
   para: string
@@ -47,6 +48,9 @@ export function AppShell({ itens, children }: { itens: ItemNav[]; children: Reac
             </div>
           </div>
           <div className="mb-2 px-1">
+            <TrocarArea />
+          </div>
+          <div className="mb-2 px-1">
             <SeletorTema compacto />
           </div>
           <button
@@ -75,6 +79,7 @@ export function AppShell({ itens, children }: { itens: ItemNav[]; children: Reac
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-0.5">
+            <TrocarArea compacto />
             <BotaoTema />
             <button
               type="button"

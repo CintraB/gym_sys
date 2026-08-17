@@ -6,7 +6,10 @@ import type { Cargo } from '../types'
 
 /**
  * Antes qualquer pessoa abria /professor direto e via a tela montada,
- * só as chamadas à API falhavam. Aqui a rota só renderiza com o cargo certo.
+ * só as chamadas à API falhavam. Aqui a rota só renderiza com o perfil certo.
+ *
+ * A checagem é pela capacidade (`perfis`), não pelo cargo principal: quem é
+ * professor e também aluno alcança as duas áreas.
  */
 export function RotaProtegida({ cargo, children }: { cargo: Cargo; children: ReactNode }) {
   const { usuario, carregando } = useAuth()
@@ -20,7 +23,7 @@ export function RotaProtegida({ cargo, children }: { cargo: Cargo; children: Rea
     return <Navigate to="/entrar" state={{ de: localizacao.pathname }} replace />
   }
 
-  if (usuario.cargo !== cargo) {
+  if (!usuario.perfis[cargo]) {
     return <Navigate to={usuario.cargo === 'professor' ? '/professor' : '/aluno'} replace />
   }
 
