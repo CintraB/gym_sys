@@ -58,7 +58,7 @@ export default function Dashboard() {
           acao={
             <Link
               to="/professor/pedidos"
-              className="inline-flex items-center gap-1 text-sm text-acento hover:underline"
+              className="inline-flex items-center gap-1 text-sm text-acento-texto hover:underline"
             >
               Ver todos <ArrowRight className="size-4" aria-hidden />
             </Link>
@@ -131,7 +131,7 @@ function Indicador({
 }) {
   return (
     <Cartao className="flex flex-col justify-between gap-3">
-      <Icone className={destaque ? 'size-5 text-acento' : 'size-5 text-texto-suave'} aria-hidden />
+      <Icone className={destaque ? 'size-5 text-acento-texto' : 'size-5 text-texto-suave'} aria-hidden />
       <div>
         <p className="text-2xl font-semibold tabular-nums leading-none">{valor}</p>
         <p className="mt-1.5 text-xs text-texto-suave">{rotulo}</p>
@@ -157,7 +157,7 @@ function Atalho({
       className="flex items-center gap-4 rounded-2xl border border-borda bg-superficie p-4 transition-colors hover:border-acento/40 hover:bg-superficie-2"
     >
       <div className="grid size-11 shrink-0 place-items-center rounded-xl bg-acento/12">
-        <Icone className="size-5 text-acento" aria-hidden />
+        <Icone className="size-5 text-acento-texto" aria-hidden />
       </div>
       <div className="min-w-0 flex-1">
         <p className="font-medium">{titulo}</p>

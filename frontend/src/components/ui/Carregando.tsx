@@ -11,7 +11,7 @@ export function Carregando({ tela = false, texto }: { tela?: boolean; texto?: st
         tela ? 'min-h-dvh' : 'py-12',
       )}
     >
-      <Loader2 className="size-6 animate-spin text-acento" aria-hidden />
+      <Loader2 className="size-6 animate-spin text-acento-texto" aria-hidden />
       <span className="text-sm">{texto ?? 'Carregando...'}</span>
     </div>
   )

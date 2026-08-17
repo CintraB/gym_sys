@@ -4,6 +4,7 @@ import { LogOut } from 'lucide-react'
 import { useAuth } from '../auth/useAuth'
 import { iniciais, primeiroNome } from '../lib/formato'
 import { cn } from '../lib/cn'
+import { BotaoTema, SeletorTema } from './ui/SeletorTema'
 
 export interface ItemNav {
   para: string
@@ -45,6 +46,9 @@ export function AppShell({ itens, children }: { itens: ItemNav[]; children: Reac
               <p className="text-xs capitalize text-texto-suave">{usuario?.cargo}</p>
             </div>
           </div>
+          <div className="mb-2 px-1">
+            <SeletorTema />
+          </div>
           <button
             type="button"
             onClick={sair}
@@ -70,14 +74,17 @@ export function AppShell({ itens, children }: { itens: ItemNav[]; children: Reac
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={sair}
-            aria-label="Sair"
-            className="rounded-xl p-2 text-texto-suave transition-colors hover:bg-superficie-2 hover:text-perigo"
-          >
-            <LogOut className="size-5" aria-hidden />
-          </button>
+          <div className="flex shrink-0 items-center gap-0.5">
+            <BotaoTema />
+            <button
+              type="button"
+              onClick={sair}
+              aria-label="Sair"
+              className="rounded-xl p-2 text-texto-suave transition-colors hover:bg-superficie-2 hover:text-perigo"
+            >
+              <LogOut className="size-5" aria-hidden />
+            </button>
+          </div>
         </header>
 
         <main className="mx-auto w-full max-w-5xl flex-1 px-4 pb-28 pt-5 sm:px-6 lg:pb-10">
@@ -99,7 +106,7 @@ export function AppShell({ itens, children }: { itens: ItemNav[]; children: Reac
 
 function Avatar({ nome }: { nome: string }) {
   return (
-    <div className="grid size-9 shrink-0 place-items-center rounded-xl bg-acento/15 text-xs font-bold text-acento">
+    <div className="grid size-9 shrink-0 place-items-center rounded-xl bg-acento/15 text-xs font-bold text-acento-texto">
       {iniciais(nome)}
     </div>
   )
@@ -107,7 +114,7 @@ function Avatar({ nome }: { nome: string }) {
 
 function Distintivo({ valor }: { valor: number }) {
   return (
-    <span className="ml-auto grid min-w-5 place-items-center rounded-full bg-acento px-1.5 py-0.5 text-[11px] font-bold leading-none text-fundo">
+    <span className="ml-auto grid min-w-5 place-items-center rounded-full bg-acento px-1.5 py-0.5 text-[11px] font-bold leading-none text-sobre-acento">
       {valor > 99 ? '99+' : valor}
     </span>
   )
@@ -124,7 +131,7 @@ function LinkLateral({ item }: { item: ItemNav }) {
         cn(
           'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors',
           isActive
-            ? 'bg-acento/12 font-medium text-acento'
+            ? 'bg-acento/12 font-medium text-acento-texto'
             : 'text-texto-suave hover:bg-superficie-2 hover:text-texto',
         )
       }
@@ -146,14 +153,14 @@ function LinkInferior({ item }: { item: ItemNav }) {
       className={({ isActive }) =>
         cn(
           'relative flex flex-1 flex-col items-center gap-1 rounded-xl px-1 py-2 text-[11px] transition-colors',
-          isActive ? 'text-acento' : 'text-texto-suave',
+          isActive ? 'text-acento-texto' : 'text-texto-suave',
         )
       }
     >
       <span className="relative">
         <Icone className="size-[22px]" aria-hidden />
         {Boolean(distintivo) && (
-          <span className="absolute -right-2 -top-1.5 grid min-w-4 place-items-center rounded-full bg-acento px-1 text-[10px] font-bold leading-4 text-fundo">
+          <span className="absolute -right-2 -top-1.5 grid min-w-4 place-items-center rounded-full bg-acento px-1 text-[10px] font-bold leading-4 text-sobre-acento">
             {distintivo! > 9 ? '9+' : distintivo}
           </span>
         )}

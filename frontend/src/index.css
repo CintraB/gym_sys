@@ -1,7 +1,55 @@
 @import 'tailwindcss';
 
-/* Tema único e escuro: é o visual que a aplicação assume, não uma preferência. */
+/*
+ * Paleta em três estados: sistema (nenhum data-theme), claro e escuro
+ * forçados. O tema claro é o padrão do :root; o escuro é redefinido tanto na
+ * media query quanto em [data-theme="escuro"], para que o botão de troca
+ * ganhe da preferência do sistema nos dois sentidos.
+ *
+ * Sobre o acento: o lima é vivo demais para servir de texto sobre fundo claro.
+ * Por isso são três tokens e não um:
+ *   --color-acento        preenchimento (botão, barra de progresso)
+ *   --color-acento-texto  texto e ícones sobre o fundo da página
+ *   --color-sobre-acento  texto por cima do preenchimento
+ */
 @theme {
+  --color-fundo: #f7f8f7;
+  --color-superficie: #ffffff;
+  --color-superficie-2: #eef1ee;
+  --color-borda: #dce1dc;
+  --color-texto: #10130f;
+  --color-texto-suave: #5a635c;
+  --color-acento: #a3d51f;
+  --color-acento-escuro: #7fa817;
+  --color-acento-texto: #46700c;
+  --color-sobre-acento: #0a0d0c;
+  --color-perigo: #c0392f;
+  --color-alerta: #a06800;
+
+  --radius-xl: 1rem;
+  --radius-2xl: 1.25rem;
+}
+
+/* Escuro por preferência do sistema — a menos que o claro tenha sido escolhido. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='claro']) {
+    --color-fundo: #0a0d0c;
+    --color-superficie: #121716;
+    --color-superficie-2: #1a201e;
+    --color-borda: #26302d;
+    --color-texto: #e9edeb;
+    --color-texto-suave: #93a09b;
+    --color-acento: #b8f043;
+    --color-acento-escuro: #93c623;
+    --color-acento-texto: #b8f043;
+    --color-sobre-acento: #0a0d0c;
+    --color-perigo: #f87171;
+    --color-alerta: #fbbf24;
+  }
+}
+
+/* Escuro escolhido no botão. */
+:root[data-theme='escuro'] {
   --color-fundo: #0a0d0c;
   --color-superficie: #121716;
   --color-superficie-2: #1a201e;
@@ -10,16 +58,27 @@
   --color-texto-suave: #93a09b;
   --color-acento: #b8f043;
   --color-acento-escuro: #93c623;
+  --color-acento-texto: #b8f043;
+  --color-sobre-acento: #0a0d0c;
   --color-perigo: #f87171;
   --color-alerta: #fbbf24;
-
-  --radius-xl: 1rem;
-  --radius-2xl: 1.25rem;
 }
 
 @layer base {
   html {
     -webkit-text-size-adjust: 100%;
+    /* Faz os controles nativos (scrollbar, seletor de data) acompanharem. */
+    color-scheme: light;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    html:not([data-theme='claro']) {
+      color-scheme: dark;
+    }
+  }
+
+  html[data-theme='escuro'] {
+    color-scheme: dark;
   }
 
   body {
@@ -46,7 +105,7 @@
 
   ::selection {
     background-color: var(--color-acento);
-    color: #0a0d0c;
+    color: var(--color-sobre-acento);
   }
 }
 

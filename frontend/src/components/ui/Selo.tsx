@@ -5,7 +5,7 @@ type Tom = 'neutro' | 'acento' | 'alerta' | 'perigo'
 
 const TONS: Record<Tom, string> = {
   neutro: 'bg-superficie-2 text-texto-suave border-borda',
-  acento: 'bg-acento/12 text-acento border-acento/25',
+  acento: 'bg-acento/12 text-acento-texto border-acento/25',
   alerta: 'bg-alerta/12 text-alerta border-alerta/25',
   perigo: 'bg-perigo/12 text-perigo border-perigo/25',
 }

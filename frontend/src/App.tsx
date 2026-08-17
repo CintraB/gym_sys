@@ -5,6 +5,7 @@ import Login from './pages/Login'
 import ProfessorLayout from './pages/professor/ProfessorLayout'
 import Dashboard from './pages/professor/Dashboard'
 import Alunos from './pages/professor/Alunos'
+import Frequencia from './pages/professor/Frequencia'
 import MontarTreino from './pages/professor/MontarTreino'
 import Pedidos from './pages/professor/Pedidos'
 import AlunoLayout from './pages/aluno/AlunoLayout'
@@ -29,6 +30,7 @@ export default function App() {
           >
             <Route index element={<Dashboard />} />
             <Route path="alunos" element={<Alunos />} />
+            <Route path="alunos/:id/frequencia" element={<Frequencia />} />
             <Route path="treino" element={<MontarTreino />} />
             <Route path="pedidos" element={<Pedidos />} />
           </Route>

@@ -44,7 +44,7 @@ export default function Login() {
       <div className="mx-auto w-full max-w-sm">
         <div className="mb-8 flex flex-col items-center text-center">
           <div className="mb-4 grid size-16 place-items-center rounded-2xl bg-acento/12">
-            <Dumbbell className="size-8 text-acento" aria-hidden />
+            <Dumbbell className="size-8 text-acento-texto" aria-hidden />
           </div>
           <h1 className="text-2xl font-semibold tracking-tight">Gym Sys</h1>
           <p className="mt-1 text-sm text-texto-suave">Entre para ver seus treinos</p>

@@ -11,7 +11,7 @@ export function Aviso({ tipo, children }: { tipo: 'erro' | 'sucesso'; children: 
         'flex items-start gap-2.5 rounded-xl border px-3.5 py-3 text-sm',
         tipo === 'erro'
           ? 'border-perigo/30 bg-perigo/10 text-perigo'
-          : 'border-acento/30 bg-acento/10 text-acento',
+          : 'border-acento/30 bg-acento/10 text-acento-texto',
       )}
     >
       <Icone className="mt-0.5 size-4 shrink-0" aria-hidden />

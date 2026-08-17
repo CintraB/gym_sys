@@ -1,9 +1,9 @@
 import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
-import { Dumbbell, Search, UserPlus, Users } from 'lucide-react'
+import { CalendarCheck, Dumbbell, Search, UserPlus, Users } from 'lucide-react'
 import { api, mensagemDeErro } from '../../lib/api'
 import { useRequisicao } from '../../lib/useRequisicao'
-import { mascararCpf, mascararTitulo, somenteDigitos } from '../../lib/formato'
+import { mascararCpf, mascararTitulo, somenteDigitos, tempoRelativo } from '../../lib/formato'
 import { Botao } from '../../components/ui/Botao'
 import { Campo } from '../../components/ui/Campo'
 import { Cartao } from '../../components/ui/Cartao'
@@ -115,12 +115,27 @@ export default function Alunos() {
                   <p className="mt-0.5 text-sm tabular-nums text-texto-suave">
                     {mascararCpf(aluno.cpf)}
                   </p>
+                  <p className="mt-1 text-xs text-texto-suave">
+                    {aluno.ultima_sessao ? (
+                      <>Treinou {tempoRelativo(aluno.ultima_sessao)}</>
+                    ) : (
+                      <span className="text-alerta">Nunca treinou pelo app</span>
+                    )}
+                  </p>
                 </div>
+
+                <Link
+                  to={`/professor/alunos/${aluno.id}/frequencia`}
+                  aria-label={`Frequência de ${aluno.nome}`}
+                  className="grid size-10 shrink-0 place-items-center rounded-xl border border-borda text-texto-suave transition-colors hover:border-acento/40 hover:text-acento-texto"
+                >
+                  <CalendarCheck className="size-4" aria-hidden />
+                </Link>
 
                 <Link
                   to={`/professor/treino?aluno=${aluno.id}`}
                   aria-label={`Montar treino para ${aluno.nome}`}
-                  className="grid size-10 shrink-0 place-items-center rounded-xl border border-borda text-texto-suave transition-colors hover:border-acento/40 hover:text-acento"
+                  className="grid size-10 shrink-0 place-items-center rounded-xl border border-borda text-texto-suave transition-colors hover:border-acento/40 hover:text-acento-texto"
                 >
                   <Dumbbell className="size-4" aria-hidden />
                 </Link>

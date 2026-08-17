@@ -3,6 +3,7 @@ import { useAuth } from '../../auth/useAuth'
 import { iniciais, mascararCpf } from '../../lib/formato'
 import { Botao } from '../../components/ui/Botao'
 import { Cartao } from '../../components/ui/Cartao'
+import { SeletorTema } from '../../components/ui/SeletorTema'
 
 export default function Perfil() {
   const { usuario, sair } = useAuth()
@@ -20,7 +21,7 @@ export default function Perfil() {
       </header>
 
       <Cartao className="flex items-center gap-4">
-        <div className="grid size-14 shrink-0 place-items-center rounded-2xl bg-acento/15 text-lg font-bold text-acento">
+        <div className="grid size-14 shrink-0 place-items-center rounded-2xl bg-acento/15 text-lg font-bold text-acento-texto">
           {iniciais(usuario?.nome ?? '')}
         </div>
         <div className="min-w-0">
@@ -37,6 +38,11 @@ export default function Perfil() {
           </div>
         ))}
       </Cartao>
+
+      <div className="space-y-2">
+        <h2 className="px-1 text-sm font-medium text-texto-suave">Aparência</h2>
+        <SeletorTema />
+      </div>
 
       <p className="px-1 text-sm text-texto-suave">
         Para alterar seus dados ou sua senha, fale com seu professor.

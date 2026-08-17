@@ -6,7 +6,7 @@ type Variante = 'primario' | 'secundario' | 'fantasma' | 'perigo'
 type Tamanho = 'md' | 'sm' | 'icone'
 
 const VARIANTES: Record<Variante, string> = {
-  primario: 'bg-acento text-fundo hover:bg-acento-escuro active:bg-acento-escuro font-semibold',
+  primario: 'bg-acento text-sobre-acento hover:bg-acento-escuro active:bg-acento-escuro font-semibold',
   secundario: 'bg-superficie-2 text-texto hover:bg-borda border border-borda',
   fantasma: 'text-texto-suave hover:text-texto hover:bg-superficie-2',
   perigo: 'bg-perigo/10 text-perigo hover:bg-perigo/20 border border-perigo/30',
