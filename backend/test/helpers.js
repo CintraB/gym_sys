@@ -30,6 +30,16 @@ export async function criarApiDeTeste({ limites, proxiesConfiaveis } = {}) {
   memoria.public.none(schema);
   memoria.public.none(seed);
 
+  // O pg-mem usa um índice parcial para responder consultas que NÃO casam com
+  // o predicado dele, e some com as linhas: depois de criar
+  // idx_sessao_aberta_por_aluno, qualquer "WHERE id_aluno = X" em
+  // sessao_treino deixa de enxergar as sessões finalizadas.
+  //
+  // É bug do emulador, não do schema — o PostgreSQL real trata certo. O índice
+  // fica no schema.sql e a garantia de "uma sessão aberta por aluno" é
+  // conferida contra o Postgres de verdade, não aqui.
+  memoria.public.none("DROP INDEX idx_sessao_aberta_por_aluno");
+
   const { Pool } = memoria.adapters.createPg();
   const pool = new Pool();
   configurarPool(pool);

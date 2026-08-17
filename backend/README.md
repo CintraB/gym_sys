@@ -126,6 +126,10 @@ arquivo indica o que conferir antes de fechar as constraints.
 - `usuario.titulo` é obrigatório, 12 dígitos.
 - Exercícios de cardio são gravados sem séries, repetições nem carga — só com a observação de tempo
   e intensidade.
+- `treino` é a **prescrição** do professor; `sessao_treino` é **cada vez que ela foi executada**.
+  Um índice único parcial garante no máximo uma sessão em andamento por aluno.
+- A duração de uma sessão é sempre calculada no servidor a partir de `iniciado_em`. O corpo da
+  requisição de finalizar é ignorado: não há como o cliente inflar o tempo.
 
 Como só um professor pode cadastrar outro, o primeiro usuário é criado por script:
 
@@ -225,9 +229,16 @@ Resposta: `{ "token": "...", "usuario": { "id": 1, "nome": "...", "cpf": "...", 
 | Verbo | Rota | Descrição |
 |---|---|---|
 | GET | `/alunos/meutreino` | Treino ativo com os exercícios |
-| GET | `/alunos/historico` | Treinos anteriores |
+| GET | `/alunos/historico` | Treinos prescritos anteriores |
 | GET | `/alunos/pedidotreino` | Pedido em aberto, se houver |
 | POST | `/alunos/pedidotreino` | Solicita novo treino |
+| GET | `/alunos/treino/sessao` | Sessão em andamento, ou `null` |
+| POST | `/alunos/treino/sessao` | Inicia o treino |
+| DELETE | `/alunos/treino/sessao` | Descarta a sessão em andamento |
+| POST | `/alunos/treino/sessao/finalizar` | Finaliza e grava a duração |
+| PUT | `/alunos/treino/sessao/exercicio/:id` | Marca/desmarca um exercício |
+| GET | `/alunos/sessoes` | Histórico de treinos executados |
+| GET | `/alunos/sessoes/:id` | Detalhe de uma sessão |
 
 O aluno vem do token — nenhuma dessas rotas recebe id.
 
@@ -247,6 +258,7 @@ Só é permitido um pedido em aberto por aluno (`409` no segundo).
 | GET | `/professores/aluno/:id` | Aluno por ID |
 | PUT | `/professores/aluno/:id` | Altera cadastro do aluno |
 | GET | `/professores/aluno/:id/treino` | Treino ativo do aluno |
+| GET | `/professores/aluno/:id/sessoes` | Frequência e treinos executados |
 | PUT | `/professores/alunos/desativar` | Desativa usuário por CPF |
 | PUT | `/professores/alunos/reativar` | Reativa usuário por CPF |
 | POST | `/professores/usuario/cpfoutitulo` | Busca usuário por CPF ou título |

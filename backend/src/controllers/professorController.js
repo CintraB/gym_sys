@@ -21,19 +21,31 @@ export const listarAlunos = asyncHandler(async (req, res) => {
   const busca = (req.query.busca ?? "").toString().trim();
   const incluirInativos = req.query.incluirInativos === "true";
 
-  const condicoes = ["aluno = TRUE"];
+  const condicoes = ["u.aluno = TRUE"];
   const valores = [];
 
   if (!incluirInativos) {
-    condicoes.push("ativo = TRUE");
+    condicoes.push("u.ativo = TRUE");
   }
   if (busca) {
     valores.push(`%${busca}%`, `%${normalizarDigitos(busca) || busca}%`);
-    condicoes.push(`(nome ILIKE $${valores.length - 1} OR cpf LIKE $${valores.length})`);
+    condicoes.push(`(u.nome ILIKE $${valores.length - 1} OR u.cpf LIKE $${valores.length})`);
   }
 
+  // ultima_sessao alimenta o "treinou há X dias" da lista — o professor vê de
+  // relance quem sumiu da academia.
   const { rows } = await db.query(
-    `SELECT ${CAMPOS_PUBLICOS} FROM usuario WHERE ${condicoes.join(" AND ")} ORDER BY nome`,
+    `SELECT u.id, u.nome, u.cpf, u.email, u.titulo, u.aluno, u.professor, u.ativo,
+            s.ultima_sessao
+       FROM usuario u
+       LEFT JOIN (
+            SELECT id_aluno, MAX(iniciado_em) AS ultima_sessao
+              FROM sessao_treino
+             WHERE finalizado_em IS NOT NULL
+             GROUP BY id_aluno
+       ) s ON s.id_aluno = u.id
+      WHERE ${condicoes.join(" AND ")}
+      ORDER BY u.nome`,
     valores
   );
 

@@ -99,9 +99,41 @@ CREATE TABLE IF NOT EXISTS ex_usuario (
     criado_em              TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Execução de um treino: o aluno inicia, marca os exercícios conforme faz, e
+-- finaliza. `treino` é a prescrição; `sessao_treino` é cada vez que ela foi
+-- executada.
+--
+-- A duração é derivada dos dois timestamps no servidor e gravada em
+-- duracao_segundos ao finalizar — o cronômetro da tela é só apresentação.
+CREATE TABLE IF NOT EXISTS sessao_treino (
+    id_sessao         SERIAL PRIMARY KEY,
+    id_treino         INTEGER   NOT NULL REFERENCES treino (id_treino) ON DELETE CASCADE,
+    id_aluno          INTEGER   NOT NULL REFERENCES usuario (id),
+    iniciado_em       TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    -- NULL enquanto o treino está em andamento.
+    finalizado_em     TIMESTAMPTZ,
+    duracao_segundos  INTEGER
+);
+
+CREATE TABLE IF NOT EXISTS sessao_exercicio (
+    id             SERIAL PRIMARY KEY,
+    id_sessao      INTEGER   NOT NULL REFERENCES sessao_treino (id_sessao) ON DELETE CASCADE,
+    id_ex_usuario  INTEGER   NOT NULL REFERENCES ex_usuario (id) ON DELETE CASCADE,
+    concluido      BOOLEAN   NOT NULL DEFAULT FALSE,
+    concluido_em   TIMESTAMPTZ
+);
+
 CREATE INDEX IF NOT EXISTS idx_usuario_cpf        ON usuario (cpf);
 CREATE INDEX IF NOT EXISTS idx_treino_aluno_ativo ON treino (id_aluno, ativo);
 CREATE INDEX IF NOT EXISTS idx_ex_usuario_treino  ON ex_usuario (id_treino);
 CREATE INDEX IF NOT EXISTS idx_ex_usuario_user    ON ex_usuario (id_user, ativo);
 CREATE INDEX IF NOT EXISTS idx_pedido_aluno_ativo ON pedido_treino (id_aluno, ativo);
 CREATE INDEX IF NOT EXISTS idx_exercicio_tipo     ON exercicio (tipo);
+CREATE INDEX IF NOT EXISTS idx_sessao_aluno       ON sessao_treino (id_aluno, iniciado_em);
+
+-- No máximo uma sessão em andamento por aluno. Garantido no banco, e não só
+-- no código, porque dois toques rápidos em "Iniciar" chegariam em paralelo.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_sessao_aberta_por_aluno
+    ON sessao_treino (id_aluno) WHERE finalizado_em IS NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_sessao_exercicio_unico
+    ON sessao_exercicio (id_sessao, id_ex_usuario);

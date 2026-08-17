@@ -1,5 +1,6 @@
 import { Router } from "express";
 import * as professor from "../controllers/professorController.js";
+import * as sessao from "../controllers/sessaoController.js";
 import { erroRequisicao } from "../lib/erros.js";
 
 const rotas = Router();
@@ -21,6 +22,7 @@ rotas.put("/alunos/reativar", professor.reativarUsuario);
 rotas.get("/aluno/:id", professor.listarAlunoPorId);
 rotas.put("/aluno/:id", professor.alterarAluno);
 rotas.get("/aluno/:id/treino", professor.treinoDoAluno);
+rotas.get("/aluno/:id/sessoes", sessao.sessoesDoAluno);
 rotas.post("/usuario/cpfoutitulo", professor.buscarUsuarioPorCpfOuTitulo);
 
 // Professores
