@@ -79,8 +79,9 @@ original justamente para isso.
 - [x] **Trocar e redefinir senha** — `PUT /me/senha` com a senha atual, e o
       admin redefinindo a de quem esqueceu. Trocar a senha derruba as sessões
       abertas, comparando o `iat` do token com `senha_alterada_em`
-- [ ] Editar dados de qualquer usuário (hoje só aluno é editável) — leva 2
-- [ ] Promover e rebaixar perfis (aluno ↔ professor ↔ admin) — leva 2
+- [x] Editar dados de qualquer usuário — `PUT /admin/usuarios/:id`
+- [x] Promover e rebaixar perfis (aluno ↔ professor ↔ admin), com quatro travas
+      contra o sistema ficar sem administrador
 - [ ] Excluir de verdade, além do desativar
 
 ### 2.3 Gestão do sistema
@@ -146,7 +147,7 @@ Coisas que a operação do dia a dia vai cobrar.
 
 - [x] **Testes de frontend** — Vitest + Testing Library: 59 testes cobrindo
       `formato.ts`, os hooks, a autorização de rota e o render das nove telas.
-      Com o backend, 215 no total. Foi a tela preta que motivou — o build
+      Com o backend, 233 no total. Foi a tela preta que motivou — o build
       passava porque nada renderizava componente
 - [ ] **Testar os interceptors de `api.ts`** — o token no cabeçalho e o 401
       derrubando a sessão. A suíte do front mocka `src/lib/api.ts` inteiro, e
@@ -178,5 +179,4 @@ Fora do escopo de uso doméstico, anotado para não se perder:
 ## Ordem sugerida
 
 1. **Seção 1** — tirar do notebook e colocar no servidor, com Tailscale
-2. **Painel de admin, leva 2** — editar qualquer usuário e trocar perfis
-3. **Segurança** (3) — obrigatória antes de qualquer acesso externo de terceiros
+2. **Segurança** (3) — obrigatória antes de qualquer acesso externo de terceiros

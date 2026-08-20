@@ -188,7 +188,7 @@ nascem com senha conhecida.
 ```plaintext
 npm run dev     # desenvolvimento, com reload
 npm start       # produção
-npm test        # suíte de testes (151)
+npm test        # suíte de testes (169)
 ```
 
 Os testes rodam sobre um PostgreSQL em memória — não precisam de banco nem de `.env`.
@@ -293,6 +293,8 @@ Só é permitido um pedido em aberto por aluno (`409` no segundo).
 | GET | `/professores/professor/:id` | Professor por ID |
 | PUT | `/me/senha` | Troca a senha do próprio usuário |
 | GET | `/admin/usuarios` | Lista todos, com filtro por perfil e status |
+| PUT | `/admin/usuarios/:id` | Altera os dados de qualquer usuário |
+| PUT | `/admin/usuarios/:id/perfis` | Promove e rebaixa perfis |
 | PUT | `/admin/usuarios/:id/senha` | Admin redefine a senha de alguém |
 | GET | `/professores/exercicios` | Catálogo de exercícios |
 | POST | `/professores/exercicios` | Acrescenta um exercício ao catálogo |
@@ -433,6 +435,27 @@ sem isso um token roubado sobreviveria à troca — o cenário exato em que a se
 comparação é estritamente menor porque `iat` tem resolução de segundos, e `/me/senha` devolve um
 token novo para quem trocou não se desconectar. Coluna nula quer dizer "nunca trocou" e não invalida
 nada, que é como toda linha nasce na migração.
+
+### Travas de perfil
+
+`PUT /admin/usuarios/:id/perfis` recebe `{ aluno, professor, admin }` e recusa quatro situações,
+cada uma um caminho de deixar o sistema inutilizável:
+
+| Situação | Resposta | Por quê |
+|---|---|---|
+| Admin tirando o próprio `admin` | 403 | Um clique distraído deixaria o sistema sem quem o administre, e o caminho de volta é SQL na mão |
+| Rebaixar o último admin **ativo** | 409 | A regra acima pela porta dos fundos |
+| Deixar alguém sem perfil nenhum | 400 | A pessoa entra e não alcança tela alguma: fica presa num redirecionamento sem destino |
+| Desativar o último admin ativo | 409 | Mesmo efeito de rebaixá-lo |
+
+Fora de uma corrida, a segunda é inalcançável — o último admin ativo só poderia ser rebaixado por si
+mesmo, e a primeira já barra isso. Ela existe para dois admins que se rebaixam ao mesmo tempo, e por
+isso a contagem roda **dentro da transação**. A contagem também confere `ativo` no alvo: sem isso,
+rebaixar um admin já inativo seria recusado sem que ninguém fosse perdido.
+
+`PUT /admin/usuarios/:id` altera nome, CPF, e-mail e título de **qualquer** conta — a rota do
+professor só alcança aluno. Perfis, `ativo` e `senha` no corpo são ignorados: cada um tem rota
+própria.
 
 ## Erros
 
