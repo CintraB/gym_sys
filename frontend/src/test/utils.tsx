@@ -53,7 +53,13 @@ export function renderizar(
   }
 
   return render(
-    <MemoryRouter initialEntries={[rota]}>
+    // As mesmas future flags do BrowserRouter em App.tsx. Sem elas o teste
+    // rodaria numa configuração de router diferente da do app — e ainda
+    // sujaria a saída com o aviso de migração a cada render.
+    <MemoryRouter
+      initialEntries={[rota]}
+      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+    >
       <AuthContext.Provider value={valor}>
         {caminho ? (
           <Routes>
