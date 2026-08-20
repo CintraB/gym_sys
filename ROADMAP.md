@@ -165,13 +165,68 @@ Coisas que a operação do dia a dia vai cobrar.
 
 ---
 
-## 6. Se um dia virar produto
+## 6. Rodar no celular sem depender do PC
+
+Pedido de 20/08/2026: **compilar o app para o telefone e testar tudo offline.**
+
+"Offline" aqui tem três significados, com custos muito diferentes. Antes de escolher, vale separar
+o que se quer de verdade: **testar no celular** ou **usar sem servidor**.
+
+### 6.0 O atalho, se o objetivo for só testar
+
+- [ ] **Tailscale + PC ligado** (já é o item 1.3) — o celular alcança o app **de verdade**, com o
+      backend real, de qualquer lugar. Zero código, zero build.
+
+Se o objetivo é testar, isto é melhor que qualquer simulação: exercita o sistema inteiro, não uma
+imitação dele. Só não serve com o PC desligado.
+
+### 6.1 PWA com leitura offline — quase pronto
+
+- [ ] **HTTPS**, e o resto já existe. O `vite-plugin-pwa` está configurado, com `NetworkFirst`
+      para `/alunos/meutreino`, `/alunos/sessoes` e `/me`. O service worker só registra em
+      contexto seguro, então hoje, acessando pelo IP em HTTP, ele fica inerte — depende do 1.2
+
+Entrega: instala como app, abre sem rede e mostra o **último treino visto**. Marcar exercício,
+finalizar sessão e qualquer escrita continuam exigindo servidor. É cache de leitura, não app
+offline.
+
+### 6.2 Modo demo embutido — testar tudo sem servidor nenhum
+
+- [ ] Um build alternativo (`npm run build:demo`) que troca `src/lib/api.ts` por uma
+      implementação em memória, com os dados em IndexedDB para sobreviver ao fechar o app
+- [ ] Empacotar com **Capacitor** num APK, ou instalar como PWA
+
+São ~25 endpoints a implementar no cliente. É mais barato do que parece por causa de uma decisão que
+já está tomada: **toda chamada passa por `src/lib/api.ts`**, e a suíte de testes do front já prova
+que substituir esse módulo basta para as nove telas funcionarem.
+
+**O custo honesto:** as regras de negócio passam a existir em dois lugares. Um treino salvo aqui não
+é o mesmo caminho de código que o backend executa, então isto testa a **interface e o fluxo**, não o
+sistema. Serve para mexer no app no ônibus; não serve para validar que o backend está certo.
+
+### 6.3 Offline de verdade, com sincronização
+
+- [ ] Dados no aparelho, fila de escrita e sincronização quando a rede volta
+
+Isto é outra arquitetura, não um build diferente: exige ids locais versus ids do servidor, resolução
+de conflito e um modelo de dados que aguente divergir. Só faz sentido se a academia tiver ponto sem
+sinal e o aluno precisar treinar ali. **Não fazer antes de essa necessidade aparecer de verdade.**
+
+### Sugestão
+
+Fazer **6.0** primeiro, que já estava no plano e não custa código. Se depois de usar por um tempo
+ainda incomodar depender do PC ligado, aí sim **6.2** — que é o que atende "testar tudo no
+telefone". O **6.3** só com um caso real na mão.
+
+---
+
+## 7. Se um dia virar produto
 
 Fora do escopo de uso doméstico, anotado para não se perder:
 
 - [ ] Múltiplas academias no mesmo sistema
 - [ ] Controle de mensalidade e vencimento
-- [ ] Aplicativo nativo — hoje o PWA cobre bem a necessidade
+- [ ] Aplicativo nativo publicado nas lojas — diferente da seção 6, que é para uso próprio
 - [ ] Notificação push de treino novo e de pedido atendido
 
 ---
@@ -180,3 +235,6 @@ Fora do escopo de uso doméstico, anotado para não se perder:
 
 1. **Seção 1** — tirar do notebook e colocar no servidor, com Tailscale
 2. **Segurança** (3) — obrigatória antes de qualquer acesso externo de terceiros
+
+O **6.0** sai junto do item 1: Tailscale já está lá, e é o que põe o app no celular sem
+escrever código. O resto da seção 6 só depois de usar assim por um tempo.
