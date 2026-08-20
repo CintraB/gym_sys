@@ -81,12 +81,22 @@ async function criarTreino({ idAluno, idProfessor, exercicios, ativo = true, dia
   );
   const idTreino = rows[0].id_treino;
 
+  // Todo treino tem pelo menos um bloco desde a divisão A/B/C/D: ex_usuario.id_bloco
+  // é NOT NULL. Sem divisão declarada, os exercícios entram num "A" sozinho.
+  const { rows: blocos } = await db.query(
+    `INSERT INTO treino_bloco (id_treino, letra, nome, ordem)
+     VALUES ($1, 'A', NULL, 1)
+     RETURNING id_bloco`,
+    [idTreino]
+  );
+  const idBloco = blocos[0].id_bloco;
+
   for (const item of exercicios) {
     await db.query(
       `INSERT INTO ex_usuario
-         (id_treino, id_user, id_exercicio, numero_serie, repeticoes, carga, observacao_ex_usuario, ativo)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-      [idTreino, idAluno, item.ex, item.series, item.reps, item.carga, item.obs, ativo]
+         (id_treino, id_bloco, id_user, id_exercicio, numero_serie, repeticoes, carga, observacao_ex_usuario, ativo)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      [idTreino, idBloco, idAluno, item.ex, item.series, item.reps, item.carga, item.obs, ativo]
     );
   }
 

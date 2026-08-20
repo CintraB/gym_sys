@@ -53,16 +53,24 @@ const { rows: treinos } = await pool.query(
 );
 const idTreino = treinos[0].id_treino;
 
+// Todo treino tem pelo menos um bloco: ex_usuario.id_bloco é NOT NULL desde a
+// divisão A/B/C/D. Sem divisão, os exercícios ficam num "A" sozinho.
+const { rows: blocos } = await pool.query(
+  "INSERT INTO treino_bloco (id_treino, letra, ordem) VALUES ($1, 'A', 1) RETURNING id_bloco",
+  [idTreino]
+);
+const idBloco = blocos[0].id_bloco;
+
 // Os ids seguem a ordem de db/seed.sql.
 await pool.query(
-  `INSERT INTO ex_usuario (id_treino, id_user, id_exercicio, numero_serie, repeticoes, carga, observacao_ex_usuario) VALUES
-     ($1, 2,  1, 4, '10 a 15', 30, 'Descanso de 60s'),
-     ($1, 2,  8, 3, '12',      14, NULL),
-     ($1, 2, 40, 4, '10 a 15', 45, 'Pegada aberta'),
-     ($1, 2, 13, 3, '12 a 15', 12, NULL),
-     ($1, 2, 58, 4, '8 a 10',  60, 'Cuidado com a lombar'),
-     ($1, 2, 36, 0, '',         0, '20 min / moderado')`,
-  [idTreino]
+  `INSERT INTO ex_usuario (id_treino, id_bloco, id_user, id_exercicio, numero_serie, repeticoes, carga, observacao_ex_usuario) VALUES
+     ($1, $2, 2,  1, 4, '10 a 15', 30, 'Descanso de 60s'),
+     ($1, $2, 2,  8, 3, '12',      14, NULL),
+     ($1, $2, 2, 40, 4, '10 a 15', 45, 'Pegada aberta'),
+     ($1, $2, 2, 13, 3, '12 a 15', 12, NULL),
+     ($1, $2, 2, 58, 4, '8 a 10',  60, 'Cuidado com a lombar'),
+     ($1, $2, 2, 36, 0, '',         0, '20 min / moderado')`,
+  [idTreino, idBloco]
 );
 
 // Pedido em aberto do Bruno, para a tela de pedidos ter conteúdo.
