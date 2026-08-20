@@ -144,9 +144,17 @@ Coisas que a operação do dia a dia vai cobrar.
 
 ## 5. Qualidade técnica
 
-- [ ] **Testes de frontend** — hoje são 127 testes, todos de backend. A tela
-      preta que apareceu ao trocar de área passou justamente por isso: nenhum
-      teste renderiza componente. Vitest + Testing Library
+- [x] **Testes de frontend** — Vitest + Testing Library: 59 testes cobrindo
+      `formato.ts`, os hooks, a autorização de rota e o render das nove telas.
+      Com o backend, 186 no total. Foi a tela preta que motivou — o build
+      passava porque nada renderizava componente
+- [ ] **Testar os interceptors de `api.ts`** — o token no cabeçalho e o 401
+      derrubando a sessão. A suíte do front mocka `src/lib/api.ts` inteiro, e
+      é justamente esse módulo que os contém, então ficam de fora. Exige MSW,
+      ou testar o módulo sem o mock
+- [ ] **Interações de formulário no front** — montar treino ponta a ponta,
+      login com erro, o modal de novo exercício. Hoje a suíte garante que as
+      telas montam, não que os fluxos funcionam
 - [ ] **Error boundary** no React — hoje um erro de renderização apaga a tela
       inteira sem dizer nada ao usuário
 - [ ] Paginação em alunos e professores (do TO DO original)
@@ -172,5 +180,4 @@ Fora do escopo de uso doméstico, anotado para não se perder:
 1. **Seção 1** — tirar do notebook e colocar no servidor, com Tailscale
 2. **Troca de senha** (2.2) — o buraco mais óbvio, e barato de fechar
 3. **Painel de admin** completo (seção 2)
-4. **Testes de frontend** (5) — antes de abrir para os alunos
-5. **Segurança** (3) — obrigatória antes de qualquer acesso externo de terceiros
+4. **Segurança** (3) — obrigatória antes de qualquer acesso externo de terceiros

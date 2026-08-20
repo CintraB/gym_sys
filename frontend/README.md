@@ -41,6 +41,8 @@ npm run dev       # desenvolvimento
 npm run build     # verificação de tipos + build de produção
 npm run preview   # serve o build (é onde o service worker funciona)
 npm run lint      # ESLint
+npm test          # Vitest, roda uma vez
+npm run test:watch
 ```
 
 ## Telas
@@ -123,11 +125,39 @@ formulários em folha deslizante, alvos de toque grandes e campos com fonte de
 Diálogos de confirmação são do app, não do navegador — centralizados, no tema,
 e com o foco começando no "Cancelar" quando a ação é destrutiva.
 
+## Testes
+
+Vitest com jsdom e Testing Library, sobre o mesmo `vite.config.ts` do build. Os
+testes ficam ao lado do código (`formato.ts` → `formato.test.ts`), e cobrem as
+funções de formatação, os hooks, a autorização de rota e o render das nove telas.
+
+O smoke das telas é a resposta ao erro de importação que derrubou a tela do
+aluno sem ninguém perceber: o build passava porque nada renderizava componente.
+
+A API é substituída por `vi.mock` em `src/lib/api.ts`, que é o único ponto de
+saída HTTP do app. **Consequência:** os interceptors de token e de 401 não são
+exercitados por esta suíte — está anotado no [ROADMAP](../ROADMAP.md).
+
+`src/test/utils.tsx` traz `renderizar(ui, { rota, caminho, usuario, carregando })`,
+que embrulha em `MemoryRouter` e injeta o `AuthContext` já resolvido — sem isso
+todo teste esperaria a chamada a `/me` do `AuthProvider`.
+
+`src/test/setup.ts` tem dois remendos de ambiente, os dois com causa fora do
+app: o Node 25 expõe um `localStorage` nativo que sobrescreve o do jsdom e vem
+sem `getItem`, e o jsdom não implementa `matchMedia`. Sem eles, qualquer tela
+com o `SeletorTema` dentro quebra no teste.
+
+Como o código já existia quando a suíte nasceu, todo teste aqui passou de
+primeira. Cada um foi validado quebrando de propósito a linha que protege e
+confirmando o vermelho — foi assim que se descobriu que o primeiro teste de
+`useDebounce` não pegava a remoção do `clearTimeout`. Ao mexer nesses testes,
+repita o procedimento: teste que nunca falhou não prova nada.
+
 ## Ainda não existe
 
-Testes. Toda a suíte do projeto é de backend, e foi por isso que um erro de
-importação derrubou a tela do aluno sem ninguém perceber. Vitest + Testing
-Library é o próximo passo — está no [ROADMAP](../ROADMAP.md).
+Interações de formulário ponta a ponta — montar treino, login com erro, o modal
+de novo exercício. A suíte atual garante que as telas montam e que a falha de
+rede vira aviso, não que o fluxo inteiro funciona.
 
 ## Tecnologias
 
