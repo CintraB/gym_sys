@@ -39,11 +39,12 @@ configurarPool(pool);
 const senha = await criarHashComSal("demo123");
 
 await pool.query(
-  `INSERT INTO usuario (cpf, nome, senha, email, titulo, aluno, professor, ativo) VALUES
-     ('11111111111', 'Cristhian Cintra', $1, 'professor@demo.com', '111111111111', FALSE, TRUE, TRUE),
-     ('22222222222', 'Ana Souza',        $1, 'ana@demo.com',       '222222222222', TRUE,  FALSE, TRUE),
-     ('33333333333', 'Bruno Lima',       $1, 'bruno@demo.com',     '333333333333', TRUE,  FALSE, TRUE),
-     ('44444444444', 'Carla Dias',       $1, 'carla@demo.com',     '444444444444', TRUE,  FALSE, TRUE)`,
+  // O primeiro nasce com os tres perfis: e quem administra, da aula e treina.
+  `INSERT INTO usuario (cpf, nome, senha, email, titulo, aluno, professor, admin, ativo) VALUES
+     ('11111111111', 'Cristhian Cintra', $1, 'professor@demo.com', '111111111111', TRUE,  TRUE,  TRUE,  TRUE),
+     ('22222222222', 'Ana Souza',        $1, 'ana@demo.com',       '222222222222', TRUE,  FALSE, FALSE, TRUE),
+     ('33333333333', 'Bruno Lima',       $1, 'bruno@demo.com',     '333333333333', TRUE,  FALSE, FALSE, TRUE),
+     ('44444444444', 'Carla Dias',       $1, 'carla@demo.com',     '444444444444', TRUE,  FALSE, FALSE, TRUE)`,
   [senha]
 );
 
@@ -86,6 +87,6 @@ const porta = Number(process.env.PORTA ?? 8080);
 criarApp({ origensCors: "*" }).listen(porta, "0.0.0.0", () => {
   console.log(`\n  MODO DEMO — dados em memória, nada é salvo em disco.`);
   console.log(`  API:   http://localhost:${porta}  (CORS aberto)`);
-  console.log(`\n  professor  CPF 111.111.111-11  senha demo123`);
+  console.log(`\n  admin      CPF 111.111.111-11  senha demo123  (admin + professor + aluno)`);
   console.log(`  aluno      CPF 222.222.222-22  senha demo123\n`);
 });
