@@ -847,3 +847,70 @@ test("aluno não edita o próprio treino pelo PUT de professor", async (t) => {
 
   assert.equal(resposta.status, 403);
 });
+
+/* ------------------------------------------------------- area de admin */
+
+test("professor sem a flag admin não alcança as rotas de admin", async (t) => {
+  const { api, tokenProfessor } = await cenario();
+  t.after(() => api.encerrar());
+
+  const tentativas = [
+    api.get("/admin/usuarios", { token: tokenProfessor }),
+    api.put("/admin/usuarios/1/senha", { senha_nova: "outraSenha1" }, { token: tokenProfessor }),
+  ];
+
+  for (const resposta of await Promise.all(tentativas)) {
+    assert.equal(resposta.status, 403);
+  }
+});
+
+test("aluno não alcança as rotas de admin", async (t) => {
+  const { api, aluno } = await cenario();
+  t.after(() => api.encerrar());
+
+  const resposta = await api.get("/admin/usuarios", { token: aluno.token });
+  assert.equal(resposta.status, 403);
+});
+
+// A claim do token não é autorização: o perfil vem do banco.
+test("token que se diz admin não vira admin", async (t) => {
+  const { api, aluno } = await cenario();
+  t.after(() => api.encerrar());
+
+  const mentiroso = await new SignJWT({ id: aluno.id, cargo: "admin" })
+    .setProtectedHeader({ alg: "HS256" })
+    .setIssuedAt()
+    .setExpirationTime("1h")
+    .sign(SEGREDO);
+
+  const resposta = await api.get("/admin/usuarios", { token: mentiroso });
+  assert.equal(resposta.status, 403);
+});
+
+test("a listagem de admin nunca devolve a coluna senha", async (t) => {
+  const { api } = await cenario();
+  t.after(() => api.encerrar());
+
+  const { criarAdminELogar } = await import("./helpers.js");
+  const token = await criarAdminELogar(api, { cpf: "99999999999" });
+
+  const resposta = await api.get("/admin/usuarios", { token });
+  const texto = JSON.stringify(resposta.corpo);
+
+  assert.ok(!texto.includes('"senha"'), `a listagem trouxe o campo senha: ${texto.slice(0, 200)}`);
+  assert.ok(!/[0-9a-f]{64}/.test(texto), `parece hash de senha na resposta: ${texto.slice(0, 200)}`);
+});
+
+// A senha atual é exigida em /me/senha justamente para que um token roubado
+// não baste para tomar a conta. Sem ela, a rota de troca viraria a porta.
+test("troca de senha sem informar a atual não passa", async (t) => {
+  const { api, aluno } = await cenario();
+  t.after(() => api.encerrar());
+
+  const resposta = await api.put("/me/senha", { senha_nova: "outraSenha456" }, { token: aluno.token });
+
+  assert.equal(resposta.status, 401);
+
+  const aindaVale = await api.post("/login", { cpf: ALUNO.cpf, senha: ALUNO.senha });
+  assert.equal(aindaVale.status, 200, "a senha não podia ter mudado");
+});
