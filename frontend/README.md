@@ -125,6 +125,19 @@ formulários em folha deslizante, alvos de toque grandes e campos com fonte de
 Diálogos de confirmação são do app, não do navegador — centralizados, no tema,
 e com o foco começando no "Cancelar" quando a ação é destrutiva.
 
+## Área de administração
+
+`/admin` é a terceira área, ao lado de professor e aluno, e só abre para quem tem a flag `admin`.
+Traz a listagem de todos os usuários do sistema — o professor só enxerga alunos — com filtro por
+perfil e status, e a redefinição de senha de quem esqueceu.
+
+A troca da própria senha fica no Perfil, e vale para os três perfis.
+
+`src/auth/areas.ts` é a fonte única de qual rota pertence a cada cargo, de como cada área se chama
+e de como descrever os perfis de alguém. Antes isso estava repetido em cinco lugares como
+`cargo === 'professor' ? '/professor' : '/aluno'`, e quando o admin entrou todos mandaram o admin
+para a área do aluno — o "senão" do ternário engolia o perfil novo em silêncio.
+
 ## Testes
 
 Vitest com jsdom e Testing Library, sobre o mesmo `vite.config.ts` do build. Os

@@ -28,7 +28,7 @@ pedido em aberto. Nada é salvo em disco.
 
 | Perfil | CPF | Senha |
 |---|---|---|
-| Professor | `111.111.111-11` | `demo123` |
+| Admin, professor e aluno | `111.111.111-11` | `demo123` |
 | Aluno | `222.222.222-22` | `demo123` |
 
 ## Configuração
@@ -111,6 +111,7 @@ Migrações, para bancos que já têm dados — aplicar na ordem, e só as que f
 | `db/migracao-v3-sessoes.sql` | Tabelas de execução de treino |
 | `db/migracao-v4-blocos.sql` | Divisão em blocos A/B/C/D |
 | `db/migracao-v5-edicao-treino.sql` | `ativo` em `treino_bloco`, para o `PUT` de treino |
+| `db/migracao-v6-admin.sql` | perfil de `admin` e `senha_alterada_em` |
 
 O `seed.sql` popula o catálogo com 77 exercícios e roda **uma vez só** — a ordem das linhas define
 os `id_exercicio`. Os triggers ficam separados porque preenchem `atualizado_em` via plpgsql, que o
@@ -140,16 +141,22 @@ arquivo indica o que conferir antes de fechar as constraints.
   índice único parcial garante no máximo uma sessão em andamento por aluno.
 - Todo treino tem pelo menos um bloco: sem divisão, vira um "A" sozinho. Assim
   nenhuma consulta precisa tratar exercício fora de bloco.
-- `aluno` e `professor` são flags independentes — a mesma pessoa pode ter as
-  duas.
+- `aluno`, `professor` e `admin` são flags independentes — a mesma pessoa pode
+  ter as três. O cargo principal, que decide para onde o app abre, é
+  admin > professor > aluno.
 - A duração de uma sessão é sempre calculada no servidor a partir de `iniciado_em`. O corpo da
   requisição de finalizar é ignorado: não há como o cliente inflar o tempo.
 
-Como só um professor pode cadastrar outro, o primeiro usuário é criado por script:
+As rotas de cadastro exigem um token do perfil que se quer criar, então em banco novo o primeiro
+usuário sai por script:
 
 ```plaintext
-npm run criar-professor -- --cpf 12345678901 --nome "Seu Nome" --senha "suaSenha" --email voce@exemplo.com --titulo 123456789012
+npm run criar-admin -- --cpf 12345678901 --nome "Seu Nome" --senha "suaSenha" --email voce@exemplo.com --titulo 123456789012
+npm run criar-professor -- --cpf 98765432100 --nome "Outro Nome" --senha "outraSenha" --email outro@exemplo.com --titulo 987654321000
 ```
+
+O `criar-admin` nasce com os três perfis: quem administra este sistema também dá aula e treina na
+academia. `--sem-aluno` cria só admin e professor.
 
 ### Dados de exemplo
 
@@ -181,7 +188,7 @@ nascem com senha conhecida.
 ```plaintext
 npm run dev     # desenvolvimento, com reload
 npm start       # produção
-npm test        # suíte de testes (59)
+npm test        # suíte de testes (151)
 ```
 
 Os testes rodam sobre um PostgreSQL em memória — não precisam de banco nem de `.env`.
@@ -284,6 +291,9 @@ Só é permitido um pedido em aberto por aluno (`409` no segundo).
 | GET | `/professores/professores` | Lista professores |
 | POST | `/professores/professores` | Cadastra professor |
 | GET | `/professores/professor/:id` | Professor por ID |
+| PUT | `/me/senha` | Troca a senha do próprio usuário |
+| GET | `/admin/usuarios` | Lista todos, com filtro por perfil e status |
+| PUT | `/admin/usuarios/:id/senha` | Admin redefine a senha de alguém |
 | GET | `/professores/exercicios` | Catálogo de exercícios |
 | POST | `/professores/exercicios` | Acrescenta um exercício ao catálogo |
 | POST | `/professores/treino` | Cadastra treino |
@@ -389,6 +399,40 @@ Desativar/reativar usuário e finalizar pedido:
 { "cpf": "88888888888" }
 { "id_pedido": 3 }
 ```
+
+## Senhas e perfis
+
+Há três perfis, e são flags independentes no `usuario`: `aluno`, `professor` e `admin`. A mesma
+pessoa pode ter os três — quem administra o sistema, dá aula e treina na academia. O cargo principal,
+que decide para onde o app abre, é **admin > professor > aluno**.
+
+A tabela `admin_user` do schema **continua sem uso**, de propósito: usá-la significaria um segundo
+caminho de autenticação, com login, token e middleware lidando com duas origens de identidade.
+
+O primeiro admin nasce por `npm run criar-admin`, com os três perfis (ou só admin e professor, com
+`--sem-aluno`).
+
+Troca de senha:
+
+```json
+PUT /me/senha        { "senha_atual": "...", "senha_nova": "..." }
+PUT /admin/usuarios/7/senha  { "senha_nova": "..." }
+```
+
+`/me/senha` **exige a senha atual**: sem isso, quem pega o aparelho destravado troca a senha e toma
+a conta sem nunca ter sabido a original. Senha atual errada responde 401 com a mesma mensagem de
+"não autenticado", para não confirmar que ela estava certa e outra coisa falhou.
+
+A rota de admin **não** pede a senha atual — é o caso de quem esqueceu — e por isso mesmo **recusa a
+própria conta do admin** com 403: para si ele usa `/me/senha`. Sem essa trava, a exigência da senha
+atual viraria decorativa justamente para a conta que mais importa.
+
+**Trocar a senha derruba as sessões abertas.** O `autenticar` compara o `iat` do token com
+`usuario.senha_alterada_em`: token emitido antes vira 401. O JWT é stateless e vale sete dias, então
+sem isso um token roubado sobreviveria à troca — o cenário exato em que a senha é trocada. A
+comparação é estritamente menor porque `iat` tem resolução de segundos, e `/me/senha` devolve um
+token novo para quem trocou não se desconectar. Coluna nula quer dizer "nunca trocou" e não invalida
+nada, que é como toda linha nasce na migração.
 
 ## Erros
 

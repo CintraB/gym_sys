@@ -67,20 +67,20 @@ original justamente para isso.
 
 ### 2.1 Autenticação e papel
 
-- [ ] Decidir entre **flag `admin` no `usuario`** ou a tabela `admin_user`
-      separada. A flag reaproveita todo o login que já existe; a tabela isola
-      as credenciais administrativas. Recomendo a flag: um terceiro caminho de
-      autenticação é superfície de ataque a mais para pouco ganho.
-- [ ] `exigirPerfil('admin')` — o middleware já é parametrizado, aceita direto
-- [ ] Área `/admin` no front, no mesmo padrão de professor e aluno
+- [x] **Flag `admin` no `usuario`**, e não a tabela `admin_user` — que segue sem
+      uso, de propósito: um terceiro caminho de autenticação seria superfície
+      de ataque a mais por pouco ganho
+- [x] `exigirPerfil('admin')` — o middleware já era parametrizado, aceitou direto
+- [x] Área `/admin` no front, no mesmo padrão de professor e aluno
 
 ### 2.2 Gestão de usuários
 
-- [ ] Listar todos, com filtro por perfil e status
-- [ ] Editar dados de qualquer usuário (hoje só aluno é editável)
-- [ ] **Trocar e redefinir senha** — hoje não existe de jeito nenhum, nem para
-      o próprio usuário. É o buraco mais visível do sistema
-- [ ] Promover e rebaixar perfis (aluno ↔ professor ↔ admin)
+- [x] Listar todos, com filtro por perfil e status
+- [x] **Trocar e redefinir senha** — `PUT /me/senha` com a senha atual, e o
+      admin redefinindo a de quem esqueceu. Trocar a senha derruba as sessões
+      abertas, comparando o `iat` do token com `senha_alterada_em`
+- [ ] Editar dados de qualquer usuário (hoje só aluno é editável) — leva 2
+- [ ] Promover e rebaixar perfis (aluno ↔ professor ↔ admin) — leva 2
 - [ ] Excluir de verdade, além do desativar
 
 ### 2.3 Gestão do sistema
@@ -102,8 +102,8 @@ suíte de 35 testes de segurança.
 
 Falta:
 
-- [ ] **Troca de senha** (também em 2.2) — sem isso, senha vazada só se resolve
-      mexendo direto no banco
+- [x] **Troca de senha** (também em 2.2) — feita, com invalidação das sessões
+      anteriores: sem ela o JWT de sete dias sobreviveria à troca
 - [ ] **Token em cookie `httpOnly`** no lugar do `localStorage`. Depende da
       seção 1.2: com front e API na mesma origem sob HTTPS, vira mudança
       pequena e sem CSRF
@@ -146,7 +146,7 @@ Coisas que a operação do dia a dia vai cobrar.
 
 - [x] **Testes de frontend** — Vitest + Testing Library: 59 testes cobrindo
       `formato.ts`, os hooks, a autorização de rota e o render das nove telas.
-      Com o backend, 186 no total. Foi a tela preta que motivou — o build
+      Com o backend, 215 no total. Foi a tela preta que motivou — o build
       passava porque nada renderizava componente
 - [ ] **Testar os interceptors de `api.ts`** — o token no cabeçalho e o 401
       derrubando a sessão. A suíte do front mocka `src/lib/api.ts` inteiro, e
@@ -178,6 +178,5 @@ Fora do escopo de uso doméstico, anotado para não se perder:
 ## Ordem sugerida
 
 1. **Seção 1** — tirar do notebook e colocar no servidor, com Tailscale
-2. **Troca de senha** (2.2) — o buraco mais óbvio, e barato de fechar
-3. **Painel de admin** completo (seção 2)
-4. **Segurança** (3) — obrigatória antes de qualquer acesso externo de terceiros
+2. **Painel de admin, leva 2** — editar qualquer usuário e trocar perfis
+3. **Segurança** (3) — obrigatória antes de qualquer acesso externo de terceiros
