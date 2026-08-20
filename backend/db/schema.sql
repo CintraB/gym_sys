@@ -30,7 +30,15 @@ CREATE TABLE IF NOT EXISTS usuario (
     titulo          VARCHAR(12)  NOT NULL,
     aluno           BOOLEAN      NOT NULL DEFAULT TRUE,
     professor       BOOLEAN      NOT NULL DEFAULT FALSE,
+    -- Terceira flag, no mesmo molde das outras. A tabela admin_user acima
+    -- continua sem uso: um segundo caminho de autenticacao seria superficie de
+    -- ataque a mais por pouco ganho.
+    admin           BOOLEAN      NOT NULL DEFAULT FALSE,
     ativo           BOOLEAN      NOT NULL DEFAULT TRUE,
+    -- Quando a senha foi trocada pela ultima vez. Token emitido antes disso
+    -- deixa de valer — e o que faz trocar a senha expulsar quem roubou o token.
+    -- NULL quer dizer "nunca trocou", e nao invalida nada.
+    senha_alterada_em TIMESTAMPTZ,
     atualizado_em   TIMESTAMP,
     atualizado_por  INTEGER,
     criado_em       TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP

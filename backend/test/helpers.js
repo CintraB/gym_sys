@@ -105,3 +105,17 @@ export async function criarProfessorELogar(api, { cpf = "11111111111", senha = "
   const resposta = await api.post("/login", { cpf, senha });
   return resposta.corpo.token;
 }
+
+/** Insere um admin com os três perfis e devolve o token dele. */
+export async function criarAdminELogar(api, { cpf = "99999999999", senha = "senha123" } = {}) {
+  const { criarHashComSal } = await import("../src/lib/senha.js");
+  const hash = await criarHashComSal(senha);
+
+  api.memoria.public.none(`
+    INSERT INTO usuario (cpf, nome, senha, email, titulo, aluno, professor, admin, ativo)
+    VALUES ('${cpf}', 'Admin Teste', '${hash}', 'admin@teste.com', '999999999999', TRUE, TRUE, TRUE, TRUE)
+  `);
+
+  const resposta = await api.post("/login", { cpf, senha });
+  return resposta.corpo.token;
+}

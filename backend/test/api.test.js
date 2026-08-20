@@ -382,7 +382,7 @@ test("quem é professor e aluno alcança as duas áreas", async (t) => {
   api.memoria.public.none("UPDATE usuario SET aluno = TRUE WHERE cpf = '11111111111'");
 
   const login = await api.post("/login", { cpf: "11111111111", senha: "senha123" });
-  assert.deepEqual(login.corpo.usuario.perfis, { aluno: true, professor: true });
+  assert.deepEqual(login.corpo.usuario.perfis, { aluno: true, professor: true, admin: false });
   assert.equal(login.corpo.usuario.cargo, "professor", "o cargo principal continua professor");
 
   const token = login.corpo.token;
@@ -401,7 +401,7 @@ test("perfil único não ganha acesso ao outro lado", async (t) => {
   assert.equal(criado.status, 201);
   const login = await api.post("/login", { cpf: ALUNO.cpf, senha: ALUNO.senha });
 
-  assert.deepEqual(login.corpo.usuario.perfis, { aluno: true, professor: false });
+  assert.deepEqual(login.corpo.usuario.perfis, { aluno: true, professor: false, admin: false });
   const tentativa = await api.get("/professores/alunos", { token: login.corpo.token });
   assert.equal(tentativa.status, 403);
 });

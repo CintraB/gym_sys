@@ -25,7 +25,8 @@ export const autenticar = asyncHandler(async (req, _res, next) => {
   }
 
   const { rows } = await db.query(
-    "SELECT id, nome, cpf, email, titulo, aluno, professor, ativo FROM usuario WHERE id = $1 AND ativo = TRUE",
+    `SELECT id, nome, cpf, email, titulo, aluno, professor, admin, ativo, senha_alterada_em
+       FROM usuario WHERE id = $1 AND ativo = TRUE`,
     [payload.id]
   );
 

@@ -7,16 +7,22 @@ import { normalizarDigitos } from "../lib/validacao.js";
 /**
  * Perfil principal — o que decide para onde o app abre.
  *
- * `aluno` e `professor` são flags independentes: a mesma pessoa pode ser as
- * duas coisas (o professor que também treina na academia). Por isso o cargo
- * sozinho não basta, e a resposta leva junto `perfis` com as duas capacidades.
+ * `aluno`, `professor` e `admin` são flags independentes: a mesma pessoa pode
+ * ser as três (quem administra o sistema, dá aula e treina na academia). Por
+ * isso o cargo sozinho não basta, e a resposta leva junto `perfis` com as
+ * capacidades.
  */
 function perfilDe(usuario) {
+  if (usuario.admin) return "admin";
   return usuario.professor ? "professor" : "aluno";
 }
 
 function perfisDe(usuario) {
-  return { aluno: Boolean(usuario.aluno), professor: Boolean(usuario.professor) };
+  return {
+    aluno: Boolean(usuario.aluno),
+    professor: Boolean(usuario.professor),
+    admin: Boolean(usuario.admin),
+  };
 }
 
 export const login = asyncHandler(async (req, res) => {
