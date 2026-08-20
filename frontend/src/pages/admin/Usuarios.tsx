@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { KeyRound, Search, Users as IconeUsuarios } from 'lucide-react'
+import { KeyRound, Pencil, Search, Users as IconeUsuarios } from 'lucide-react'
 import { api } from '../../lib/api'
 import { useRequisicao } from '../../lib/useRequisicao'
 import { useDebounce } from '../../lib/useDebounce'
@@ -13,6 +13,7 @@ import { Esqueleto } from '../../components/ui/Carregando'
 import { Selo } from '../../components/ui/Selo'
 import { Vazio } from '../../components/ui/Vazio'
 import { RedefinirSenha } from './RedefinirSenha'
+import { EditarUsuario } from './EditarUsuario'
 import type { UsuarioAdmin } from '../../types'
 
 /** Os selos de perfil, na mesma ordem de precedência do cargo principal. */
@@ -30,6 +31,7 @@ export default function Usuarios() {
   const [perfil, setPerfil] = useState('')
   const [status, setStatus] = useState('')
   const [redefinindo, setRedefinindo] = useState<UsuarioAdmin | null>(null)
+  const [editando, setEditando] = useState<UsuarioAdmin | null>(null)
   const [sucesso, setSucesso] = useState<string | null>(null)
 
   const buscaAdiada = useDebounce(busca, 300)
@@ -118,22 +120,38 @@ export default function Usuarios() {
                   </div>
                 </div>
 
-                {/* Para a própria conta o caminho é o Perfil, com a senha
-                    atual — a rota de admin recusa e devolve 403. */}
-                {usuario.id !== eu?.id && (
+                <div className="flex shrink-0 items-center gap-2">
+                  {/* Editar aparece também na própria conta: o admin pode
+                      corrigir o próprio nome. É só o perfil de admin que ele
+                      não pode tirar de si. */}
                   <Botao
                     variante="secundario"
                     tamanho="sm"
                     onClick={() => {
                       setSucesso(null)
-                      setRedefinindo(usuario)
+                      setEditando(usuario)
                     }}
-                    className="shrink-0"
                   >
-                    <KeyRound className="size-4" aria-hidden />
-                    Senha
+                    <Pencil className="size-4" aria-hidden />
+                    Editar
                   </Botao>
-                )}
+
+                  {/* Para a própria conta o caminho é o Perfil, com a senha
+                      atual — a rota de admin recusa e devolve 403. */}
+                  {usuario.id !== eu?.id && (
+                    <Botao
+                      variante="secundario"
+                      tamanho="sm"
+                      onClick={() => {
+                        setSucesso(null)
+                        setRedefinindo(usuario)
+                      }}
+                    >
+                      <KeyRound className="size-4" aria-hidden />
+                      Senha
+                    </Botao>
+                  )}
+                </div>
               </Cartao>
             </li>
           ))}
@@ -143,6 +161,18 @@ export default function Usuarios() {
           icone={IconeUsuarios}
           titulo="Nenhum usuário encontrado"
           descricao="Ajuste a busca ou os filtros."
+        />
+      )}
+
+      {editando && (
+        <EditarUsuario
+          usuario={editando}
+          aoFechar={() => setEditando(null)}
+          aoSalvar={(nome) => {
+            setEditando(null)
+            setSucesso(`Dados de ${nome} atualizados.`)
+            usuarios.recarregar()
+          }}
         />
       )}
 
