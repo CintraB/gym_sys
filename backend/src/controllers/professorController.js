@@ -176,6 +176,23 @@ export const desativarUsuario = asyncHandler(async (req, res) => {
   try {
     await cliente.query("BEGIN");
 
+    // Desativar o último admin tem o mesmo efeito de rebaixá-lo: o sistema
+    // fica sem quem o administre. A conferência é dentro da transação para
+    // duas desativações simultâneas não passarem juntas.
+    const { rows: alvos } = await cliente.query(
+      "SELECT admin FROM usuario WHERE cpf = $1 AND ativo = TRUE",
+      [cpf]
+    );
+    if (alvos[0]?.admin) {
+      const { rows: contagem } = await cliente.query(
+        "SELECT COUNT(*)::int AS total FROM usuario WHERE admin = TRUE AND ativo = TRUE"
+      );
+      if (contagem[0].total <= 1) {
+        await cliente.query("ROLLBACK");
+        throw erroConflito("Este é o único admin ativo do sistema");
+      }
+    }
+
     const { rows } = await cliente.query(
       `UPDATE usuario SET ativo = FALSE, atualizado_por = $2
         WHERE cpf = $1 AND ativo = TRUE

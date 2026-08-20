@@ -266,3 +266,94 @@ test("recusa CPF que já pertence a outro usuário", async (t) => {
 
   assert.equal(resposta.status, 409, JSON.stringify(resposta.corpo));
 });
+
+/* ------------------------------------------------ perfis */
+
+test("promove um aluno a professor", async (t) => {
+  const { api, token, idAluno } = await cenarioComAluno();
+  t.after(() => api.encerrar());
+
+  const resposta = await api.put(
+    `/admin/usuarios/${idAluno}/perfis`,
+    { aluno: true, professor: true, admin: false },
+    { token }
+  );
+
+  assert.equal(resposta.status, 200, JSON.stringify(resposta.corpo));
+  assert.equal(resposta.corpo.usuario.professor, true);
+
+  // O cargo principal muda junto, e é o que decide para onde o app abre.
+  const login = await api.post("/login", { cpf: ALUNO.cpf, senha: ALUNO.senha });
+  assert.equal(login.corpo.usuario.cargo, "professor");
+});
+
+test("rebaixa um professor a aluno", async (t) => {
+  const { api, token, idAluno } = await cenarioComAluno();
+  t.after(() => api.encerrar());
+
+  await api.put(
+    `/admin/usuarios/${idAluno}/perfis`,
+    { aluno: true, professor: true, admin: false },
+    { token }
+  );
+  const resposta = await api.put(
+    `/admin/usuarios/${idAluno}/perfis`,
+    { aluno: true, professor: false, admin: false },
+    { token }
+  );
+
+  assert.equal(resposta.status, 200, JSON.stringify(resposta.corpo));
+  assert.equal(resposta.corpo.usuario.professor, false);
+});
+
+test("promove alguém a admin", async (t) => {
+  const { api, token, idAluno } = await cenarioComAluno();
+  t.after(() => api.encerrar());
+
+  const resposta = await api.put(
+    `/admin/usuarios/${idAluno}/perfis`,
+    { aluno: true, professor: false, admin: true },
+    { token }
+  );
+
+  assert.equal(resposta.status, 200, JSON.stringify(resposta.corpo));
+
+  const login = await api.post("/login", { cpf: ALUNO.cpf, senha: ALUNO.senha });
+  assert.equal(login.corpo.usuario.cargo, "admin");
+
+  const alcanca = await api.get("/admin/usuarios", { token: login.corpo.token });
+  assert.equal(alcanca.status, 200, "o admin novo não alcançou a própria área");
+});
+
+// Com outro admin no ar, rebaixar um deles é legítimo.
+test("rebaixa um admin quando existe outro", async (t) => {
+  const { api, token, idAluno } = await cenarioComAluno();
+  t.after(() => api.encerrar());
+
+  await api.put(
+    `/admin/usuarios/${idAluno}/perfis`,
+    { aluno: true, professor: false, admin: true },
+    { token }
+  );
+
+  const resposta = await api.put(
+    `/admin/usuarios/${idAluno}/perfis`,
+    { aluno: true, professor: false, admin: false },
+    { token }
+  );
+
+  assert.equal(resposta.status, 200, JSON.stringify(resposta.corpo));
+});
+
+test("alterar perfis de usuário inexistente devolve 404", async (t) => {
+  const { api, token } = await cenarioComAluno();
+  t.after(() => api.encerrar());
+
+  const resposta = await api.put(
+    "/admin/usuarios/9999/perfis",
+    { aluno: true, professor: false, admin: false },
+    { token }
+  );
+
+  assert.equal(resposta.status, 404);
+});

@@ -946,3 +946,165 @@ test("alterar usuário ignora perfis e senha vindos no corpo", async (t) => {
   const login = await api.post("/login", { cpf: ALUNO.cpf, senha: ALUNO.senha });
   assert.equal(login.status, 200, "a senha foi trocada por esta rota");
 });
+
+/* ------------------------------------------- travas de perfil do admin */
+
+async function cenarioAdmin() {
+  const api = await criarApiDeTeste();
+  const { criarAdminELogar } = await import("./helpers.js");
+  const token = await criarAdminELogar(api, { cpf: "99999999999" });
+  const eu = await api.get("/me", { token });
+  return { api, token, idAdmin: eu.corpo.id };
+}
+
+const criarPessoa = (api, token, cpf, nome) =>
+  api.post(
+    "/professores/alunos",
+    { cpf, nome, senha: "senha123", email: `${cpf}@teste.com`, titulo: cpf + "0" },
+    { token }
+  );
+
+// Sem isto, um clique distraído deixa o sistema sem quem o administre.
+//
+// O segundo admin existe de propósito: com um só, quem barraria seria a trava
+// do "último admin ativo", e este teste passaria mesmo sem a trava do próprio
+// perfil. Com dois, só a trava certa pode recusar.
+test("admin não retira o próprio perfil de admin", async (t) => {
+  const { api, token, idAdmin } = await cenarioAdmin();
+  t.after(() => api.encerrar());
+
+  const outro = await criarPessoa(api, token, "22222222222", "Segundo Admin");
+  await api.put(
+    `/admin/usuarios/${outro.corpo.aluno.id}/perfis`,
+    { aluno: true, professor: false, admin: true },
+    { token }
+  );
+
+  const resposta = await api.put(
+    `/admin/usuarios/${idAdmin}/perfis`,
+    { aluno: true, professor: true, admin: false },
+    { token }
+  );
+
+  assert.equal(resposta.status, 403, JSON.stringify(resposta.corpo));
+
+  const depois = await api.get("/me", { token });
+  assert.equal(depois.corpo.perfis.admin, true, "o admin perdeu o próprio perfil");
+});
+
+// O sistema nunca fica sem admin, por qualquer caminho.
+//
+// Repare no que este teste realmente prova: depois que o primeiro é rebaixado,
+// quem tenta mexer no último já não é admin e leva 403 do exigirPerfil. A
+// contagem de admins dentro de alterarPerfis não chega a ser alcançada aqui —
+// ela existe para a corrida de dois admins se rebaixando ao mesmo tempo, que a
+// API não deixa reproduzir em teste sequencial.
+test("o sistema não fica sem admin, por nenhum caminho", async (t) => {
+  const { api, token, idAdmin } = await cenarioAdmin();
+  t.after(() => api.encerrar());
+
+  const criado = await criarPessoa(api, token, "22222222222", "Segundo Admin");
+  const idSegundo = criado.corpo.aluno.id;
+
+  await api.put(
+    `/admin/usuarios/${idSegundo}/perfis`,
+    { aluno: true, professor: false, admin: true },
+    { token }
+  );
+
+  const login = await api.post("/login", { cpf: "22222222222", senha: "senha123" });
+  const tokenSegundo = login.corpo.token;
+
+  // O segundo rebaixa o primeiro: legítimo, ainda sobra um admin.
+  const primeiro = await api.put(
+    `/admin/usuarios/${idAdmin}/perfis`,
+    { aluno: true, professor: true, admin: false },
+    { token: tokenSegundo }
+  );
+  assert.equal(primeiro.status, 200, JSON.stringify(primeiro.corpo));
+
+  // Agora o segundo é o único, e quem tenta rebaixá-lo já não é mais admin.
+  const tentativa = await api.put(
+    `/admin/usuarios/${idSegundo}/perfis`,
+    { aluno: true, professor: false, admin: false },
+    { token }
+  );
+  assert.equal(tentativa.status, 403, "quem não é mais admin não pode mexer em perfis");
+
+  const aindaEhAdmin = await api.get("/me", { token: tokenSegundo });
+  assert.equal(aindaEhAdmin.corpo.perfis.admin, true);
+});
+
+// Sem perfil nenhum a pessoa entra e não alcança tela alguma: o RotaProtegida
+// a manda para uma área que ela não pode ver, e ela fica presa num
+// redirecionamento sem destino.
+test("usuário não pode ficar sem nenhum perfil", async (t) => {
+  const { api, token } = await cenarioAdmin();
+  t.after(() => api.encerrar());
+
+  const criado = await criarPessoa(api, token, "22222222222", "Aluno Teste");
+
+  const resposta = await api.put(
+    `/admin/usuarios/${criado.corpo.aluno.id}/perfis`,
+    { aluno: false, professor: false, admin: false },
+    { token }
+  );
+
+  assert.equal(resposta.status, 400, JSON.stringify(resposta.corpo));
+});
+
+// Desativar o último admin tem o mesmo efeito de rebaixá-lo.
+test("desativar o último admin ativo é recusado", async (t) => {
+  const { api, token } = await cenarioAdmin();
+  t.after(() => api.encerrar());
+
+  const resposta = await api.put(
+    "/professores/alunos/desativar",
+    { cpf: "99999999999" },
+    { token }
+  );
+
+  assert.ok(resposta.status >= 400, `esperava recusa, veio ${resposta.status}`);
+
+  const aindaEntra = await api.post("/login", { cpf: "99999999999", senha: "senha123" });
+  assert.equal(aindaEntra.status, 200, "o último admin foi desativado");
+});
+
+// Rebaixar um admin **inativo** não tira ninguém do ar: ele já não conta como
+// admin ativo. Sem a checagem de `ativo`, a trava do último admin dispararia
+// aqui e recusaria uma operação legítima.
+test("rebaixar um admin inativo é permitido", async (t) => {
+  const { api, token } = await cenarioAdmin();
+  t.after(() => api.encerrar());
+
+  const criado = await criarPessoa(api, token, "22222222222", "Admin Inativo");
+  const idOutro = criado.corpo.aluno.id;
+
+  await api.put(
+    `/admin/usuarios/${idOutro}/perfis`,
+    { aluno: true, professor: false, admin: true },
+    { token }
+  );
+  await api.put("/professores/alunos/desativar", { cpf: "22222222222" }, { token });
+
+  const resposta = await api.put(
+    `/admin/usuarios/${idOutro}/perfis`,
+    { aluno: true, professor: false, admin: false },
+    { token }
+  );
+
+  assert.equal(resposta.status, 200, JSON.stringify(resposta.corpo));
+});
+
+test("professor não muda perfis de ninguém", async (t) => {
+  const { api, tokenProfessor, aluno } = await cenario();
+  t.after(() => api.encerrar());
+
+  const resposta = await api.put(
+    `/admin/usuarios/${aluno.id}/perfis`,
+    { aluno: true, professor: true, admin: true },
+    { token: tokenProfessor }
+  );
+
+  assert.equal(resposta.status, 403);
+});

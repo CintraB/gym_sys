@@ -158,3 +158,83 @@ export const alterarUsuario = asyncHandler(async (req, res) => {
 
   res.json({ message: "Dados alterados com sucesso", usuario: rows[0] });
 });
+
+/**
+ * Promove e rebaixa perfis.
+ *
+ * Quatro travas, e cada uma fecha um caminho concreto de deixar o sistema
+ * inutilizável:
+ *
+ * 1. O admin não retira o próprio `admin` — um clique distraído deixaria o
+ *    sistema sem quem o administre, e o caminho de volta é SQL na mão.
+ * 2. O último admin ativo não perde o `admin`, mesmo sendo outra pessoa: é a
+ *    regra 1 pela porta dos fundos.
+ * 3. Ninguém fica sem perfil nenhum. Sem `aluno`, `professor` nem `admin` a
+ *    pessoa entra e não alcança tela alguma — o RotaProtegida a manda para uma
+ *    área que ela não pode ver, e ela fica presa num redirecionamento.
+ * 4. Só estes três campos são lidos, e cada um só vira TRUE se vier
+ *    exatamente `true`. É a mesma regra do cadastro de aluno.
+ */
+export const alterarPerfis = asyncHandler(async (req, res) => {
+  const id = Number(req.params.id);
+  const perfis = {
+    aluno: req.body?.aluno === true,
+    professor: req.body?.professor === true,
+    admin: req.body?.admin === true,
+  };
+
+  if (!perfis.aluno && !perfis.professor && !perfis.admin) {
+    throw erroRequisicao("O usuário precisa ter ao menos um perfil");
+  }
+  if (id === req.usuario.id && !perfis.admin) {
+    throw erroProibido("Você não pode retirar o seu próprio perfil de admin");
+  }
+
+  const cliente = await db.connect();
+  try {
+    await cliente.query("BEGIN");
+
+    const { rows: alvos } = await cliente.query(
+      "SELECT admin, ativo FROM usuario WHERE id = $1",
+      [id]
+    );
+    if (alvos.length === 0) {
+      throw erroNaoEncontrado("Usuário não encontrado");
+    }
+
+    // Rede de segurança para a corrida: dois admins que se rebaixam ao mesmo
+    // tempo leriam "2" cada um e passariam os dois, zerando os admins. Por isso
+    // a contagem roda dentro da transação.
+    //
+    // Fora da corrida ela é inalcançável, e de propósito: o último admin ativo
+    // só poderia ser rebaixado por si mesmo, e a trava do próprio perfil já
+    // barra isso antes daqui.
+    //
+    // `alvos[0].ativo` não é detalhe: sem ele, rebaixar um admin **inativo**
+    // seria recusado — a contagem de ativos não inclui o alvo, dá 1, e a trava
+    // dispara sem que ninguém fosse perdido.
+    if (alvos[0].admin && alvos[0].ativo && !perfis.admin) {
+      const { rows } = await cliente.query(
+        "SELECT COUNT(*)::int AS total FROM usuario WHERE admin = TRUE AND ativo = TRUE"
+      );
+      if (rows[0].total <= 1) {
+        throw erroConflito("Este é o único admin ativo do sistema");
+      }
+    }
+
+    const { rows } = await cliente.query(
+      `UPDATE usuario SET aluno = $1, professor = $2, admin = $3, atualizado_por = $4
+        WHERE id = $5
+        RETURNING ${CAMPOS_PUBLICOS}`,
+      [perfis.aluno, perfis.professor, perfis.admin, req.usuario.id, id]
+    );
+
+    await cliente.query("COMMIT");
+    res.json({ message: "Perfis alterados com sucesso", usuario: rows[0] });
+  } catch (erro) {
+    await cliente.query("ROLLBACK").catch(() => {});
+    throw erro;
+  } finally {
+    cliente.release();
+  }
+});
