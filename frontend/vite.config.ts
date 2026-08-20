@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite'
+import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
@@ -73,5 +73,14 @@ export default defineConfig({
   preview: {
     host: true,
     port: 4173,
+  },
+  test: {
+    environment: 'jsdom',
+    setupFiles: ['./src/test/setup.ts'],
+    // globals desligado: os testes importam describe/it/expect de 'vitest'.
+    // Com globals ligado, o ESLint (que roda com --max-warnings 0) acusaria
+    // cada um como variavel nao declarada.
+    globals: false,
+    css: false,
   },
 })
