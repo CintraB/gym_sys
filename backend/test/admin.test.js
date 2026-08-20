@@ -180,3 +180,89 @@ test("redefinir com senha curta demais devolve 400", async (t) => {
 
   assert.equal(resposta.status, 400);
 });
+
+/* ------------------------------------------ alteracao de dados */
+
+test("admin altera os dados de um aluno", async (t) => {
+  const { api, token, idAluno } = await cenarioComAluno();
+  t.after(() => api.encerrar());
+
+  const resposta = await api.put(
+    `/admin/usuarios/${idAluno}`,
+    { nome: "Ana Maria Souza", email: "ana.maria@teste.com" },
+    { token }
+  );
+
+  assert.equal(resposta.status, 200, JSON.stringify(resposta.corpo));
+  assert.equal(resposta.corpo.usuario.nome, "Ana Maria Souza");
+  assert.equal(resposta.corpo.usuario.email, "ana.maria@teste.com");
+});
+
+// A rota de professor só edita aluno; esta é a única que alcança qualquer um.
+test("admin altera os dados de um professor", async (t) => {
+  const { api, token } = await cenarioComAluno();
+  t.after(() => api.encerrar());
+
+  const criado = await api.post(
+    "/professores/professores",
+    {
+      cpf: "44444444444",
+      nome: "Professor Novo",
+      senha: "senha123",
+      email: "prof.novo@teste.com",
+      titulo: "444444444444",
+    },
+    { token }
+  );
+
+  const resposta = await api.put(
+    `/admin/usuarios/${criado.corpo.professor.id}`,
+    { nome: "Professor Renomeado" },
+    { token }
+  );
+
+  assert.equal(resposta.status, 200, JSON.stringify(resposta.corpo));
+  assert.equal(resposta.corpo.usuario.nome, "Professor Renomeado");
+});
+
+test("admin altera os próprios dados", async (t) => {
+  const { api, token } = await cenarioComAluno();
+  t.after(() => api.encerrar());
+
+  const eu = await api.get("/me", { token });
+
+  const resposta = await api.put(
+    `/admin/usuarios/${eu.corpo.id}`,
+    { nome: "Cristhian B. Cintra" },
+    { token }
+  );
+
+  assert.equal(resposta.status, 200, JSON.stringify(resposta.corpo));
+});
+
+test("alterar usuário inexistente devolve 404", async (t) => {
+  const { api, token } = await cenarioComAluno();
+  t.after(() => api.encerrar());
+
+  const resposta = await api.put("/admin/usuarios/9999", { nome: "Fantasma" }, { token });
+  assert.equal(resposta.status, 404);
+});
+
+test("recusa alteração sem nenhum campo válido", async (t) => {
+  const { api, token, idAluno } = await cenarioComAluno();
+  t.after(() => api.encerrar());
+
+  const resposta = await api.put(`/admin/usuarios/${idAluno}`, {}, { token });
+  assert.equal(resposta.status, 400);
+});
+
+test("recusa CPF que já pertence a outro usuário", async (t) => {
+  const { api, token, idAluno } = await cenarioComAluno();
+  t.after(() => api.encerrar());
+
+  const eu = await api.get("/me", { token });
+
+  const resposta = await api.put(`/admin/usuarios/${idAluno}`, { cpf: eu.corpo.cpf }, { token });
+
+  assert.equal(resposta.status, 409, JSON.stringify(resposta.corpo));
+});

@@ -13,6 +13,7 @@ rotas.param("id", (_req, _res, next, valor) => {
 });
 
 rotas.get("/usuarios", admin.listarUsuarios);
+rotas.put("/usuarios/:id", admin.alterarUsuario);
 rotas.put("/usuarios/:id/senha", admin.redefinirSenha);
 
 export default rotas;

@@ -1,6 +1,12 @@
 import { db } from "../config/db.js";
 import { criarHashComSal } from "../lib/senha.js";
-import { asyncHandler, erroNaoEncontrado, erroProibido, erroRequisicao } from "../lib/erros.js";
+import {
+  asyncHandler,
+  erroConflito,
+  erroNaoEncontrado,
+  erroProibido,
+  erroRequisicao,
+} from "../lib/erros.js";
 import { normalizarDigitos } from "../lib/validacao.js";
 
 // A senha jamais entra aqui. É a mesma lista do professorController, com admin.
@@ -86,4 +92,69 @@ export const redefinirSenha = asyncHandler(async (req, res) => {
   }
 
   res.json({ message: "Senha redefinida. A pessoa precisará entrar de novo.", usuario: rows[0] });
+});
+
+/**
+ * Altera os dados de qualquer usuário.
+ *
+ * A rota do professor (`PUT /professores/aluno/:id`) só alcança aluno; esta
+ * alcança qualquer conta, inclusive a do próprio admin.
+ *
+ * A lista de campos é fechada: perfis, `ativo` e `senha` não entram por aqui,
+ * mesmo que venham no corpo. Perfil tem rota própria, com as travas; senha tem
+ * duas; e `ativo` continua sendo desativar/reativar, que propagam para treino e
+ * exercícios.
+ */
+export const alterarUsuario = asyncHandler(async (req, res) => {
+  const id = Number(req.params.id);
+
+  const campos = {
+    nome: typeof req.body?.nome === "string" ? req.body.nome.trim() : undefined,
+    cpf: req.body?.cpf !== undefined ? normalizarDigitos(req.body.cpf) : undefined,
+    email: typeof req.body?.email === "string" ? req.body.email.trim() : undefined,
+    titulo: req.body?.titulo !== undefined ? normalizarDigitos(req.body.titulo) : undefined,
+  };
+
+  const atualizacoes = [];
+  const valores = [];
+  for (const [coluna, valor] of Object.entries(campos)) {
+    if (valor) {
+      valores.push(valor);
+      atualizacoes.push(`${coluna} = $${valores.length}`);
+    }
+  }
+
+  if (atualizacoes.length === 0) {
+    throw erroRequisicao("Nenhum dado para atualizar");
+  }
+
+  // cpf e titulo são UNIQUE: conferir antes devolve 409 com mensagem em vez de
+  // deixar o erro do Postgres subir como "Registro já existe" genérico.
+  if (campos.cpf || campos.titulo) {
+    const { rows: conflitos } = await db.query(
+      `SELECT id FROM usuario
+        WHERE id <> $1 AND (($2::text IS NOT NULL AND cpf = $2) OR ($3::text IS NOT NULL AND titulo = $3))`,
+      [id, campos.cpf ?? null, campos.titulo ?? null]
+    );
+    if (conflitos.length > 0) {
+      throw erroConflito("Já existe um usuário com esse CPF ou título");
+    }
+  }
+
+  valores.push(req.usuario.id);
+  atualizacoes.push(`atualizado_por = $${valores.length}`);
+  valores.push(id);
+
+  const { rows } = await db.query(
+    `UPDATE usuario SET ${atualizacoes.join(", ")}
+      WHERE id = $${valores.length}
+      RETURNING ${CAMPOS_PUBLICOS}`,
+    valores
+  );
+
+  if (rows.length === 0) {
+    throw erroNaoEncontrado("Usuário não encontrado");
+  }
+
+  res.json({ message: "Dados alterados com sucesso", usuario: rows[0] });
 });

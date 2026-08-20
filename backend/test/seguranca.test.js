@@ -914,3 +914,35 @@ test("troca de senha sem informar a atual não passa", async (t) => {
   const aindaVale = await api.post("/login", { cpf: ALUNO.cpf, senha: ALUNO.senha });
   assert.equal(aindaVale.status, 200, "a senha não podia ter mudado");
 });
+
+// Mesma regra do cadastro de aluno: flag de privilégio no corpo é ignorada.
+// Aqui importa mais, porque a rota é de admin e o alvo é qualquer conta.
+test("alterar usuário ignora perfis e senha vindos no corpo", async (t) => {
+  const { api, aluno } = await cenario();
+  t.after(() => api.encerrar());
+
+  const { criarAdminELogar } = await import("./helpers.js");
+  const token = await criarAdminELogar(api, { cpf: "99999999999" });
+
+  const resposta = await api.put(
+    `/admin/usuarios/${aluno.id}`,
+    {
+      nome: "Nome Novo",
+      admin: true,
+      professor: true,
+      ativo: false,
+      senha: "senha-injetada",
+      id: 1,
+    },
+    { token }
+  );
+
+  assert.equal(resposta.status, 200, JSON.stringify(resposta.corpo));
+  assert.equal(resposta.corpo.usuario.admin, false, "virou admin pelo corpo");
+  assert.equal(resposta.corpo.usuario.professor, false, "virou professor pelo corpo");
+  assert.equal(resposta.corpo.usuario.ativo, true, "foi desativado pelo corpo");
+
+  // A senha antiga tem que continuar valendo: o campo não pode ter passado.
+  const login = await api.post("/login", { cpf: ALUNO.cpf, senha: ALUNO.senha });
+  assert.equal(login.status, 200, "a senha foi trocada por esta rota");
+});
