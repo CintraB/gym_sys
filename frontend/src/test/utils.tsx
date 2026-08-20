@@ -11,7 +11,7 @@ export const PROFESSOR: Usuario = {
   email: 'professor@teste.com',
   titulo: '111111111111',
   cargo: 'professor',
-  perfis: { aluno: false, professor: true },
+  perfis: { aluno: false, professor: true, admin: false },
   ativo: true,
 }
 
@@ -22,7 +22,18 @@ export const ALUNO: Usuario = {
   email: 'ana@teste.com',
   titulo: '222222222222',
   cargo: 'aluno',
-  perfis: { aluno: true, professor: false },
+  perfis: { aluno: true, professor: false, admin: false },
+  ativo: true,
+}
+
+export const ADMIN: Usuario = {
+  id: 3,
+  nome: 'Cristhian Cintra',
+  cpf: '99999999999',
+  email: 'admin@teste.com',
+  titulo: '999999999999',
+  cargo: 'admin',
+  perfis: { aluno: true, professor: true, admin: true },
   ativo: true,
 }
 

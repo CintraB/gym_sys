@@ -6,6 +6,7 @@ import { iniciais, primeiroNome } from '../lib/formato'
 import { cn } from '../lib/cn'
 import { BotaoTema, SeletorTema } from './ui/SeletorTema'
 import { TrocarArea } from './TrocarArea'
+import { descreverPerfis } from '../auth/areas'
 
 export interface ItemNav {
   para: string
@@ -45,13 +46,12 @@ export function AppShell({ itens, children }: { itens: ItemNav[]; children: Reac
             <div className="min-w-0">
               <p className="truncate text-sm font-medium">{usuario?.nome}</p>
               {/* Rótulo do papel, não da pessoa: o sistema não guarda gênero,
-                  então "Professora" não teria como ser resolvido aqui. */}
+                  então "Professora" não teria como ser resolvido aqui.
+                  descreverPerfis vem de auth/areas, a mesma fonte que decide
+                  para onde cada cargo abre — a cascata de ternários que estava
+                  aqui não enxergava o admin. */}
               <p className="text-xs text-texto-suave">
-                {usuario?.perfis.professor && usuario?.perfis.aluno
-                  ? 'Professor e aluno'
-                  : usuario?.perfis.professor
-                    ? 'Professor'
-                    : 'Aluno'}
+                {usuario ? descreverPerfis(usuario).replace('Conta de ', '') : ''}
               </p>
             </div>
           </div>

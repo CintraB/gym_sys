@@ -68,7 +68,12 @@ interface CampoSenhaProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 't
  * sem que se perceba, e o campo mascarado não deixa conferir. Sem ele, o
  * usuário só descobre depois de errar a senha.
  */
-export function CampoSenha({ rotulo, erro, dica, className, id, ...resto }: CampoSenhaProps) {
+// forwardRef pelo mesmo motivo do Campo: o modal de troca de senha precisa dar
+// foco ao primeiro campo ao abrir.
+export const CampoSenha = forwardRef<HTMLInputElement, CampoSenhaProps>(function CampoSenha(
+  { rotulo, erro, dica, className, id, ...resto },
+  ref,
+) {
   const gerado = useId()
   const idCampo = id ?? gerado
   const [visivel, setVisivel] = useState(false)
@@ -92,6 +97,7 @@ export function CampoSenha({ rotulo, erro, dica, className, id, ...resto }: Camp
 
       <div className="relative">
         <input
+          ref={ref}
           id={idCampo}
           type={visivel ? 'text' : 'password'}
           aria-invalid={Boolean(erro)}
@@ -140,7 +146,7 @@ export function CampoSenha({ rotulo, erro, dica, className, id, ...resto }: Camp
       {!erro && dica && <p className="text-xs text-texto-suave">{dica}</p>}
     </div>
   )
-}
+})
 
 interface AreaProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {
   rotulo: string

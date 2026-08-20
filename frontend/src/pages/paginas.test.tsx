@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { screen, waitFor } from '@testing-library/react'
-import { ALUNO, PROFESSOR, renderizar } from '../test/utils'
+import { ADMIN, ALUNO, PROFESSOR, renderizar } from '../test/utils'
 
 // Único ponto de saída HTTP do app — é regra do projeto que nenhuma tela monte
 // URL por conta própria, e é o que torna este mock suficiente.
@@ -21,6 +21,7 @@ import Pedidos from './professor/Pedidos'
 import MeuTreino from './aluno/MeuTreino'
 import Historico from './aluno/Historico'
 import Perfil from './aluno/Perfil'
+import Usuarios from './admin/Usuarios'
 
 const get = vi.mocked(api.get)
 
@@ -98,6 +99,19 @@ const RESPOSTAS: Record<string, unknown> = {
   '/alunos/meutreino': TREINO,
   '/alunos/treino/sessao': null,
   '/alunos/pedidotreino': null,
+  '/admin/usuarios': [
+    {
+      id: 3,
+      nome: 'Cristhian Cintra',
+      cpf: '99999999999',
+      email: 'admin@teste.com',
+      titulo: '999999999999',
+      aluno: true,
+      professor: true,
+      admin: true,
+      ativo: true,
+    },
+  ],
   '/alunos/sessoes': [
     {
       id_sessao: 1,
@@ -177,6 +191,12 @@ const PAGINAS = [
     usuario: ALUNO,
     encontrar: () => screen.findByRole('heading', { name: /^perfil$/i }),
   },
+  {
+    nome: 'Usuarios',
+    elemento: <Usuarios />,
+    usuario: ADMIN,
+    encontrar: () => screen.findByRole('heading', { name: /^usuários$/i }),
+  },
 ]
 
 describe('smoke render das páginas', () => {
@@ -214,6 +234,7 @@ describe('falha de requisição', () => {
     { nome: 'Alunos', elemento: <Alunos />, usuario: PROFESSOR },
     { nome: 'Pedidos', elemento: <Pedidos />, usuario: PROFESSOR },
     { nome: 'Historico', elemento: <Historico />, usuario: ALUNO },
+    { nome: 'Usuarios', elemento: <Usuarios />, usuario: ADMIN },
   ])('$nome mostra o erro em vez de tela em branco', async ({ elemento, usuario }) => {
     get.mockRejectedValue(new Error('rede caiu'))
 

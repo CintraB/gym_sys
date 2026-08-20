@@ -8,6 +8,8 @@ import Alunos from './pages/professor/Alunos'
 import Frequencia from './pages/professor/Frequencia'
 import MontarTreino from './pages/professor/MontarTreino'
 import Pedidos from './pages/professor/Pedidos'
+import AdminLayout from './pages/admin/AdminLayout'
+import Usuarios from './pages/admin/Usuarios'
 import AlunoLayout from './pages/aluno/AlunoLayout'
 import MeuTreino from './pages/aluno/MeuTreino'
 import Historico from './pages/aluno/Historico'
@@ -46,6 +48,17 @@ export default function App() {
             <Route index element={<MeuTreino />} />
             <Route path="historico" element={<Historico />} />
             <Route path="perfil" element={<Perfil />} />
+          </Route>
+
+          <Route
+            path="/admin"
+            element={
+              <RotaProtegida cargo="admin">
+                <AdminLayout />
+              </RotaProtegida>
+            }
+          >
+            <Route index element={<Usuarios />} />
           </Route>
 
           {/* O Login redireciona sozinho conforme o cargo de quem já está logado. */}

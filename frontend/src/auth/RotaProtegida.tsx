@@ -1,6 +1,7 @@
 import { Navigate, useLocation } from 'react-router-dom'
 import type { ReactNode } from 'react'
 import { useAuth } from './useAuth'
+import { rotaDoCargo } from './areas'
 import { Carregando } from '../components/ui/Carregando'
 import type { Cargo } from '../types'
 
@@ -24,7 +25,7 @@ export function RotaProtegida({ cargo, children }: { cargo: Cargo; children: Rea
   }
 
   if (!usuario.perfis[cargo]) {
-    return <Navigate to={usuario.cargo === 'professor' ? '/professor' : '/aluno'} replace />
+    return <Navigate to={rotaDoCargo(usuario.cargo)} replace />
   }
 
   return <>{children}</>

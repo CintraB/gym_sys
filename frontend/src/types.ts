@@ -1,4 +1,4 @@
-export type Cargo = 'professor' | 'aluno'
+export type Cargo = 'professor' | 'aluno' | 'admin'
 
 export interface Usuario {
   id: number
@@ -8,8 +8,8 @@ export interface Usuario {
   titulo?: string | null
   /** Perfil principal — decide para onde o app abre depois do login. */
   cargo: Cargo
-  /** As duas capacidades. Quem dá aula e também treina tem as duas. */
-  perfis: { aluno: boolean; professor: boolean }
+  /** As três capacidades. Quem administra, dá aula e treina tem as três. */
+  perfis: { aluno: boolean; professor: boolean; admin: boolean }
   ativo: boolean
 }
 
@@ -170,4 +170,17 @@ export interface LinhaExercicio {
   repeticoes: string
   carga: string
   observacao_ex_usuario: string
+}
+
+/** Um usuário na visão do admin: o sistema inteiro, não só alunos. */
+export interface UsuarioAdmin {
+  id: number
+  nome: string
+  cpf: string
+  email: string | null
+  titulo: string | null
+  aluno: boolean
+  professor: boolean
+  admin: boolean
+  ativo: boolean
 }

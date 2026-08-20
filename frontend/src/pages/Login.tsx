@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { Navigate } from 'react-router-dom'
 import { Dumbbell } from 'lucide-react'
 import { useAuth } from '../auth/useAuth'
+import { rotaDoCargo } from '../auth/areas'
 import { mensagemDeErro } from '../lib/api'
 import { mascararCpf, somenteDigitos } from '../lib/formato'
 import { Botao } from '../components/ui/Botao'
@@ -21,7 +22,7 @@ export default function Login() {
   }
 
   if (usuario) {
-    return <Navigate to={usuario.cargo === 'professor' ? '/professor' : '/aluno'} replace />
+    return <Navigate to={rotaDoCargo(usuario.cargo)} replace />
   }
 
   const cpfCompleto = somenteDigitos(cpf).length === 11
