@@ -1,8 +1,8 @@
 import { db } from "../config/db.js";
 import { gerarToken } from "../lib/jwt.js";
-import { verificarSenha } from "../lib/senha.js";
+import { criarHashComSal, verificarSenha } from "../lib/senha.js";
 import { asyncHandler, erroNaoAutorizado, erroRequisicao } from "../lib/erros.js";
-import { normalizarDigitos } from "../lib/validacao.js";
+import { normalizarDigitos, validarTrocaDeSenha } from "../lib/validacao.js";
 
 /**
  * Perfil principal — o que decide para onde o app abre.
@@ -74,4 +74,33 @@ export const eu = asyncHandler(async (req, res) => {
     cargo: perfilDe(req.usuario),
     perfis: perfisDe(req.usuario),
   });
+});
+
+/**
+ * Troca a senha do próprio usuário.
+ *
+ * Exige a senha atual: sem isso, quem pega o aparelho destravado troca a senha
+ * e toma a conta sem nunca ter sabido a original.
+ *
+ * Devolve um token novo porque gravar `senha_alterada_em` invalida todos os
+ * emitidos antes — inclusive o de quem está trocando.
+ */
+export const trocarMinhaSenha = asyncHandler(async (req, res) => {
+  const { senhaAtual, senhaNova } = validarTrocaDeSenha(req.body);
+
+  const { rows } = await db.query("SELECT senha FROM usuario WHERE id = $1", [req.usuario.id]);
+  if (rows.length === 0 || !(await verificarSenha(rows[0].senha, senhaAtual))) {
+    // Mesma resposta de "não autenticado": não confirma que a senha atual
+    // estava certa e outra coisa falhou.
+    throw erroNaoAutorizado("CPF ou senha incorretos");
+  }
+
+  const hash = await criarHashComSal(senhaNova);
+  await db.query("UPDATE usuario SET senha = $1, senha_alterada_em = NOW() WHERE id = $2", [
+    hash,
+    req.usuario.id,
+  ]);
+
+  const token = await gerarToken({ id: req.usuario.id, cargo: perfilDe(req.usuario) });
+  res.json({ message: "Senha alterada com sucesso", token });
 });

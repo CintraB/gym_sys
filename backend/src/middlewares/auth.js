@@ -34,7 +34,24 @@ export const autenticar = asyncHandler(async (req, _res, next) => {
     throw erroNaoAutorizado("Usuário não encontrado ou inativo");
   }
 
-  req.usuario = rows[0];
+  const usuario = rows[0];
+
+  // Token emitido antes da última troca de senha não vale mais. O JWT é
+  // stateless e dura sete dias: sem isto, trocar a senha não expulsaria quem
+  // roubou o token — que é justamente o motivo de trocá-la.
+  //
+  // `iat` tem resolução de segundos, então a comparação é estritamente menor:
+  // o token emitido no mesmo segundo da troca — o que a própria rota devolve —
+  // continua valendo. Coluna nula quer dizer "nunca trocou": não invalida nada,
+  // e é como toda linha nasce na migração.
+  if (usuario.senha_alterada_em) {
+    const trocadaEm = Math.floor(new Date(usuario.senha_alterada_em).getTime() / 1000);
+    if (typeof payload.iat === "number" && payload.iat < trocadaEm) {
+      throw erroNaoAutorizado("Sessão expirada. Entre de novo.");
+    }
+  }
+
+  req.usuario = usuario;
   next();
 });
 

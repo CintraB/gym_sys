@@ -225,3 +225,23 @@ export function validarExercicioCatalogo(corpo) {
 function normalizarTextoDoCatalogo(valor) {
   return typeof valor === "string" ? valor.trim().replace(/\s+/g, " ").toUpperCase() : "";
 }
+
+/**
+ * Valida a troca de senha.
+ *
+ * O mínimo de 6 é o mesmo do cadastro — deixar a troca mais frouxa que o
+ * cadastro permitiria enfraquecer a senha depois de criada.
+ */
+export function validarTrocaDeSenha(corpo) {
+  const senhaAtual = typeof corpo?.senha_atual === "string" ? corpo.senha_atual : "";
+  const senhaNova = typeof corpo?.senha_nova === "string" ? corpo.senha_nova : "";
+
+  if (senhaNova.length < 6) {
+    throw erroRequisicao("A senha nova deve ter ao menos 6 caracteres");
+  }
+  if (senhaNova === senhaAtual) {
+    throw erroRequisicao("A senha nova precisa ser diferente da atual");
+  }
+
+  return { senhaAtual, senhaNova };
+}
