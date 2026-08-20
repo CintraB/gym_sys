@@ -165,60 +165,65 @@ Coisas que a operação do dia a dia vai cobrar.
 
 ---
 
-## 6. Rodar no celular sem depender do PC
+## 6. App Android standalone, com o banco dentro
 
-Pedido de 20/08/2026: **compilar o app para o telefone e testar tudo offline.**
+Objetivo, dito em 20/08/2026: **um APK para usar no telefone, offline, com o banco embutido e o
+usuário já cadastrado — para ver como o sistema se comporta em campo.**
 
-"Offline" aqui tem três significados, com custos muito diferentes. Antes de escolher, vale separar
-o que se quer de verdade: **testar no celular** ou **usar sem servidor**.
+Não é o PWA com cache de leitura, nem acesso remoto ao PC. É o app rodando sozinho.
 
-### 6.0 O atalho, se o objetivo for só testar
+### 6.1 O que o spike de 20/08 já provou
 
-- [ ] **Tailscale + PC ligado** (já é o item 1.3) — o celular alcança o app **de verdade**, com o
-      backend real, de qualquer lugar. Zero código, zero build.
+Rodei um **controller real do backend** dentro de um bundle de browser, sobre `pg-mem`, com o
+`schema.sql` e o `seed.sql` de verdade. Listou os 77 exercícios e aplicou a normalização de nome
+(`prancha lateral` → `PRANCHA LATERAL / ABDOMEN`). Sem reimplementar regra nenhuma.
 
-Se o objetivo é testar, isto é melhor que qualquer simulação: exercita o sistema inteiro, não uma
-imitação dele. Só não serve com o PC desligado.
+Isso decide a arquitetura: o APK leva **as regras verdadeiras**, cobertas pelos 169 testes de
+backend que já existem — e não uma imitação delas no cliente. É a diferença entre testar a tela e
+testar o sistema, que é o que o objetivo pede.
 
-### 6.1 PWA com leitura offline — quase pronto
+Números: bundle de **180 KB gzipado**. Irrelevante para app instalado.
 
-- [ ] **HTTPS**, e o resto já existe. O `vite-plugin-pwa` está configurado, com `NetworkFirst`
-      para `/alunos/meutreino`, `/alunos/sessoes` e `/me`. O service worker só registra em
-      contexto seguro, então hoje, acessando pelo IP em HTTP, ele fica inerte — depende do 1.2
+**Falta portar três arquivos de borda, e só eles.** Nenhum controller muda:
 
-Entrega: instala como app, abre sem rede e mostra o **último treino visto**. Marcar exercício,
-finalizar sessão e qualquer escrita continuam exigindo servidor. É cache de leitura, não app
-offline.
+| Peça | Por quê | Substituto |
+|---|---|---|
+| `src/lib/senha.js` | `node:crypto` (scrypt) e `node:util` | `scrypt-js`, mantendo o formato `sal:hash` |
+| `src/config/env.js` | `dotenv` puxa `path`/`fs` | configuração fixa embutida |
+| `src/config/db.js` | `import pg` estático arrasta `net`/`events`, mesmo com o pool injetado | variante sem o driver real |
 
-### 6.2 Modo demo embutido — testar tudo sem servidor nenhum
+O `criarApp` do Express também não vai junto: entra um roteador mínimo no lugar, mapeando
+método + caminho para o controller (~40 linhas). A fachada `db` já é injetável — foi feita assim
+para os testes, e é o que torna isto barato.
 
-- [ ] Um build alternativo (`npm run build:demo`) que troca `src/lib/api.ts` por uma
-      implementação em memória, com os dados em IndexedDB para sobreviver ao fechar o app
-- [ ] Empacotar com **Capacitor** num APK, ou instalar como PWA
+### 6.2 As duas incertezas que o spike não resolveu
 
-São ~25 endpoints a implementar no cliente. É mais barato do que parece por causa de uma decisão que
-já está tomada: **toda chamada passa por `src/lib/api.ts`**, e a suíte de testes do front já prova
-que substituir esse módulo basta para as nove telas funcionarem.
+- [ ] **Persistência.** O `pg-mem` é memória pura. Para o banco sobreviver a fechar o app, é
+      preciso despejar as tabelas em JSON e regravar na abertura (IndexedDB, ou Preferences do
+      Capacitor). Para o volume daqui é tranquilo, mas é o ponto mais provável de dar problema
+- [ ] **`scrypt-js` no celular.** É JS puro, e scrypt é lento de propósito. Num Android modesto o
+      login pode demorar. Baixar o custo resolve, mas faz o hash divergir do backend — e aí a
+      mesma senha não vale nos dois
 
-**O custo honesto:** as regras de negócio passam a existir em dois lugares. Um treino salvo aqui não
-é o mesmo caminho de código que o backend executa, então isto testa a **interface e o fluxo**, não o
-sistema. Serve para mexer no app no ônibus; não serve para validar que o backend está certo.
+### 6.3 Plano, em três etapas
 
-### 6.3 Offline de verdade, com sincronização
+Cada uma entrega algo utilizável sozinha:
 
-- [ ] Dados no aparelho, fila de escrita e sincronização quando a rede volta
+- [ ] **Núcleo portável** — os três arquivos de borda + o roteador mínimo, com os testes que já
+      existem rodando também contra o modo browser. Sem isso, nada mais anda
+- [ ] **Persistência e seed próprio** — o banco sobrevive ao fechar, e o app nasce com o usuário
+      dele cadastrado (admin + professor + aluno), alunos de exemplo e um treino montado
+- [ ] **Capacitor e APK** — empacota e instala no telefone
 
-Isto é outra arquitetura, não um build diferente: exige ids locais versus ids do servidor, resolução
-de conflito e um modelo de dados que aguente divergir. Só faz sentido se a academia tiver ponto sem
-sinal e o aluno precisar treinar ali. **Não fazer antes de essa necessidade aparecer de verdade.**
+### 6.4 O que fica de fora
 
-### Sugestão
+- **Sincronizar com o servidor.** O app standalone e a instância de casa seriam dois bancos
+  separados, sem conversa. Juntar os dois é outra arquitetura — ids locais versus ids do servidor,
+  fila de escrita, resolução de conflito. Só encarar se, depois de usar em campo, isso virar
+  necessidade real.
+- **PWA com cache de leitura** e **Tailscale**: resolvem outro problema (o app real, com o PC
+  ligado). O Tailscale continua valendo pelo item 1.3, mas não atende a este objetivo.
 
-Fazer **6.0** primeiro, que já estava no plano e não custa código. Se depois de usar por um tempo
-ainda incomodar depender do PC ligado, aí sim **6.2** — que é o que atende "testar tudo no
-telefone". O **6.3** só com um caso real na mão.
-
----
 
 ## 7. Se um dia virar produto
 
@@ -236,5 +241,5 @@ Fora do escopo de uso doméstico, anotado para não se perder:
 1. **Seção 1** — tirar do notebook e colocar no servidor, com Tailscale
 2. **Segurança** (3) — obrigatória antes de qualquer acesso externo de terceiros
 
-O **6.0** sai junto do item 1: Tailscale já está lá, e é o que põe o app no celular sem
-escrever código. O resto da seção 6 só depois de usar assim por um tempo.
+A **seção 6** (app Android standalone) é independente das outras: não depende do servidor de casa
+estar de pé, e o spike de 20/08 já derrubou a dúvida principal. Dá para encarar a qualquer momento.
