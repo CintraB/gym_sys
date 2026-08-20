@@ -33,6 +33,25 @@ Com a flag, quase nada muda:
 O primeiro admin nasce por `npm run criar-admin`, no molde do `criar-professor` que já existe pelo
 mesmo motivo: a rota de criar admin exige token de admin.
 
+**O admin criado pelo script nasce com os três perfis:** `admin`, `professor` e `aluno`.
+
+Não é atalho — é o caso real de quem opera isto. O dono do projeto administra o sistema, dá aula e
+**treina na própria academia**, então precisa alcançar as três áreas, inclusive a do aluno para ver
+o próprio treino. Marcar `aluno` também é o que faz a pessoa aparecer na lista de alunos do
+professor (`listarAlunos` filtra por `u.aluno = TRUE`), sem o que ninguém poderia montar um treino
+para ela.
+
+O script aceita `--sem-aluno` para quem administra sem treinar. O padrão é o caso comum.
+
+### `TrocarArea` deixa de ser um alternador
+
+Hoje `TrocarArea` é binário: existe só para quem tem os dois perfis e alterna entre professor e
+aluno. Com três áreas possíveis, "o outro lado" deixa de ser uma coisa só.
+
+Passa a listar **as áreas que o usuário tem, menos aquela em que ele está**. Quem tem dois perfis vê
+um destino e a tela fica igual à de hoje; quem tem os três vê dois. Para quem tem um perfil só,
+continua não existindo.
+
 ### Trocar a senha derruba as sessões abertas
 
 `usuario` ganha `senha_alterada_em TIMESTAMPTZ`.
@@ -100,9 +119,9 @@ O escopo é grande demais para uma leva só. Cada uma entrega software funcionan
 - `PUT /me/senha` (com senha atual)
 - `PUT /admin/usuarios/:id/senha` (admin redefine)
 - `GET /admin/usuarios` com filtro por perfil e status
-- `npm run criar-admin`
-- Front: área `/admin` com a tela de Usuários (listagem + redefinir senha), `TrocarArea` com a
-  terceira área, e "Trocar minha senha" no Perfil de aluno e professor
+- `npm run criar-admin`, criando com os três perfis
+- Front: área `/admin` com a tela de Usuários (listagem + redefinir senha), `TrocarArea` virando
+  seletor de áreas, e "Trocar minha senha" no Perfil das três áreas
 
 Ao fim da leva 1 o sistema já resolve o buraco mais urgente: ninguém depende mais de SQL na mão
 para uma senha esquecida.
@@ -127,6 +146,7 @@ para uma senha esquecida.
 - `npm test` no backend e no frontend passam, com saída limpa
 - Um teste de segurança para cada trava e para a invalidação de token
 - `npm run lint` e `npm run build` no frontend continuam passando
-- `npm run demo` sobe com um admin de exemplo
+- `npm run demo` sobe com um admin de exemplo, com os três perfis
+- A troca entre as três áreas funciona no navegador, conferida de verdade
 - Migração escrita para bancos que já existem
 - `backend/README.md`, `frontend/README.md` e `ROADMAP.md` atualizados
