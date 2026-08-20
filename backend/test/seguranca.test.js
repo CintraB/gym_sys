@@ -231,6 +231,11 @@ test("aluno não alcança nenhuma rota de escrita de professor", async (t) => {
     api.post("/professores/alunos", ALUNO, { token: aluno.token }),
     api.post("/professores/professores", ALUNO, { token: aluno.token }),
     api.post("/professores/treino", { id_aluno: aluno.id, exercicios: [] }, { token: aluno.token }),
+    api.post(
+      "/professores/exercicios",
+      { nome_exercicio: "PRANCHA LATERAL", tipo: "ABDOMEN" },
+      { token: aluno.token }
+    ),
     api.put("/professores/alunos/desativar", { cpf: ALUNO.cpf }, { token: aluno.token }),
     api.put("/professores/alunos/reativar", { cpf: ALUNO.cpf }, { token: aluno.token }),
     api.get("/professores/resumo", { token: aluno.token }),
@@ -734,4 +739,111 @@ test("usuário desativado não consegue entrar nem usar o token antigo", async (
 
   assert.equal(login.status, 401);
   assert.equal(comTokenAntigo.status, 401);
+});
+
+/* --------------------------------------- edição de treino: ids do corpo */
+
+// O PUT de treino aceita o id de cada linha para saber o que atualizar. Sem
+// conferir a quem esses ids pertencem, mandar o id de outro treino faria
+// UPDATE na ficha alheia — IDOR de escrita, não só de leitura.
+test("id de exercício de outro treino não é atualizado pelo PUT", async (t) => {
+  const { api, tokenProfessor, aluno } = await cenario();
+  t.after(() => api.encerrar());
+
+  const outro = await api.post(
+    "/professores/alunos",
+    { ...ALUNO, cpf: "33333333333", titulo: "333333333333", email: "outro@teste.com" },
+    { token: tokenProfessor }
+  );
+  const idOutro = outro.corpo.aluno.id;
+
+  for (const id of [aluno.id, idOutro]) {
+    const resposta = await api.post(
+      "/professores/treino",
+      { id_aluno: id, blocos: [{ nome: null, exercicios: [EXERCICIO] }] },
+      { token: tokenProfessor }
+    );
+    assert.equal(resposta.status, 201, JSON.stringify(resposta.corpo));
+  }
+
+  const meu = await api.get(`/professores/aluno/${aluno.id}/treino`, { token: tokenProfessor });
+  const alheio = await api.get(`/professores/aluno/${idOutro}/treino`, { token: tokenProfessor });
+  const linhaAlheia = alheio.corpo.blocos[0].exercicios[0];
+
+  const resposta = await api.put(
+    `/professores/treino/${meu.corpo.treino.id_treino}`,
+    {
+      blocos: [
+        {
+          id_bloco: meu.corpo.blocos[0].id_bloco,
+          nome: null,
+          exercicios: [{ ...linhaAlheia, carga: 999 }],
+        },
+      ],
+    },
+    { token: tokenProfessor }
+  );
+
+  assert.ok(resposta.status >= 400, `esperava recusa, veio ${resposta.status}`);
+
+  const depois = await api.get(`/professores/aluno/${idOutro}/treino`, { token: tokenProfessor });
+  assert.equal(depois.corpo.blocos[0].exercicios[0].carga, linhaAlheia.carga, "a ficha alheia mudou");
+});
+
+test("id de bloco de outro treino não é atualizado pelo PUT", async (t) => {
+  const { api, tokenProfessor, aluno } = await cenario();
+  t.after(() => api.encerrar());
+
+  const outro = await api.post(
+    "/professores/alunos",
+    { ...ALUNO, cpf: "33333333333", titulo: "333333333333", email: "outro@teste.com" },
+    { token: tokenProfessor }
+  );
+  const idOutro = outro.corpo.aluno.id;
+
+  for (const id of [aluno.id, idOutro]) {
+    await api.post(
+      "/professores/treino",
+      { id_aluno: id, blocos: [{ nome: "Original", exercicios: [EXERCICIO] }] },
+      { token: tokenProfessor }
+    );
+  }
+
+  const meu = await api.get(`/professores/aluno/${aluno.id}/treino`, { token: tokenProfessor });
+  const alheio = await api.get(`/professores/aluno/${idOutro}/treino`, { token: tokenProfessor });
+
+  const resposta = await api.put(
+    `/professores/treino/${meu.corpo.treino.id_treino}`,
+    {
+      blocos: [
+        { id_bloco: alheio.corpo.blocos[0].id_bloco, nome: "Sequestrado", exercicios: [EXERCICIO] },
+      ],
+    },
+    { token: tokenProfessor }
+  );
+
+  assert.ok(resposta.status >= 400, `esperava recusa, veio ${resposta.status}`);
+
+  const depois = await api.get(`/professores/aluno/${idOutro}/treino`, { token: tokenProfessor });
+  assert.equal(depois.corpo.blocos[0].nome, "Original", "o bloco alheio foi renomeado");
+});
+
+test("aluno não edita o próprio treino pelo PUT de professor", async (t) => {
+  const { api, tokenProfessor, aluno } = await cenario();
+  t.after(() => api.encerrar());
+
+  await api.post(
+    "/professores/treino",
+    { id_aluno: aluno.id, blocos: [{ nome: null, exercicios: [EXERCICIO] }] },
+    { token: tokenProfessor }
+  );
+  const meu = await api.get(`/professores/aluno/${aluno.id}/treino`, { token: tokenProfessor });
+
+  const resposta = await api.put(
+    `/professores/treino/${meu.corpo.treino.id_treino}`,
+    { blocos: [{ nome: null, exercicios: [{ ...EXERCICIO, carga: 500 }] }] },
+    { token: aluno.token }
+  );
+
+  assert.equal(resposta.status, 403);
 });

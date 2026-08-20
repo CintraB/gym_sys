@@ -10,6 +10,7 @@ import {
   normalizarDigitos,
   validarBlocosTreino,
   validarCadastroUsuario,
+  validarExercicioCatalogo,
 } from "../lib/validacao.js";
 import { carregarBlocosDoTreino } from "./alunoController.js";
 
@@ -251,6 +252,47 @@ export const listarExercicios = asyncHandler(async (_req, res) => {
 });
 
 /**
+ * Acrescenta um exercício ao catálogo.
+ *
+ * O catálogo vinha só do seed: faltando um item, a única saída era SQL na mão —
+ * e faltou ("prancha lateral", "remador" foram escritos à mão na ficha).
+ *
+ * O grupo muscular é fechado nos que já existem, conferido aqui e não só no
+ * front, senão um POST direto criaria um grupo novo e o select passaria a ter
+ * uma seção com um item só.
+ */
+export const cadastrarExercicio = asyncHandler(async (req, res) => {
+  const { nomeExercicio, tipo, observacao } = validarExercicioCatalogo(req.body);
+
+  const { rows: grupos } = await db.query(
+    "SELECT 1 FROM exercicio WHERE tipo = $1 LIMIT 1",
+    [tipo]
+  );
+  if (grupos.length === 0) {
+    throw erroRequisicao("Grupo muscular não existe no catálogo");
+  }
+
+  // Único por (nome, grupo), não pelo nome sozinho: CROSS OVER existe em BÍCEPS
+  // e em TRÍCEPS, então exercicio.nome_exercicio não tem — nem pode ter — UNIQUE.
+  const { rows: repetidos } = await db.query(
+    "SELECT 1 FROM exercicio WHERE nome_exercicio = $1 AND tipo = $2 LIMIT 1",
+    [nomeExercicio, tipo]
+  );
+  if (repetidos.length > 0) {
+    throw erroConflito("Esse exercício já existe nesse grupo muscular");
+  }
+
+  const { rows } = await db.query(
+    `INSERT INTO exercicio (nome_exercicio, tipo, observacao)
+     VALUES ($1, $2, $3)
+     RETURNING id_exercicio, nome_exercicio, tipo`,
+    [nomeExercicio, tipo, observacao]
+  );
+
+  res.status(201).json(rows[0]);
+});
+
+/**
  * Cadastra um treino. O professor vem do token, nunca do corpo — antes o
  * cliente escolhia o id_professor e podia registrar treino em nome de outro.
  * O treino anterior do aluno é desativado: só um treino fica ativo por vez.
@@ -337,6 +379,204 @@ export const cadastrarTreino = asyncHandler(async (req, res) => {
     cliente.release();
   }
 });
+
+/**
+ * Edita o treino no lugar, sem criar outro.
+ *
+ * Antes, corrigir uma carga exigia remontar a ficha inteira: o POST desativa o
+ * treino anterior e cria um novo, então o aluno perdia a continuidade e o
+ * histórico ganhava um treino a mais que nunca existiu de fato.
+ *
+ * Cada bloco e cada exercício pode vir com o id da linha que já existe:
+ * com id, atualiza; sem id, é acréscimo. O que não vier de volta é desativado —
+ * nunca apagado, porque `sessao_exercicio` referencia `ex_usuario` com
+ * ON DELETE CASCADE e `sessao_treino` aponta para `treino_bloco`: um DELETE
+ * aqui levaria junto o registro do que o aluno já executou.
+ *
+ * Sessão em andamento não é bloqueada. Ela já materializou as próprias linhas
+ * na abertura, então segue como está e a mudança vale da próxima — travar a
+ * edição porque o aluno abriu o app deixaria o professor refém do horário dele.
+ */
+export const editarTreino = asyncHandler(async (req, res) => {
+  const idTreino = Number(req.params.id);
+  const blocos = validarBlocosTreino(req.body);
+
+  const cliente = await db.connect();
+  try {
+    await cliente.query("BEGIN");
+
+    const { rows: treinos } = await cliente.query(
+      "SELECT id_aluno, ativo FROM treino WHERE id_treino = $1",
+      [idTreino]
+    );
+    if (treinos.length === 0) {
+      throw erroNaoEncontrado("Treino não encontrado");
+    }
+    // Treino inativo é histórico, não rascunho: editá-lo reescreveria o que o
+    // aluno já executou sob outra prescrição.
+    if (!treinos[0].ativo) {
+      throw erroConflito("Treino inativo não pode ser editado");
+    }
+    const idAluno = treinos[0].id_aluno;
+
+    const { rows: blocosAtuais } = await cliente.query(
+      "SELECT id_bloco FROM treino_bloco WHERE id_treino = $1 AND ativo = TRUE",
+      [idTreino]
+    );
+    const { rows: exerciciosAtuais } = await cliente.query(
+      "SELECT id FROM ex_usuario WHERE id_treino = $1 AND ativo = TRUE",
+      [idTreino]
+    );
+
+    conferirIdsDoTreino(blocos, blocosAtuais, exerciciosAtuais);
+
+    const blocosMantidos = new Set(blocos.map((bloco) => bloco.id_bloco).filter(Boolean));
+    const exerciciosMantidos = new Set(
+      blocos.flatMap((bloco) => bloco.exercicios.map((e) => e.id)).filter(Boolean)
+    );
+
+    // Desativar vem antes de mexer nas letras: bloco inativo sai do índice único
+    // parcial, e só então a letra dele fica livre para quem tomou o lugar.
+    for (const { id } of exerciciosAtuais) {
+      if (exerciciosMantidos.has(id)) continue;
+      await cliente.query(
+        `UPDATE ex_usuario SET ativo = FALSE, atualizado_em = NOW(), atualizado_por = $1
+          WHERE id = $2 AND id_treino = $3`,
+        [req.usuario.id, id, idTreino]
+      );
+    }
+    for (const { id_bloco: idBloco } of blocosAtuais) {
+      if (blocosMantidos.has(idBloco)) continue;
+      await cliente.query(
+        "UPDATE treino_bloco SET ativo = FALSE WHERE id_bloco = $1 AND id_treino = $2",
+        [idBloco, idTreino]
+      );
+    }
+
+    // Letras definitivas só no fim: reordenar A e B tentaria gravar "B" enquanto
+    // o B antigo ainda existe. A temporária tira todo mundo do caminho primeiro.
+    const letrasFinais = [];
+
+    for (const bloco of blocos) {
+      let idBloco = bloco.id_bloco;
+      const letraTemporaria = `#${bloco.ordem}`;
+
+      if (idBloco === null) {
+        const { rows } = await cliente.query(
+          "INSERT INTO treino_bloco (id_treino, letra, nome, ordem) VALUES ($1, $2, $3, $4) RETURNING id_bloco",
+          [idTreino, letraTemporaria, bloco.nome, bloco.ordem]
+        );
+        idBloco = rows[0].id_bloco;
+      } else {
+        await cliente.query(
+          "UPDATE treino_bloco SET letra = $1, nome = $2, ordem = $3 WHERE id_bloco = $4 AND id_treino = $5",
+          [letraTemporaria, bloco.nome, bloco.ordem, idBloco, idTreino]
+        );
+      }
+      // A letra vem da posição no array, como no cadastro: removido o B de um
+      // A/B/C, o C passa a ser o B.
+      letrasFinais.push([bloco.letra, idBloco]);
+
+      for (const exercicio of bloco.exercicios) {
+        if (exercicio.id === null) {
+          await cliente.query(
+            `INSERT INTO ex_usuario
+               (id_treino, id_bloco, id_user, id_exercicio, numero_serie, repeticoes, carga, observacao_ex_usuario)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+            [
+              idTreino,
+              idBloco,
+              idAluno,
+              exercicio.id_exercicio,
+              exercicio.numero_serie,
+              exercicio.repeticoes,
+              exercicio.carga,
+              exercicio.observacao_ex_usuario,
+            ]
+          );
+          continue;
+        }
+
+        // id_bloco entra no UPDATE para permitir mover o exercício de bloco.
+        await cliente.query(
+          `UPDATE ex_usuario
+              SET id_bloco = $1, id_exercicio = $2, numero_serie = $3, repeticoes = $4,
+                  carga = $5, observacao_ex_usuario = $6,
+                  atualizado_em = NOW(), atualizado_por = $7
+            WHERE id = $8 AND id_treino = $9`,
+          [
+            idBloco,
+            exercicio.id_exercicio,
+            exercicio.numero_serie,
+            exercicio.repeticoes,
+            exercicio.carga,
+            exercicio.observacao_ex_usuario,
+            req.usuario.id,
+            exercicio.id,
+            idTreino,
+          ]
+        );
+      }
+    }
+
+    for (const [letra, idBloco] of letrasFinais) {
+      await cliente.query(
+        "UPDATE treino_bloco SET letra = $1 WHERE id_bloco = $2 AND id_treino = $3",
+        [letra, idBloco, idTreino]
+      );
+    }
+
+    await cliente.query("COMMIT");
+  } catch (erro) {
+    await cliente.query("ROLLBACK").catch(() => {});
+    throw erro;
+  } finally {
+    cliente.release();
+  }
+
+  res.json({
+    message: "Treino atualizado com sucesso",
+    id_treino: idTreino,
+    blocos: await carregarBlocosDoTreino(idTreino),
+  });
+});
+
+/**
+ * Recusa ids que não são deste treino, antes de qualquer escrita.
+ *
+ * É o que impede o PUT de virar IDOR de escrita: sem esta conferência, mandar o
+ * id de um ex_usuario alheio faria UPDATE na ficha de outro aluno. A repetição
+ * do mesmo id também é recusada — duas linhas apontando para o mesmo registro
+ * gravariam uma por cima da outra em silêncio.
+ */
+function conferirIdsDoTreino(blocos, blocosAtuais, exerciciosAtuais) {
+  const blocosDoTreino = new Set(blocosAtuais.map((b) => b.id_bloco));
+  const exerciciosDoTreino = new Set(exerciciosAtuais.map((e) => e.id));
+  const vistos = { blocos: new Set(), exercicios: new Set() };
+
+  for (const bloco of blocos) {
+    if (bloco.id_bloco !== null) {
+      if (!blocosDoTreino.has(bloco.id_bloco)) {
+        throw erroRequisicao(`Bloco ${bloco.letra}: não faz parte deste treino`);
+      }
+      if (vistos.blocos.has(bloco.id_bloco)) {
+        throw erroRequisicao(`Bloco ${bloco.letra}: identificador repetido`);
+      }
+      vistos.blocos.add(bloco.id_bloco);
+    }
+
+    for (const exercicio of bloco.exercicios) {
+      if (exercicio.id === null) continue;
+      if (!exerciciosDoTreino.has(exercicio.id)) {
+        throw erroRequisicao(`Bloco ${bloco.letra}: exercício não faz parte deste treino`);
+      }
+      if (vistos.exercicios.has(exercicio.id)) {
+        throw erroRequisicao(`Bloco ${bloco.letra}: exercício repetido`);
+      }
+      vistos.exercicios.add(exercicio.id);
+    }
+  }
+}
 
 /** Treino ativo de um aluno, para o professor revisar antes de montar outro. */
 export const treinoDoAluno = asyncHandler(async (req, res) => {

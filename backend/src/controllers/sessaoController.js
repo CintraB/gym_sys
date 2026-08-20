@@ -133,7 +133,7 @@ export const iniciarSessao = asyncHandler(async (req, res) => {
     // Só os exercícios do bloco escolhido — esse é o tamanho de um dia.
     await cliente.query(
       `INSERT INTO sessao_exercicio (id_sessao, id_ex_usuario)
-       SELECT $1::int, id FROM ex_usuario WHERE id_bloco = $2 ORDER BY id`,
+       SELECT $1::int, id FROM ex_usuario WHERE id_bloco = $2 AND ativo = TRUE ORDER BY id`,
       [idSessao, idBloco]
     );
 

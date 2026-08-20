@@ -32,7 +32,9 @@ rotas.get("/professor/:id", professor.listarProfessorPorId);
 
 // Treinos
 rotas.get("/exercicios", professor.listarExercicios);
+rotas.post("/exercicios", professor.cadastrarExercicio);
 rotas.post("/treino", professor.cadastrarTreino);
+rotas.put("/treino/:id", professor.editarTreino);
 rotas.get("/treino/pedidos", professor.listarPedidos);
 rotas.post("/treino/pedido/finalizado", professor.finalizarPedido);
 rotas.put("/treino/inativar/:id", professor.inativarTreino);

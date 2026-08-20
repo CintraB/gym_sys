@@ -85,9 +85,9 @@ original justamente para isso.
 
 ### 2.3 Gestão do sistema
 
-- [ ] **Cadastrar exercícios** — o catálogo tem 79 itens fixos vindos do seed;
-      hoje só dá para adicionar por SQL. Já apareceu na prática: "prancha
-      lateral" e "remador" estavam escritos à mão na ficha
+- [x] **Cadastrar exercícios** — `POST /professores/exercicios`, com o atalho
+      "+ Novo" dentro do Montar Treino. O grupo muscular continua fechado nos
+      que já existem; criar grupo novo segue sendo caso de banco
 - [ ] Editar e desativar exercícios do catálogo
 - [ ] Auditoria: a coluna `atualizado_por` é preenchida mas nunca lida
 - [ ] Tela de saúde: contagem de registros, última sessão, espaço do banco
@@ -118,9 +118,9 @@ Coisas que a operação do dia a dia vai cobrar.
 
 ### 4.1 Treino
 
-- [ ] **Editar treino existente** — hoje salvar cria um treino novo e desativa
-      o anterior. Corrigir a carga de um exercício exige remontar tudo. É o
-      `PUT` em treino que está no seu TO DO original
+- [x] **Editar treino existente** — `PUT /professores/treino/:id`, pelo botão
+      "Editar" no painel do treino atual. Edita no lugar: o treino continua o
+      mesmo, e o que sai é desativado, não apagado
 - [ ] Duplicar treino de um aluno para outro, ou de um bloco para outro
 - [ ] Modelos de treino reaproveitáveis
 - [ ] Reordenar exercícios dentro do bloco (hoje a ordem é a de cadastro)
@@ -144,7 +144,7 @@ Coisas que a operação do dia a dia vai cobrar.
 
 ## 5. Qualidade técnica
 
-- [ ] **Testes de frontend** — hoje são 102 testes, todos de backend. A tela
+- [ ] **Testes de frontend** — hoje são 127 testes, todos de backend. A tela
       preta que apareceu ao trocar de área passou justamente por isso: nenhum
       teste renderiza componente. Vitest + Testing Library
 - [ ] **Error boundary** no React — hoje um erro de renderização apaga a tela
@@ -171,8 +171,6 @@ Fora do escopo de uso doméstico, anotado para não se perder:
 
 1. **Seção 1** — tirar do notebook e colocar no servidor, com Tailscale
 2. **Troca de senha** (2.2) — o buraco mais óbvio, e barato de fechar
-3. **Editar treino** (4.1) — o que mais vai incomodar no uso diário
-4. **Cadastrar exercícios** (2.3) — já foi necessário na primeira ficha real
-5. **Painel de admin** completo (seção 2)
-6. **Testes de frontend** (5) — antes de abrir para os alunos
-7. **Segurança** (3) — obrigatória antes de qualquer acesso externo de terceiros
+3. **Painel de admin** completo (seção 2)
+4. **Testes de frontend** (5) — antes de abrir para os alunos
+5. **Segurança** (3) — obrigatória antes de qualquer acesso externo de terceiros

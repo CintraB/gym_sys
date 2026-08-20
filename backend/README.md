@@ -110,6 +110,7 @@ Migrações, para bancos que já têm dados — aplicar na ordem, e só as que f
 | `db/migracao-v2.sql` | PK em `ex_usuario` e vínculo com `treino` |
 | `db/migracao-v3-sessoes.sql` | Tabelas de execução de treino |
 | `db/migracao-v4-blocos.sql` | Divisão em blocos A/B/C/D |
+| `db/migracao-v5-edicao-treino.sql` | `ativo` em `treino_bloco`, para o `PUT` de treino |
 
 O `seed.sql` popula o catálogo com 77 exercícios e roda **uma vez só** — a ordem das linhas define
 os `id_exercicio`. Os triggers ficam separados porque preenchem `atualizado_em` via plpgsql, que o
@@ -284,7 +285,9 @@ Só é permitido um pedido em aberto por aluno (`409` no segundo).
 | POST | `/professores/professores` | Cadastra professor |
 | GET | `/professores/professor/:id` | Professor por ID |
 | GET | `/professores/exercicios` | Catálogo de exercícios |
+| POST | `/professores/exercicios` | Acrescenta um exercício ao catálogo |
 | POST | `/professores/treino` | Cadastra treino |
+| PUT | `/professores/treino/:id` | Edita o treino no lugar |
 | GET | `/professores/treino/pedidos` | Pedidos em aberto |
 | POST | `/professores/treino/pedido/finalizado` | Finaliza um pedido |
 | PUT | `/professores/treino/inativar/:id` | Inativa os treinos do aluno |
@@ -304,6 +307,19 @@ Cadastro de aluno ou professor:
 
 CPF e título são normalizados no servidor — podem chegar com máscara. Título é obrigatório (12
 dígitos, coluna `NOT NULL`); senha exige no mínimo 6 caracteres.
+
+Novo exercício no catálogo:
+
+```json
+{ "nome_exercicio": "prancha lateral", "tipo": "ABDOMEN", "observacao": "Cotovelo sob o ombro" }
+```
+
+Nome e grupo são gravados em maiúsculas, com os espaços aparados — o catálogo
+inteiro é maiúsculo, e sem isso a mesma coisa apareceria duas vezes na listagem.
+O grupo precisa ser um dos que já existem (400 se não for): grupo novo é caso de
+banco, não de API. O nome é único **por grupo**, não no catálogo todo — 409 se
+repetir; `CROSS OVER` existe em BÍCEPS e em TRÍCEPS. Devolve 201 com
+`{ id_exercicio, nome_exercicio, tipo }`.
 
 Cadastro de treino, dividido em blocos (o A/B/C/D das fichas):
 
@@ -332,6 +348,34 @@ O formato antigo, com `exercicios` na raiz, continua aceito e vira um bloco "A"
 
 O professor é obtido do token — `id_professor` no corpo é ignorado. Salvar um treino desativa o
 treino anterior do aluno e encerra o pedido em aberto dele, na mesma transação.
+
+Edição do treino (`PUT /professores/treino/:id`) usa o mesmo corpo, sem `id_aluno` e com a
+identidade de cada linha:
+
+```json
+{
+  "blocos": [
+    {
+      "id_bloco": 7,
+      "nome": "Peito e Tríceps",
+      "exercicios": [
+        { "id": 31, "id_exercicio": 3, "numero_serie": 4, "repeticoes": "10 a 15", "carga": 45 },
+        { "id_exercicio": 8, "numero_serie": 3, "repeticoes": "12", "carga": 15 }
+      ]
+    }
+  ]
+}
+```
+
+Com `id`/`id_bloco`, atualiza a linha que já existe; **sem**, é acréscimo. O que não voltar no corpo
+é desativado — nunca apagado, porque `sessao_exercicio` referencia `ex_usuario` com
+`ON DELETE CASCADE` e apagar levaria junto o registro do que o aluno já executou. Um id que não seja
+daquele treino é recusado com 400, antes de qualquer escrita.
+
+Diferente do `POST`, o treino é o mesmo: não desativa nada nem encerra o pedido em aberto. As letras
+continuam vindo da posição no array, então remover o B de um A/B/C faz o C virar B. Treino inativo
+responde 409. Sessão em andamento não é bloqueada — ela já materializou as próprias linhas na
+abertura, e a mudança vale da próxima.
 
 Exercícios de cardio entram só com a observação: `numero_serie` 0, `repeticoes` e `carga` vazios.
 

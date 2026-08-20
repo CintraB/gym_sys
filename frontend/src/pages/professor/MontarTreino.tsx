@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Dumbbell, Plus, Trash2, X } from 'lucide-react'
+import { Dumbbell, Pencil, Plus, Trash2, X } from 'lucide-react'
 import { api, mensagemDeErro } from '../../lib/api'
 import { useRequisicao } from '../../lib/useRequisicao'
 import { contar, descreverSerieCurta, formatarData, rotularBloco } from '../../lib/formato'
@@ -12,8 +12,16 @@ import { Esqueleto } from '../../components/ui/Carregando'
 import { Selo } from '../../components/ui/Selo'
 import { Abas } from '../../components/ui/Abas'
 import { useConfirmacao } from '../../components/ui/Confirmacao'
+import { NovoExercicio } from '../../components/NovoExercicio'
 import { cn } from '../../lib/cn'
-import type { Aluno, Exercicio, LinhaBloco, LinhaExercicio, TreinoCompleto } from '../../types'
+import type {
+  Aluno,
+  Bloco,
+  Exercicio,
+  LinhaBloco,
+  LinhaExercicio,
+  TreinoCompleto,
+} from '../../types'
 
 const LETRAS = 'ABCDEFGH'
 const MAXIMO_BLOCOS = 8
@@ -28,6 +36,27 @@ const LINHA_VAZIA: LinhaExercicio = {
 
 const blocoVazio = (): LinhaBloco => ({ nome: '', exercicios: [{ ...LINHA_VAZIA }] })
 
+/**
+ * Treino salvo → linhas do formulário, carregando os ids.
+ *
+ * São os ids que fazem o PUT atualizar as linhas em vez de recriá-las: sem
+ * eles, o servidor leria tudo como acréscimo e o histórico das sessões
+ * apontaria para exercícios desativados.
+ */
+const paraFormulario = (blocos: Bloco[]): LinhaBloco[] =>
+  blocos.map((bloco) => ({
+    id_bloco: bloco.id_bloco,
+    nome: bloco.nome ?? '',
+    exercicios: bloco.exercicios.map((exercicio) => ({
+      id: exercicio.id,
+      id_exercicio: String(exercicio.id_exercicio),
+      numero_serie: String(exercicio.numero_serie),
+      repeticoes: exercicio.repeticoes,
+      carga: exercicio.carga === null ? '' : String(exercicio.carga),
+      observacao_ex_usuario: exercicio.observacao_ex_usuario ?? '',
+    })),
+  }))
+
 export default function MontarTreino() {
   const [params, setParams] = useSearchParams()
   const idAluno = params.get('aluno') ?? ''
@@ -37,6 +66,11 @@ export default function MontarTreino() {
   const [erro, setErro] = useState<string | null>(null)
   const [sucesso, setSucesso] = useState<string | null>(null)
   const [enviando, setEnviando] = useState(false)
+  // Guarda em qual linha o "+ Novo" foi acionado: o exercício recém-criado
+  // volta selecionado ali, sem obrigar a procurá-lo no select de 80 itens.
+  const [novoExercicioEm, setNovoExercicioEm] = useState<number | null>(null)
+  // id do treino sendo editado; null quer dizer "montando um treino novo".
+  const [editando, setEditando] = useState<number | null>(null)
   const { confirmar, dialogo } = useConfirmacao()
 
   const alunos = useRequisicao<Aluno[]>(
@@ -110,31 +144,62 @@ export default function MontarTreino() {
     setAtivo((atual) => Math.max(0, atual >= indice ? atual - 1 : atual))
   }
 
+  function editarTreinoAtual(blocosSalvos: Bloco[], idTreino: number) {
+    setBlocos(paraFormulario(blocosSalvos))
+    setEditando(idTreino)
+    setAtivo(0)
+    setErro(null)
+    setSucesso(null)
+  }
+
+  function sairDaEdicao() {
+    setBlocos([blocoVazio()])
+    setEditando(null)
+    setAtivo(0)
+  }
+
   async function salvar() {
     setErro(null)
     setSucesso(null)
     setEnviando(true)
-    try {
-      // O professor vem do token; a letra sai da posição do bloco.
-      await api.post('/professores/treino', {
-        id_aluno: Number(idAluno),
-        blocos: blocos.map((bloco) => ({
-          nome: bloco.nome.trim() || null,
-          exercicios: bloco.exercicios.map((linha) => ({
-            id_exercicio: Number(linha.id_exercicio),
-            numero_serie: Number(linha.numero_serie),
-            repeticoes: linha.repeticoes,
-            carga: linha.carga === '' ? null : Number(linha.carga),
-            observacao_ex_usuario: linha.observacao_ex_usuario,
-          })),
+
+    // O id só vai quando existe: linha sem id é acréscimo, e o que não for
+    // enviado de volta o servidor desativa.
+    const corpo = {
+      blocos: blocos.map((bloco) => ({
+        ...(bloco.id_bloco ? { id_bloco: bloco.id_bloco } : {}),
+        nome: bloco.nome.trim() || null,
+        exercicios: bloco.exercicios.map((linha) => ({
+          ...(linha.id ? { id: linha.id } : {}),
+          id_exercicio: Number(linha.id_exercicio),
+          numero_serie: Number(linha.numero_serie),
+          repeticoes: linha.repeticoes,
+          carga: linha.carga === '' ? null : Number(linha.carga),
+          observacao_ex_usuario: linha.observacao_ex_usuario,
         })),
-      })
-      setSucesso(`Treino salvo para ${alunoSelecionado?.nome ?? 'o aluno'}.`)
-      setBlocos([blocoVazio()])
-      setAtivo(0)
+      })),
+    }
+
+    try {
+      if (editando) {
+        await api.put(`/professores/treino/${editando}`, corpo)
+        setSucesso(`Treino de ${alunoSelecionado?.nome ?? 'o aluno'} atualizado.`)
+      } else {
+        // O professor vem do token; a letra sai da posição do bloco.
+        await api.post('/professores/treino', { id_aluno: Number(idAluno), ...corpo })
+        setSucesso(`Treino salvo para ${alunoSelecionado?.nome ?? 'o aluno'}.`)
+      }
+      sairDaEdicao()
       treinoAtual.recarregar()
     } catch (e) {
-      setErro(mensagemDeErro(e, 'Não foi possível salvar o treino.'))
+      setErro(
+        mensagemDeErro(
+          e,
+          editando
+            ? 'Não foi possível salvar as alterações.'
+            : 'Não foi possível salvar o treino.',
+        ),
+      )
     } finally {
       setEnviando(false)
     }
@@ -143,10 +208,13 @@ export default function MontarTreino() {
   return (
     <div className="space-y-6">
       <header>
-        <h1 className="text-2xl font-semibold tracking-tight">Montar treino</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">
+          {editando ? 'Editar treino' : 'Montar treino'}
+        </h1>
         <p className="mt-1 text-sm text-texto-suave">
-          Divida em blocos (A, B, C…) para separar os dias. O treino novo substitui o atual e
-          encerra o pedido em aberto do aluno.
+          {editando
+            ? 'As mudanças valem no mesmo treino, sem substituí-lo. O que já foi executado continua no histórico.'
+            : 'Divida em blocos (A, B, C…) para separar os dias. O treino novo substitui o atual e encerra o pedido em aberto do aluno.'}
         </p>
       </header>
 
@@ -158,6 +226,9 @@ export default function MontarTreino() {
           setParams(valor ? { aluno: valor } : {}, { replace: true })
           setSucesso(null)
         }}
+        // Travado durante a edição: os ids no formulário são do treino deste
+        // aluno, e trocar de aluno os mandaria no PUT do treino de outro.
+        disabled={Boolean(editando)}
       >
         <option value="">Selecione um aluno</option>
         {alunos.dados?.map((aluno) => (
@@ -167,21 +238,34 @@ export default function MontarTreino() {
         ))}
       </Selecao>
 
-      {idAluno && <TreinoVigente estado={treinoAtual} />}
+      {idAluno && (
+        <TreinoVigente
+          estado={treinoAtual}
+          editando={Boolean(editando)}
+          aoEditar={editarTreinoAtual}
+        />
+      )}
 
       {idAluno && (
         <section className="space-y-3">
           <TituloSecao
             acao={
-              blocos.length < MAXIMO_BLOCOS && (
-                <Botao variante="secundario" tamanho="sm" onClick={adicionarBloco}>
-                  <Plus className="size-4" aria-hidden />
-                  Bloco {LETRAS[blocos.length]}
-                </Botao>
-              )
+              <div className="flex items-center gap-2">
+                {editando && (
+                  <Botao variante="fantasma" tamanho="sm" onClick={sairDaEdicao}>
+                    Cancelar edição
+                  </Botao>
+                )}
+                {blocos.length < MAXIMO_BLOCOS && (
+                  <Botao variante="secundario" tamanho="sm" onClick={adicionarBloco}>
+                    <Plus className="size-4" aria-hidden />
+                    Bloco {LETRAS[blocos.length]}
+                  </Botao>
+                )}
+              </div>
             }
           >
-            Novo treino
+            {editando ? 'Editando o treino atual' : 'Novo treino'}
           </TituloSecao>
 
           <Abas
@@ -241,21 +325,34 @@ export default function MontarTreino() {
                   )}
                 </div>
 
-                <Selecao
-                  value={linha.id_exercicio}
-                  onChange={(e) => atualizarLinha(indice, 'id_exercicio', e.target.value)}
-                >
-                  <option value="">Selecione o exercício</option>
-                  {porGrupo.map(([grupo, lista]) => (
-                    <optgroup key={grupo} label={grupo}>
-                      {lista.map((exercicio) => (
-                        <option key={exercicio.id_exercicio} value={exercicio.id_exercicio}>
-                          {exercicio.nome_exercicio}
-                        </option>
-                      ))}
-                    </optgroup>
-                  ))}
-                </Selecao>
+                <div className="space-y-1.5">
+                  <div className="flex items-end justify-between gap-3">
+                    <span className="text-sm font-medium text-texto-suave">Exercício</span>
+                    <button
+                      type="button"
+                      onClick={() => setNovoExercicioEm(indice)}
+                      className="flex items-center gap-1 text-sm font-medium text-acento-texto transition-opacity hover:opacity-80"
+                    >
+                      <Plus className="size-3.5" aria-hidden />
+                      Novo
+                    </button>
+                  </div>
+                  <Selecao
+                    value={linha.id_exercicio}
+                    onChange={(e) => atualizarLinha(indice, 'id_exercicio', e.target.value)}
+                  >
+                    <option value="">Selecione o exercício</option>
+                    {porGrupo.map(([grupo, lista]) => (
+                      <optgroup key={grupo} label={grupo}>
+                        {lista.map((exercicio) => (
+                          <option key={exercicio.id_exercicio} value={exercicio.id_exercicio}>
+                            {exercicio.nome_exercicio}
+                          </option>
+                        ))}
+                      </optgroup>
+                    ))}
+                  </Selecao>
+                </div>
 
                 <div className="grid grid-cols-3 gap-2">
                   <Campo
@@ -304,9 +401,22 @@ export default function MontarTreino() {
           {sucesso && <Aviso tipo="sucesso">{sucesso}</Aviso>}
 
           <Botao onClick={salvar} disabled={!podeEnviar} carregando={enviando} className="w-full">
-            Salvar treino {blocos.length > 1 && `(${blocos.length} blocos)`}
+            {editando ? 'Salvar alterações' : 'Salvar treino'}{' '}
+            {blocos.length > 1 && `(${blocos.length} blocos)`}
           </Botao>
         </section>
+      )}
+
+      {novoExercicioEm !== null && (
+        <NovoExercicio
+          grupos={porGrupo.map(([grupo]) => grupo)}
+          aoFechar={() => setNovoExercicioEm(null)}
+          aoCriar={(exercicio) => {
+            exercicios.definirDados([...(exercicios.dados ?? []), exercicio])
+            atualizarLinha(novoExercicioEm, 'id_exercicio', String(exercicio.id_exercicio))
+            setNovoExercicioEm(null)
+          }}
+        />
       )}
 
       {dialogo}
@@ -316,8 +426,12 @@ export default function MontarTreino() {
 
 function TreinoVigente({
   estado,
+  editando,
+  aoEditar,
 }: {
   estado: ReturnType<typeof useRequisicao<TreinoCompleto | null>>
+  editando: boolean
+  aoEditar: (blocos: Bloco[], idTreino: number) => void
 }) {
   const [aberto, setAberto] = useState<number | null>(null)
 
@@ -341,9 +455,21 @@ function TreinoVigente({
     <Cartao className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="text-sm font-medium">Treino atual</span>
-        <Selo>
-          {formatarData(treino.criado_em)} · {treino.nome_professor}
-        </Selo>
+        <div className="flex items-center gap-2">
+          <Selo>
+            {formatarData(treino.criado_em)} · {treino.nome_professor}
+          </Selo>
+          {!editando && (
+            <Botao
+              variante="secundario"
+              tamanho="sm"
+              onClick={() => aoEditar(blocos, treino.id_treino)}
+            >
+              <Pencil className="size-3.5" aria-hidden />
+              Editar
+            </Botao>
+          )}
+        </div>
       </div>
 
       {blocos.map((bloco) => (

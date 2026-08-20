@@ -13,7 +13,7 @@ const SQL_EXERCICIOS_DO_TREINO = `
          e.tipo
     FROM ex_usuario eu
     JOIN exercicio e ON e.id_exercicio = eu.id_exercicio
-   WHERE eu.id_treino = $1
+   WHERE eu.id_treino = $1 AND eu.ativo = TRUE
    ORDER BY eu.id
 `;
 
@@ -25,7 +25,7 @@ const SQL_EXERCICIOS_DO_TREINO = `
  */
 export async function carregarBlocosDoTreino(idTreino) {
   const { rows: blocos } = await db.query(
-    "SELECT id_bloco, letra, nome, ordem FROM treino_bloco WHERE id_treino = $1 ORDER BY ordem",
+    "SELECT id_bloco, letra, nome, ordem FROM treino_bloco WHERE id_treino = $1 AND ativo = TRUE ORDER BY ordem",
     [idTreino]
   );
   const { rows: exercicios } = await db.query(SQL_EXERCICIOS_DO_TREINO, [idTreino]);

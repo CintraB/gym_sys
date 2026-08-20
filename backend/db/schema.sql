@@ -86,7 +86,11 @@ CREATE TABLE IF NOT EXISTS treino_bloco (
     letra      VARCHAR(2)  NOT NULL,
     -- Opcional: "Peito e Triceps". Em branco, a tela mostra so "Treino A".
     nome       VARCHAR(60),
-    ordem      SMALLINT    NOT NULL DEFAULT 1
+    ordem      SMALLINT    NOT NULL DEFAULT 1,
+    -- Bloco removido na edicao do treino vira ativo = FALSE, nunca DELETE:
+    -- sessao_treino.id_bloco aponta para ca sem cascade, e apagar quebraria a
+    -- FK das sessoes ja executadas. O historico continua sabendo dizer "Treino B".
+    ativo      BOOLEAN     NOT NULL DEFAULT TRUE
 );
 
 -- Exercicios de um treino.
@@ -149,8 +153,11 @@ CREATE INDEX IF NOT EXISTS idx_exercicio_tipo     ON exercicio (tipo);
 CREATE INDEX IF NOT EXISTS idx_sessao_aluno       ON sessao_treino (id_aluno, iniciado_em);
 CREATE INDEX IF NOT EXISTS idx_bloco_treino       ON treino_bloco (id_treino, ordem);
 CREATE INDEX IF NOT EXISTS idx_ex_usuario_bloco   ON ex_usuario (id_bloco);
+-- Parcial de proposito: bloco desativado na edicao guarda a propria letra, para
+-- o historico continuar dizendo "Treino B". Sem o WHERE, essa letra ficaria
+-- reservada e a renumeracao (removido o B de A/B/C, o C vira B) colidiria.
 CREATE UNIQUE INDEX IF NOT EXISTS idx_bloco_letra_por_treino
-    ON treino_bloco (id_treino, letra);
+    ON treino_bloco (id_treino, letra) WHERE ativo;
 
 -- No máximo uma sessão em andamento por aluno. Garantido no banco, e não só
 -- no código, porque dois toques rápidos em "Iniciar" chegariam em paralelo.

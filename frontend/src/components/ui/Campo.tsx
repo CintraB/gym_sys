@@ -1,4 +1,5 @@
 import {
+  forwardRef,
   useId,
   useState,
   type InputHTMLAttributes,
@@ -22,7 +23,12 @@ interface CampoProps extends InputHTMLAttributes<HTMLInputElement> {
   dica?: ReactNode
 }
 
-export function Campo({ rotulo, erro, dica, className, id, ...resto }: CampoProps) {
+// forwardRef pelo mesmo motivo do Botao: um modal precisa dar foco ao primeiro
+// campo ao abrir, senão o teclado do celular não sobe.
+export const Campo = forwardRef<HTMLInputElement, CampoProps>(function Campo(
+  { rotulo, erro, dica, className, id, ...resto },
+  ref,
+) {
   const gerado = useId()
   const idCampo = id ?? gerado
 
@@ -32,6 +38,7 @@ export function Campo({ rotulo, erro, dica, className, id, ...resto }: CampoProp
         {rotulo}
       </label>
       <input
+        ref={ref}
         id={idCampo}
         aria-invalid={Boolean(erro)}
         aria-describedby={erro ? `${idCampo}-erro` : undefined}
@@ -46,7 +53,7 @@ export function Campo({ rotulo, erro, dica, className, id, ...resto }: CampoProp
       {!erro && dica && <p className="text-xs text-texto-suave">{dica}</p>}
     </div>
   )
-}
+})
 
 interface CampoSenhaProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'type'> {
   rotulo: string

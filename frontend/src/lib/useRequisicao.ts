@@ -49,5 +49,8 @@ export function useRequisicao<T>(buscar: () => Promise<T>, deps: unknown[] = [])
     }
   }, [buscarEstavel])
 
-  return { dados, carregando, erro, recarregar: carregar }
+  // definirDados evita um ida-e-volta quando a própria tela acabou de criar o
+  // registro e já recebeu ele na resposta — recarregar a lista inteira só para
+  // enxergar o que já se tem em mãos deixa o formulário piscando.
+  return { dados, carregando, erro, recarregar: carregar, definirDados: setDados }
 }

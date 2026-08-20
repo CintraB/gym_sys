@@ -145,6 +145,8 @@ export interface ItemHistoricoSessao {
 
 /** Linha do formulário de montagem de um bloco. */
 export interface LinhaBloco {
+  /** Presente só na edição: identifica o bloco que já existe no banco. */
+  id_bloco?: number
   nome: string
   exercicios: LinhaExercicio[]
 }
@@ -161,6 +163,8 @@ export interface FrequenciaAluno {
 
 /** Linha do formulário de montagem de treino. */
 export interface LinhaExercicio {
+  /** Presente só na edição: sem ele o servidor trata a linha como acréscimo. */
+  id?: number
   id_exercicio: string
   numero_serie: string
   repeticoes: string
