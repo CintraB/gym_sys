@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
-import { api, mensagemDeErro } from '../../lib/api'
+import { api, mensagemDeErro, tokenArmazenado } from '../../lib/api'
 import { mascararCpf, mascararTitulo } from '../../lib/formato'
 import { useAuth } from '../../auth/useAuth'
 import { Botao } from '../../components/ui/Botao'
@@ -33,7 +33,7 @@ export function EditarUsuario({
   aoFechar: () => void
   aoSalvar: (nome: string) => void
 }) {
-  const { usuario: eu } = useAuth()
+  const { usuario: eu, atualizarUsuario } = useAuth()
   const [nome, setNome] = useState(usuario.nome)
   const [cpf, setCpf] = useState(mascararCpf(usuario.cpf))
   const [email, setEmail] = useState(usuario.email ?? '')
@@ -85,7 +85,27 @@ export function EditarUsuario({
     let dadosSalvos = false
     try {
       if (dadosMudaram) {
-        await api.put(`/admin/usuarios/${usuario.id}`, { nome, cpf, email, titulo })
+        const { data } = await api.put<{ token?: string }>(
+          `/admin/usuarios/${usuario.id}`,
+          { nome, cpf, email, titulo },
+        )
+
+        // Trocar o CPF é trocar o login, e isso derruba todos os tokens
+        // anteriores — inclusive o meu, se a conta for a minha. O servidor
+        // devolve um token novo só nesse caso.
+        //
+        // Gravar aqui, e não no fim: a chamada de perfis abaixo já iria com um
+        // token invalidado, e o interceptor de 401 encerraria a sessão no meio
+        // do salvamento.
+        if (data.token) tokenArmazenado.gravar(data.token)
+        if (ehMinhaConta) {
+          atualizarUsuario({
+            nome,
+            email,
+            cpf: cpf.replace(/\D/g, ''),
+            titulo: titulo.replace(/\D/g, ''),
+          })
+        }
         dadosSalvos = true
       }
       if (perfisMudaram) {

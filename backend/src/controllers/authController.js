@@ -3,27 +3,7 @@ import { gerarToken } from "../lib/jwt.js";
 import { criarHashComSal, verificarSenha } from "../lib/senha.js";
 import { asyncHandler, erroNaoAutorizado, erroRequisicao } from "../lib/erros.js";
 import { normalizarDigitos, validarTrocaDeSenha } from "../lib/validacao.js";
-
-/**
- * Perfil principal — o que decide para onde o app abre.
- *
- * `aluno`, `professor` e `admin` são flags independentes: a mesma pessoa pode
- * ser as três (quem administra o sistema, dá aula e treina na academia). Por
- * isso o cargo sozinho não basta, e a resposta leva junto `perfis` com as
- * capacidades.
- */
-function perfilDe(usuario) {
-  if (usuario.admin) return "admin";
-  return usuario.professor ? "professor" : "aluno";
-}
-
-function perfisDe(usuario) {
-  return {
-    aluno: Boolean(usuario.aluno),
-    professor: Boolean(usuario.professor),
-    admin: Boolean(usuario.admin),
-  };
-}
+import { perfilDe, perfisDe } from "../lib/perfil.js";
 
 export const login = asyncHandler(async (req, res) => {
   const cpf = normalizarDigitos(req.body?.cpf);
@@ -82,7 +62,7 @@ export const eu = asyncHandler(async (req, res) => {
  * Exige a senha atual: sem isso, quem pega o aparelho destravado troca a senha
  * e toma a conta sem nunca ter sabido a original.
  *
- * Devolve um token novo porque gravar `senha_alterada_em` invalida todos os
+ * Devolve um token novo porque gravar `sessoes_invalidadas_em` invalida todos os
  * emitidos antes — inclusive o de quem está trocando.
  */
 export const trocarMinhaSenha = asyncHandler(async (req, res) => {
@@ -96,7 +76,7 @@ export const trocarMinhaSenha = asyncHandler(async (req, res) => {
   }
 
   const hash = await criarHashComSal(senhaNova);
-  await db.query("UPDATE usuario SET senha = $1, senha_alterada_em = NOW() WHERE id = $2", [
+  await db.query("UPDATE usuario SET senha = $1, sessoes_invalidadas_em = NOW() WHERE id = $2", [
     hash,
     req.usuario.id,
   ]);

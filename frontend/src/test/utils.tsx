@@ -61,6 +61,7 @@ export function renderizar(
     carregando,
     entrar: async () => usuario as Usuario,
     sair: () => {},
+    atualizarUsuario: () => {},
   }
 
   return render(

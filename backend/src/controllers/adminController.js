@@ -8,6 +8,7 @@ import {
   erroRequisicao,
 } from "../lib/erros.js";
 import { normalizarDigitos } from "../lib/validacao.js";
+import { tokenAposTrocaDeLogin } from "../lib/sessao.js";
 
 // A senha jamais entra aqui. É a mesma lista do professorController, com admin.
 const CAMPOS_PUBLICOS = "id, nome, cpf, email, titulo, aluno, professor, admin, ativo";
@@ -64,7 +65,7 @@ export const listarUsuarios = asyncHandler(async (req, res) => {
  * senha atual. Sem esta trava, a exigência da senha atual viraria decorativa
  * justamente para a conta que mais importa.
  *
- * Gravar `senha_alterada_em` derruba as sessões abertas daquele usuário. É
+ * Gravar `sessoes_invalidadas_em` derruba as sessões abertas daquele usuário. É
  * intencional: se a redefinição foi por conta comprometida, deixar a sessão do
  * invasor de pé anularia o propósito.
  */
@@ -81,7 +82,7 @@ export const redefinirSenha = asyncHandler(async (req, res) => {
 
   const hash = await criarHashComSal(senhaNova);
   const { rows } = await db.query(
-    `UPDATE usuario SET senha = $1, senha_alterada_em = NOW(), atualizado_por = $2
+    `UPDATE usuario SET senha = $1, sessoes_invalidadas_em = NOW(), atualizado_por = $2
       WHERE id = $3
       RETURNING ${CAMPOS_PUBLICOS}`,
     [hash, req.usuario.id, id]
@@ -117,15 +118,34 @@ export const alterarUsuario = asyncHandler(async (req, res) => {
 
   const atualizacoes = [];
   const valores = [];
+  let posicaoCpf = null;
   for (const [coluna, valor] of Object.entries(campos)) {
     if (valor) {
       valores.push(valor);
       atualizacoes.push(`${coluna} = $${valores.length}`);
+      if (coluna === "cpf") posicaoCpf = valores.length;
     }
   }
 
   if (atualizacoes.length === 0) {
     throw erroRequisicao("Nenhum dado para atualizar");
+  }
+
+  // Trocar o CPF é trocar o login, então as sessões abertas precisam cair —
+  // senão o token anterior seguiria valendo sete dias para um login que já não
+  // existe, inclusive na mão de quem o roubou.
+  //
+  // O CASE é o que evita expulsar à toa: no lado direito do SET, `cpf` ainda é
+  // o valor antigo da linha, então o corte só é gravado quando o CPF muda de
+  // fato. Sem ele, corrigir um acento no nome derrubaria a pessoa — e o
+  // formulário do front manda o CPF junto mesmo quando ele não mudou.
+  //
+  // `titulo` não entra: identifica o aluno na academia, mas não autentica.
+  if (posicaoCpf !== null) {
+    atualizacoes.push(
+      `sessoes_invalidadas_em = CASE WHEN cpf <> $${posicaoCpf}
+          THEN NOW() ELSE sessoes_invalidadas_em END`
+    );
   }
 
   // cpf e titulo são UNIQUE: conferir antes devolve 409 com mensagem em vez de
@@ -156,7 +176,10 @@ export const alterarUsuario = asyncHandler(async (req, res) => {
     throw erroNaoEncontrado("Usuário não encontrado");
   }
 
-  res.json({ message: "Dados alterados com sucesso", usuario: rows[0] });
+  const usuario = rows[0];
+  const token = await tokenAposTrocaDeLogin(req, usuario);
+
+  res.json({ message: "Dados alterados com sucesso", usuario, ...(token ? { token } : {}) });
 });
 
 /**

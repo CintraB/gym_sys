@@ -82,10 +82,10 @@ test("o token anterior à troca deixa de valer", async (t) => {
   const antes = await api.get("/me", { token });
   assert.equal(antes.status, 200);
 
-  // senha_alterada_em precisa ficar depois do iat do token, que tem
-  // resolução de segundos.
+  // O corte precisa ficar depois do iat do token, que tem resolução de
+  // segundos.
   api.memoria.public.none(
-    `UPDATE usuario SET senha_alterada_em = NOW() + INTERVAL '10 seconds' WHERE cpf = '${CPF}'`
+    `UPDATE usuario SET sessoes_invalidadas_em = NOW() + INTERVAL '10 seconds' WHERE cpf = '${CPF}'`
   );
 
   const depois = await api.get("/me", { token });
@@ -108,16 +108,16 @@ test("quem trocou a senha continua logado, com o token novo", async (t) => {
   assert.equal(comNovo.status, 200, JSON.stringify(comNovo.corpo));
 });
 
-// Usuário que nunca trocou a senha tem senha_alterada_em NULL. Se a
+// Usuário que nunca trocou credencial tem sessoes_invalidadas_em NULL. Se a
 // comparação não tratar isso, a migração derruba a sessão de todo mundo.
-test("senha_alterada_em nula não invalida token nenhum", async (t) => {
+test("sessoes_invalidadas_em nula não invalida token nenhum", async (t) => {
   const { api, token } = await cenario();
   t.after(() => api.encerrar());
 
   const linhas = api.memoria.public.many(
-    `SELECT senha_alterada_em FROM usuario WHERE cpf = '${CPF}'`
+    `SELECT sessoes_invalidadas_em FROM usuario WHERE cpf = '${CPF}'`
   );
-  assert.equal(linhas[0].senha_alterada_em, null, "deveria nascer nula");
+  assert.equal(linhas[0].sessoes_invalidadas_em, null, "deveria nascer nula");
 
   const resposta = await api.get("/me", { token });
   assert.equal(resposta.status, 200);

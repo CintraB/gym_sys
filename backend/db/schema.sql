@@ -35,10 +35,13 @@ CREATE TABLE IF NOT EXISTS usuario (
     -- ataque a mais por pouco ganho.
     admin           BOOLEAN      NOT NULL DEFAULT FALSE,
     ativo           BOOLEAN      NOT NULL DEFAULT TRUE,
-    -- Quando a senha foi trocada pela ultima vez. Token emitido antes disso
-    -- deixa de valer — e o que faz trocar a senha expulsar quem roubou o token.
-    -- NULL quer dizer "nunca trocou", e nao invalida nada.
-    senha_alterada_em TIMESTAMPTZ,
+    -- Corte de validade dos tokens: emitido antes disso, deixa de valer. E o
+    -- que faz trocar a credencial expulsar quem roubou o token.
+    --
+    -- Grava aqui quem troca a senha e quem troca o CPF, porque o CPF e o login:
+    -- o nome da coluna fala do efeito, e nao da causa, para nao mentir quando a
+    -- causa for a segunda. NULL quer dizer "nunca trocou", e nao invalida nada.
+    sessoes_invalidadas_em TIMESTAMPTZ,
     atualizado_em   TIMESTAMP,
     atualizado_por  INTEGER,
     criado_em       TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP

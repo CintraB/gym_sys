@@ -51,9 +51,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return data.usuario
   }, [])
 
+  const atualizarUsuario = useCallback((dados: Partial<Usuario>) => {
+    setUsuario((atual) => (atual ? { ...atual, ...dados } : atual))
+  }, [])
+
   const valor = useMemo(
-    () => ({ usuario, carregando, entrar, sair }),
-    [usuario, carregando, entrar, sair],
+    () => ({ usuario, carregando, entrar, sair, atualizarUsuario }),
+    [usuario, carregando, entrar, sair, atualizarUsuario],
   )
 
   return <AuthContext.Provider value={valor}>{children}</AuthContext.Provider>

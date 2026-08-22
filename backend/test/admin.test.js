@@ -129,9 +129,9 @@ test("redefinir a senha derruba as sessões daquele usuário", async (t) => {
 
   await api.put(`/admin/usuarios/${idAluno}/senha`, { senha_nova: "senhaTemporaria1" }, { token });
 
-  // senha_alterada_em precisa ficar depois do iat, que tem resolução de segundos.
+  // O corte precisa ficar depois do iat, que tem resolução de segundos.
   api.memoria.public.none(
-    `UPDATE usuario SET senha_alterada_em = NOW() + INTERVAL '10 seconds' WHERE id = ${idAluno}`
+    `UPDATE usuario SET sessoes_invalidadas_em = NOW() + INTERVAL '10 seconds' WHERE id = ${idAluno}`
   );
 
   assert.equal((await api.get("/me", { token: tokenAluno })).status, 401);

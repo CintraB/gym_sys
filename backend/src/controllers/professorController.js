@@ -12,6 +12,7 @@ import {
   validarCadastroUsuario,
   validarExercicioCatalogo,
 } from "../lib/validacao.js";
+import { tokenAposTrocaDeLogin } from "../lib/sessao.js";
 import { carregarBlocosDoTreino } from "./alunoController.js";
 
 const CAMPOS_PUBLICOS = "id, nome, cpf, email, titulo, aluno, professor, ativo";
@@ -137,15 +138,27 @@ export const alterarAluno = asyncHandler(async (req, res) => {
     titulo: req.body?.titulo !== undefined ? normalizarDigitos(req.body.titulo) : undefined,
   };
 
+  let posicaoCpf = null;
   for (const [coluna, valor] of Object.entries(campos)) {
     if (valor) {
       valores.push(valor);
       atualizacoes.push(`${coluna} = $${valores.length}`);
+      if (coluna === "cpf") posicaoCpf = valores.length;
     }
   }
 
   if (atualizacoes.length === 0) {
     throw erroRequisicao("Nenhum dado para atualizar");
+  }
+
+  // Mesma regra da rota do admin: o CPF é o login, então trocá-lo derruba as
+  // sessões abertas do aluno. O CASE compara com o valor antigo da linha, para
+  // que salvar o formulário sem mexer no CPF não expulse ninguém.
+  if (posicaoCpf !== null) {
+    atualizacoes.push(
+      `sessoes_invalidadas_em = CASE WHEN cpf <> $${posicaoCpf}
+          THEN NOW() ELSE sessoes_invalidadas_em END`
+    );
   }
 
   valores.push(req.usuario.id);
@@ -162,7 +175,13 @@ export const alterarAluno = asyncHandler(async (req, res) => {
   if (rows.length === 0) {
     throw erroNaoEncontrado("Aluno não encontrado ou inativo");
   }
-  res.json({ message: "Dados do aluno alterados com sucesso", aluno: rows[0] });
+
+  // Quem dá aula e também treina alcança a própria conta por esta rota, já que
+  // os perfis são flags do mesmo registro — e se desconectaria aqui.
+  const aluno = rows[0];
+  const token = await tokenAposTrocaDeLogin(req, aluno);
+
+  res.json({ message: "Dados do aluno alterados com sucesso", aluno, ...(token ? { token } : {}) });
 });
 
 /** Desativa o usuário e, em cascata, seus treinos e exercícios. */

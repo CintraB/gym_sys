@@ -25,7 +25,7 @@ export const autenticar = asyncHandler(async (req, _res, next) => {
   }
 
   const { rows } = await db.query(
-    `SELECT id, nome, cpf, email, titulo, aluno, professor, admin, ativo, senha_alterada_em
+    `SELECT id, nome, cpf, email, titulo, aluno, professor, admin, ativo, sessoes_invalidadas_em
        FROM usuario WHERE id = $1 AND ativo = TRUE`,
     [payload.id]
   );
@@ -36,17 +36,18 @@ export const autenticar = asyncHandler(async (req, _res, next) => {
 
   const usuario = rows[0];
 
-  // Token emitido antes da última troca de senha não vale mais. O JWT é
+  // Token emitido antes da última troca de credencial não vale mais. O JWT é
   // stateless e dura sete dias: sem isto, trocar a senha não expulsaria quem
-  // roubou o token — que é justamente o motivo de trocá-la.
+  // roubou o token — que é justamente o motivo de trocá-la. Vale igual para o
+  // CPF, que é o login.
   //
   // `iat` tem resolução de segundos, então a comparação é estritamente menor:
   // o token emitido no mesmo segundo da troca — o que a própria rota devolve —
   // continua valendo. Coluna nula quer dizer "nunca trocou": não invalida nada,
   // e é como toda linha nasce na migração.
-  if (usuario.senha_alterada_em) {
-    const trocadaEm = Math.floor(new Date(usuario.senha_alterada_em).getTime() / 1000);
-    if (typeof payload.iat === "number" && payload.iat < trocadaEm) {
+  if (usuario.sessoes_invalidadas_em) {
+    const cortadaEm = Math.floor(new Date(usuario.sessoes_invalidadas_em).getTime() / 1000);
+    if (typeof payload.iat === "number" && payload.iat < cortadaEm) {
       throw erroNaoAutorizado("Sessão expirada. Entre de novo.");
     }
   }
