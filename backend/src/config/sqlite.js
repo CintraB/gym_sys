@@ -87,8 +87,21 @@ export function criarBancoSqlite({ arquivo = ":memory:" } = {}) {
 
     // `all()` serve para os dois casos: statement sem retorno devolve lista
     // vazia, e com RETURNING devolve as linhas.
-    const linhas = conexao.prepare(traduzido).all(...valores.map(paraSqlite));
-    return { rows: linhas.map(daSqlite) };
+    try {
+      const linhas = conexao.prepare(traduzido).all(...valores.map(paraSqlite));
+      return { rows: linhas.map(daSqlite) };
+    } catch (erro) {
+      // 2067 é SQLITE_CONSTRAINT_UNIQUE. O errorHandler é compartilhado com a
+      // versão web e reconhece o "23505" do PostgreSQL — normalizar aqui é o
+      // que faz a mesma colisão virar 409 nos dois bancos, em vez de 500 no
+      // APK, com a pessoa lendo "erro interno" no lugar de "esse CPF já
+      // existe".
+      //
+      // A mensagem original fica: é ela que diz qual coluna colidiu, e é o que
+      // vai para o log quando o erro não for tratado.
+      if (erro?.errcode === 2067) erro.code = "23505";
+      throw erro;
+    }
   }
 
   return {

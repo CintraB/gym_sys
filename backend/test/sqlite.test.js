@@ -182,3 +182,50 @@ test("as chaves estrangeiras estao ligadas, com cascade", async (t) => {
     "aluno inexistente precisa ser recusado"
   );
 });
+
+// O errorHandler traduz o 23505 do PostgreSQL em 409 "Registro ja existe". Sem
+// normalizar, a mesma colisao no APK viraria 500 generico — a pessoa veria
+// "erro interno" no lugar de "esse CPF ja existe".
+test("violacao de unicidade chega com o codigo que o errorHandler entende", async (t) => {
+  const bd = bancoNovo();
+  t.after(() => bd.end());
+
+  await inserirUsuario(bd, "11111111111");
+
+  await assert.rejects(
+    () => inserirUsuario(bd, "11111111111", "Outro"),
+    (erro) => {
+      assert.equal(erro.code, "23505", `codigo inesperado: ${erro.code}`);
+      return true;
+    }
+  );
+});
+
+// A mensagem original nao pode ser perdida: e o que diz QUAL coluna colidiu, e
+// vai para o log do servidor quando o erro nao for tratado.
+test("a violacao preserva a mensagem original do SQLite", async (t) => {
+  const bd = bancoNovo();
+  t.after(() => bd.end());
+
+  await inserirUsuario(bd, "11111111111");
+
+  await assert.rejects(
+    () => inserirUsuario(bd, "11111111111", "Outro"),
+    /UNIQUE constraint failed/
+  );
+});
+
+// Erro que nao e de unicidade nao pode virar 409: uma chave estrangeira violada
+// e defeito nosso, e precisa continuar chegando como erro interno.
+test("outros erros do banco nao ganham o codigo de unicidade", async (t) => {
+  const bd = bancoNovo();
+  t.after(() => bd.end());
+
+  await assert.rejects(
+    () => bd.query("INSERT INTO treino (id_aluno, id_professor) VALUES (9999, 9999)"),
+    (erro) => {
+      assert.notEqual(erro.code, "23505", "erro de chave estrangeira nao e conflito de unicidade");
+      return true;
+    }
+  );
+});
