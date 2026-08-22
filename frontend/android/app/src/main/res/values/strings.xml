@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Gym Sys</string>
+    <string name="title_activity_main">Gym Sys</string>
+    <string name="package_name">com.cintra.gymsys</string>
+    <string name="custom_url_scheme">com.cintra.gymsys</string>
+</resources>

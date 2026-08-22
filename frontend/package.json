@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "build:standalone": "tsc && vite build --mode standalone --outDir dist-app && node scripts/verificarBundleDoApp.mjs",
+    "apk": "npm run build:standalone && npx cap sync android && node scripts/apk.mjs",
     "lint": "eslint . --report-unused-disable-directives --max-warnings 0",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -27,6 +28,8 @@
     "tailwindcss": "^4.3.3"
   },
   "devDependencies": {
+    "@capacitor/android": "^8.5.0",
+    "@capacitor/cli": "^8.5.0",
     "@eslint/js": "^9.39.5",
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.2",
