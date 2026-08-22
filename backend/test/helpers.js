@@ -14,19 +14,33 @@ process.env.TOKEN_SEG ??= "segredo-de-teste-nao-usar-em-producao";
 const caminho = (relativo) => fileURLToPath(new URL(relativo, import.meta.url));
 
 /**
- * Sobe a API sobre um Postgres em memória e devolve um cliente HTTP.
+ * Monta o banco de teste.
  *
- * `limites` sobrescreve os limitadores de requisição. Cada chamada cria um app
- * novo, com contadores próprios — um teste não interfere no outro.
+ * São dois de propósito: o `pg-mem` fala o dialeto do PostgreSQL, que é o banco
+ * do servidor de casa, e o SQLite é o que vai embutido no APK. A mesma suíte
+ * roda nos dois, então divergência de comportamento entre a versão web e o
+ * aplicativo aparece como teste vermelho aqui — e não como bug no celular.
  */
-export async function criarApiDeTeste({ limites, proxiesConfiaveis } = {}) {
-  const { configurarPool } = await import("../src/config/db.js");
-  const { criarApp } = await import("../src/app.js");
-
-  const memoria = newDb();
+async function montarBanco(banco) {
   const schema = readFileSync(caminho("../db/schema.sql"), "utf8");
   const seed = readFileSync(caminho("../db/seed.sql"), "utf8");
 
+  if (banco === "sqlite") {
+    const { criarBancoSqlite } = await import("../src/config/sqlite.js");
+    const bd = criarBancoSqlite({ arquivo: ":memory:" });
+    bd.aplicarSql(schema);
+    bd.aplicarSql(seed);
+
+    return {
+      pool: bd,
+      encerrar: () => bd.end(),
+      executar: (sql) => bd.aplicarSql(sql),
+      consultar: (sql) => bd.consultarSql(sql),
+      agoraMais: (segundos) => `strftime('%Y-%m-%dT%H:%M:%fZ','now','+${segundos} seconds')`,
+    };
+  }
+
+  const memoria = newDb();
   memoria.public.none(schema);
   memoria.public.none(seed);
 
@@ -35,14 +49,43 @@ export async function criarApiDeTeste({ limites, proxiesConfiaveis } = {}) {
   // idx_sessao_aberta_por_aluno, qualquer "WHERE id_aluno = X" em
   // sessao_treino deixa de enxergar as sessões finalizadas.
   //
-  // É bug do emulador, não do schema — o PostgreSQL real trata certo. O índice
-  // fica no schema.sql e a garantia de "uma sessão aberta por aluno" é
-  // conferida contra o Postgres de verdade, não aqui.
+  // É bug do emulador, não do schema — o PostgreSQL real trata certo, e o
+  // SQLite também, por isso o DROP só acontece neste ramo. A garantia de "uma
+  // sessão aberta por aluno" é conferida no banco do APK e no Postgres de
+  // verdade, não aqui.
   memoria.public.none("DROP INDEX idx_sessao_aberta_por_aluno");
 
   const { Pool } = memoria.adapters.createPg();
-  const pool = new Pool();
-  configurarPool(pool);
+  return {
+    pool: new Pool(),
+    encerrar: () => Promise.resolve(),
+    executar: (sql) => memoria.public.none(sql),
+    consultar: (sql) => memoria.public.many(sql),
+    agoraMais: (segundos) => `NOW() + INTERVAL '${segundos} seconds'`,
+  };
+}
+
+/**
+ * Sobe a API sobre um banco em memória e devolve um cliente HTTP.
+ *
+ * `limites` sobrescreve os limitadores de requisição. Cada chamada cria um app
+ * novo, com contadores próprios — um teste não interfere no outro.
+ *
+ * `banco` escolhe entre `pg-mem` (padrão) e `sqlite`. Pela linha de comando vem
+ * como `npm test --banco=sqlite`: o npm transforma isso em `npm_config_banco` e
+ * a variável chega aos processos filhos que o `node --test` cria — o que evita
+ * depender da sintaxe de variável de ambiente, que difere entre PowerShell e sh.
+ */
+export async function criarApiDeTeste({
+  limites,
+  proxiesConfiaveis,
+  banco = process.env.BANCO_TESTE ?? process.env.npm_config_banco ?? "pg-mem",
+} = {}) {
+  const { configurarPool } = await import("../src/config/db.js");
+  const { criarApp } = await import("../src/app.js");
+
+  const bancoDeTeste = await montarBanco(banco);
+  configurarPool(bancoDeTeste.pool);
 
   const servidor = criarApp({
     origensCors: ["http://localhost:5173"],
@@ -82,15 +125,14 @@ export async function criarApiDeTeste({ limites, proxiesConfiaveis } = {}) {
   }
 
   return {
-    memoria,
     base,
     requisicao,
 
     /** SQL cru sem retorno. Existe para o teste não depender do banco escolhido. */
-    executar: (sql) => memoria.public.none(sql),
+    executar: (sql) => bancoDeTeste.executar(sql),
 
     /** SQL cru com retorno. */
-    consultar: (sql) => memoria.public.many(sql),
+    consultar: (sql) => bancoDeTeste.consultar(sql),
 
     /**
      * Empurra o corte de sessão para o futuro.
@@ -104,14 +146,19 @@ export async function criarApiDeTeste({ limites, proxiesConfiaveis } = {}) {
      */
     adiarCorteDeSessao: ({ id, cpf }, segundos = 10) => {
       const onde = id !== undefined ? `id = ${id}` : `cpf = '${cpf}'`;
-      memoria.public.none(
-        `UPDATE usuario SET sessoes_invalidadas_em = NOW() + INTERVAL '${segundos} seconds' WHERE ${onde}`
+      bancoDeTeste.executar(
+        `UPDATE usuario SET sessoes_invalidadas_em = ${bancoDeTeste.agoraMais(segundos)} WHERE ${onde}`
       );
     },
     get: (rota, opcoes) => requisicao("GET", rota, opcoes),
     post: (rota, corpo, opcoes) => requisicao("POST", rota, { ...opcoes, corpo }),
     put: (rota, corpo, opcoes) => requisicao("PUT", rota, { ...opcoes, corpo }),
-    encerrar: () => new Promise((resolve) => servidor.close(resolve)),
+    encerrar: async () => {
+      await new Promise((resolve) => servidor.close(resolve));
+      // O SQLite mantém um arquivo aberto (em memória, aqui) que precisa ser
+      // fechado; o pg-mem não tem o que soltar.
+      await bancoDeTeste.encerrar();
+    },
   };
 }
 

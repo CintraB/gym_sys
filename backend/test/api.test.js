@@ -335,6 +335,29 @@ test("busca de alunos filtra por nome e por CPF", async (t) => {
   assert.equal(semResultado.corpo.length, 0);
 });
 
+// A busca precisa achar quem o professor procura, e ninguem digita respeitando
+// maiuscula. No PostgreSQL isso e o ILIKE; no SQLite do APK, o LIKE, que ignora
+// caixa por conta propria. Sem este teste a traducao de um para o outro nao
+// tinha cobertura ponta a ponta: o caso acima busca "Aluno", que casa exato.
+//
+// Limite conhecido, e por isso o termo aqui e ASCII: o LIKE do SQLite so ignora
+// caixa em ASCII. Buscar "JOSE" acha "Jose", mas "JOSÉ" nao acha "José" — no
+// PostgreSQL acharia. Esta divergencia esta registrada na spec do app.
+test("busca de alunos ignora maiuscula e minuscula", async (t) => {
+  const { api, tokenProfessor } = await cenario();
+  t.after(() => api.encerrar());
+
+  await comAluno(api, tokenProfessor);
+
+  const minusculo = await api.get("/professores/alunos?busca=aluno", { token: tokenProfessor });
+  const maiusculo = await api.get("/professores/alunos?busca=ALUNO", { token: tokenProfessor });
+  const parcial = await api.get("/professores/alunos?busca=lUn", { token: tokenProfessor });
+
+  assert.equal(minusculo.corpo.length, 1, "buscar em minusculas precisa achar");
+  assert.equal(maiusculo.corpo.length, 1, "buscar em maiusculas precisa achar");
+  assert.equal(parcial.corpo.length, 1, "pedaco do nome, em caixa trocada, precisa achar");
+});
+
 test("resumo do dashboard conta alunos e pedidos", async (t) => {
   const { api, tokenProfessor } = await cenario();
   t.after(() => api.encerrar());

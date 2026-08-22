@@ -10,7 +10,8 @@
   "scripts": {
     "dev": "node --watch server.js",
     "start": "node server.js",
-    "test": "node --test",
+    "test": "node --test --disable-warning=ExperimentalWarning",
+    "test:sqlite": "npm test --banco=sqlite",
     "criar-professor": "node scripts/criarProfessor.js",
     "criar-admin": "node scripts/criarAdmin.js",
     "demo": "node scripts/demo.js",
