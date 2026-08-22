@@ -215,9 +215,11 @@ axios, que preserva os interceptors de token e de 401.
 
 ### 6.2 A incerteza que resta
 
-- [ ] **`scrypt-js` no celular.** É JS puro, e scrypt é lento de propósito. Num Android modesto o
-      login pode demorar. Só dá para medir no aparelho. Baixar o custo resolve, mas faz o hash
-      divergir do backend — e aí a mesma senha não vale nos dois
+- [ ] **`scrypt-js` no celular.** É JS puro, e scrypt é lento de propósito. Medido no PC: **133 ms
+      por operação, contra 27 ms do nativo** — cinco vezes mais lento. Num celular três vezes mais
+      lento que o PC, o login fica em torno de meio segundo, o que resolve a dúvida na prática.
+      Confirmar no aparelho na leva 3; se doer, baixar o custo resolve, mas faz o hash divergir do
+      backend
 
 A persistência saiu desta lista: com SQLite ela é do motor.
 
@@ -228,8 +230,10 @@ Cada uma entrega algo verificável sozinha:
 - [x] **Leva 1 — o banco do APK, provado sem Android.** Tradutor de dialeto, driver SQLite com a
       interface do pool do `pg`, e os 203 testes rodando nos dois bancos (`npm test` e
       `npm run test:sqlite`). Nenhuma divergência, e nenhum controller alterado
-- [ ] **Leva 2 — núcleo portável.** Os três arquivos de borda, o roteador mínimo e o adapter do
-      axios, cobertos por teste
+- [x] **Leva 2 — núcleo portável.** Os três arquivos de borda, o roteador no lugar do Express e o
+      adapter do axios, cobertos por teste: o login roda ponta a ponta com controller de verdade,
+      senha em scrypt e SQLite, sem Express e sem Node. `npm run build:standalone` empacota, e um
+      script confere que o núcleo entrou no bundle e que `dotenv`, `pg` e `node:crypto` ficaram fora
 - [ ] **Leva 3 — Capacitor e APK.** Empacota, nasce com a conta dele cadastrada (admin + professor
       + aluno), alunos de exemplo e um treino montado, e instala no telefone
 

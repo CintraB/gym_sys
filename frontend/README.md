@@ -38,7 +38,8 @@ origem. Nenhuma URL de API é escrita direto nos componentes — tudo passa por
 
 ```plaintext
 npm run dev       # desenvolvimento
-npm run build     # verificação de tipos + build de produção
+npm run build     # verificação de tipos + build de produção (web)
+npm run build:standalone  # o app com o backend dentro (seção 6 do roadmap)
 npm run preview   # serve o build (é onde o service worker funciona)
 npm run lint      # ESLint
 npm test          # Vitest, roda uma vez
@@ -106,7 +107,60 @@ src/
 └── pages/
     ├── professor/
     └── aluno/
+
+src/local/        o núcleo do app standalone (não entra no build web)
+├── senha.js      scrypt em JS puro, no lugar do node:crypto
+├── ambiente.js   configuração fixa, no lugar do dotenv
+├── banco.js      fachada de banco sem driver embutido
+├── rotas.js      a tabela de rotas, espelhando backend/src/routes/
+├── roteador.js   método + caminho → controller, no lugar do Express
+└── adaptadorAxios.js  entrega ao roteador em vez de à rede
 ```
+
+## O app com o backend dentro
+
+`npm run build:standalone` gera o aplicativo que roda **sem servidor**, com o núcleo do backend e o
+banco embutidos — é a seção 6 do roadmap, desenhada em
+`docs/superpowers/specs/2026-08-22-app-android-standalone-design.md`.
+
+O ponto central: **nenhuma tela muda, e nenhum controller do backend muda.** Uma chamada sai de uma
+tela, entra no `src/lib/api.ts` como sempre, e ali o *adapter* do axios — em vez de emitir HTTP —
+entrega método, caminho e corpo ao roteador de `src/local/`, que chama o mesmo controller que roda no
+servidor. Os interceptors de token e de 401 continuam valendo, inclusive a expulsão de sessão por
+troca de senha ou de CPF.
+
+Três arquivos do backend não atravessam para o browser, e são trocados no build pelo `resolve.alias`
+do `vite.config.ts`:
+
+| Do backend | Por que não atravessa | Borda |
+|---|---|---|
+| `lib/senha.js` | scrypt do `node:crypto` | `local/senha.js`, com `scrypt-js` |
+| `config/env.js` | `dotenv` puxa `fs` e `path` | `local/ambiente.js`, configuração fixa |
+| `config/db.js` | `import pg` arrasta `net` | `local/banco.js`, sem driver embutido |
+
+O hash tem de bater com o do servidor, senão a conta criada num não entra no outro. Os parâmetros do
+scrypt são os padrões do Node (N=16384, r=8, p=1) e **o sal entra como texto da string hex**, não como
+os bytes que ela representa. Trocar isso não dá erro: gera hash válida e diferente. Dois testes de ida
+e volta em `src/local/senha.test.js` são o que protege — e são insubstituíveis, porque com o parâmetro
+errado os testes internos da borda continuam passando, coerentes consigo mesmos.
+
+Medido: o `scrypt-js` leva ~133 ms por operação num PC, contra ~27 ms do nativo. Num celular três
+vezes mais lento, o login fica em torno de meio segundo.
+
+**Ao acrescentar rota no backend, acrescente em `src/local/rotas.js`.** Um teste confere a tabela
+contra os arquivos de `backend/src/routes/` nos dois sentidos; sem ele, a rota nova só apareceria como
+404 dentro do APK, descoberta em campo.
+
+Os testes de `src/local/` declaram ambiente `node`, e não jsdom: aquilo é código de servidor rodando
+dentro do cliente, e no jsdom o `jose` recusa a chave que o `TextEncoder` produz — `instanceof
+Uint8Array` falha entre os realms.
+
+O `build:standalone` termina rodando `scripts/verificarBundleDoApp.mjs`, que falha se o núcleo não
+estiver no bundle ou se `dotenv`, `node:crypto` ou `pg` tiverem vazado. As duas coisas já aconteceram
+em silêncio durante o desenvolvimento, com o build passando e o bundle do mesmo tamanho do web.
+
+Falta a leva 3: o driver de SQLite do aparelho e o Capacitor. Hoje `src/local/bancoDoAparelho.js`
+falha com mensagem clara, de propósito — abrir com banco vazio pareceria perda de treinos.
 
 ## Design
 

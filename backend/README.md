@@ -231,6 +231,12 @@ O caso do `Date` é o mais perigoso: `sessaoController` grava `finalizado_em` pa
 sem a conversão a coluna ficaria nula, a sessão nunca fecharia, e o índice de sessão aberta barraria
 a seguinte — no meio de um treino, sem nada no log explicando.
 
+O driver também **normaliza a violação de unicidade**: o SQLite acusa com `errcode: 2067`, e o
+`errorHandler` — compartilhado com a versão web — reconhece o `23505` do PostgreSQL. Sem traduzir, um
+CPF duplicado numa corrida viraria 500 "erro interno" dentro do APK, em vez de 409 "Registro já
+existe". Os controllers conferem duplicidade antes de escrever, então esse caminho é a rede para o
+caso de corrida — e é por isso que nenhum teste o pegava antes.
+
 **Divergência conhecida:** o `LIKE` do SQLite só ignora maiúsculas em ASCII. Buscar `JOSE` acha
 `Jose`, mas `JOSÉ` não acha `José`; no PostgreSQL o `ILIKE` acharia.
 
