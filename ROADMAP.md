@@ -78,8 +78,11 @@ original justamente para isso.
 - [x] Listar todos, com filtro por perfil e status
 - [x] **Trocar e redefinir senha** — `PUT /me/senha` com a senha atual, e o
       admin redefinindo a de quem esqueceu. Trocar a senha derruba as sessões
-      abertas, comparando o `iat` do token com `senha_alterada_em`
+      abertas, comparando o `iat` do token com `sessoes_invalidadas_em`
 - [x] Editar dados de qualquer usuário — `PUT /admin/usuarios/:id`
+- [x] **Trocar o login** — o CPF é o login, então alterá-lo derruba as sessões
+      abertas da pessoa, pelo mesmo corte da senha. Quem troca o próprio recebe
+      um token novo; a conta de outro não devolve token nenhum
 - [x] Promover e rebaixar perfis (aluno ↔ professor ↔ admin), com quatro travas
       contra o sistema ficar sem administrador
 - [ ] Excluir de verdade, além do desativar

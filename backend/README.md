@@ -112,6 +112,7 @@ Migrações, para bancos que já têm dados — aplicar na ordem, e só as que f
 | `db/migracao-v4-blocos.sql` | Divisão em blocos A/B/C/D |
 | `db/migracao-v5-edicao-treino.sql` | `ativo` em `treino_bloco`, para o `PUT` de treino |
 | `db/migracao-v6-admin.sql` | perfil de `admin` e `senha_alterada_em` |
+| `db/migracao-v7-login.sql` | `senha_alterada_em` vira `sessoes_invalidadas_em` |
 
 O `seed.sql` popula o catálogo com 77 exercícios e roda **uma vez só** — a ordem das linhas define
 os `id_exercicio`. Os triggers ficam separados porque preenchem `atualizado_em` via plpgsql, que o
@@ -430,11 +431,28 @@ própria conta do admin** com 403: para si ele usa `/me/senha`. Sem essa trava, 
 atual viraria decorativa justamente para a conta que mais importa.
 
 **Trocar a senha derruba as sessões abertas.** O `autenticar` compara o `iat` do token com
-`usuario.senha_alterada_em`: token emitido antes vira 401. O JWT é stateless e vale sete dias, então
-sem isso um token roubado sobreviveria à troca — o cenário exato em que a senha é trocada. A
+`usuario.sessoes_invalidadas_em`: token emitido antes vira 401. O JWT é stateless e vale sete dias,
+então sem isso um token roubado sobreviveria à troca — o cenário exato em que a senha é trocada. A
 comparação é estritamente menor porque `iat` tem resolução de segundos, e `/me/senha` devolve um
 token novo para quem trocou não se desconectar. Coluna nula quer dizer "nunca trocou" e não invalida
 nada, que é como toda linha nasce na migração.
+
+### Trocar o CPF é trocar o login
+
+O login é por CPF, então **alterar o CPF de alguém derruba as sessões abertas dessa pessoa**, pelo
+mesmo mecanismo da senha. Vale nas duas rotas que editam CPF: `PUT /admin/usuarios/:id` e
+`PUT /professores/aluno/:id`.
+
+O corte só é gravado quando o CPF **muda de fato** — a comparação é feita dentro do próprio `UPDATE`,
+onde o lado direito do `SET` ainda vê o valor antigo da linha. Sem isso, corrigir um acento no nome
+expulsaria a pessoa, porque o formulário do front manda o CPF junto mesmo quando ele não mudou.
+`titulo` não conta: identifica o aluno na academia, mas não autentica ninguém.
+
+Quem altera o **próprio** CPF recebe um token novo no corpo da resposta, senão se desconectaria no
+meio do trabalho — o mesmo cuidado de `/me/senha`. Para a conta de outra pessoa a resposta **não**
+traz token: entregar um seria repassar a sessão dela a quem editou. Como os perfis são flags do mesmo
+registro, quem dá aula e também treina alcança a própria conta pela rota do professor — por isso a
+regra vale nas duas.
 
 ### Travas de perfil
 
@@ -455,7 +473,8 @@ rebaixar um admin já inativo seria recusado sem que ninguém fosse perdido.
 
 `PUT /admin/usuarios/:id` altera nome, CPF, e-mail e título de **qualquer** conta — a rota do
 professor só alcança aluno. Perfis, `ativo` e `senha` no corpo são ignorados: cada um tem rota
-própria.
+própria. Se o CPF mudar, a resposta traz um `token` novo quando a conta editada é a de quem editou
+(veja "Trocar o CPF é trocar o login").
 
 ## Erros
 
