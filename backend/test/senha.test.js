@@ -84,9 +84,7 @@ test("o token anterior à troca deixa de valer", async (t) => {
 
   // O corte precisa ficar depois do iat do token, que tem resolução de
   // segundos.
-  api.memoria.public.none(
-    `UPDATE usuario SET sessoes_invalidadas_em = NOW() + INTERVAL '10 seconds' WHERE cpf = '${CPF}'`
-  );
+  api.adiarCorteDeSessao({ cpf: CPF });
 
   const depois = await api.get("/me", { token });
   assert.equal(depois.status, 401);
@@ -114,7 +112,7 @@ test("sessoes_invalidadas_em nula não invalida token nenhum", async (t) => {
   const { api, token } = await cenario();
   t.after(() => api.encerrar());
 
-  const linhas = api.memoria.public.many(
+  const linhas = api.consultar(
     `SELECT sessoes_invalidadas_em FROM usuario WHERE cpf = '${CPF}'`
   );
   assert.equal(linhas[0].sessoes_invalidadas_em, null, "deveria nascer nula");

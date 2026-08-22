@@ -113,7 +113,7 @@ test("grava a observação quando ela vem preenchida", async () => {
 
     assert.equal(criado.status, 201, JSON.stringify(criado.corpo));
 
-    const [linha] = api.memoria.public.many(
+    const [linha] = api.consultar(
       `SELECT observacao FROM exercicio WHERE id_exercicio = ${criado.corpo.id_exercicio}`
     );
     assert.equal(linha.observacao, "Apoiar as escápulas no banco");

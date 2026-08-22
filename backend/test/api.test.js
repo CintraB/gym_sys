@@ -379,7 +379,7 @@ test("quem é professor e aluno alcança as duas áreas", async (t) => {
 
   // O professor do cenário passa a ser aluno também — o caso de quem dá aula
   // e treina na mesma academia.
-  api.memoria.public.none("UPDATE usuario SET aluno = TRUE WHERE cpf = '11111111111'");
+  api.executar("UPDATE usuario SET aluno = TRUE WHERE cpf = '11111111111'");
 
   const login = await api.post("/login", { cpf: "11111111111", senha: "senha123" });
   assert.deepEqual(login.corpo.usuario.perfis, { aluno: true, professor: true, admin: false });

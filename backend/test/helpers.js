@@ -85,6 +85,29 @@ export async function criarApiDeTeste({ limites, proxiesConfiaveis } = {}) {
     memoria,
     base,
     requisicao,
+
+    /** SQL cru sem retorno. Existe para o teste não depender do banco escolhido. */
+    executar: (sql) => memoria.public.none(sql),
+
+    /** SQL cru com retorno. */
+    consultar: (sql) => memoria.public.many(sql),
+
+    /**
+     * Empurra o corte de sessão para o futuro.
+     *
+     * Os testes de expulsão precisam que o corte fique depois do `iat` do token,
+     * que tem resolução de segundos — a comparação é estritamente menor, de
+     * propósito, para quem troca a própria senha não se desconectar.
+     *
+     * Fica aqui porque somar segundos a uma data é a diferença mais visível
+     * entre os dois bancos: o PostgreSQL usa INTERVAL, que o SQLite não tem.
+     */
+    adiarCorteDeSessao: ({ id, cpf }, segundos = 10) => {
+      const onde = id !== undefined ? `id = ${id}` : `cpf = '${cpf}'`;
+      memoria.public.none(
+        `UPDATE usuario SET sessoes_invalidadas_em = NOW() + INTERVAL '${segundos} seconds' WHERE ${onde}`
+      );
+    },
     get: (rota, opcoes) => requisicao("GET", rota, opcoes),
     post: (rota, corpo, opcoes) => requisicao("POST", rota, { ...opcoes, corpo }),
     put: (rota, corpo, opcoes) => requisicao("PUT", rota, { ...opcoes, corpo }),
@@ -97,7 +120,7 @@ export async function criarProfessorELogar(api, { cpf = "11111111111", senha = "
   const { criarHashComSal } = await import("../src/lib/senha.js");
   const hash = await criarHashComSal(senha);
 
-  api.memoria.public.none(`
+  api.executar(`
     INSERT INTO usuario (cpf, nome, senha, email, titulo, aluno, professor, ativo)
     VALUES ('${cpf}', 'Professor Teste', '${hash}', 'prof@teste.com', '111111111111', FALSE, TRUE, TRUE)
   `);
@@ -111,7 +134,7 @@ export async function criarAdminELogar(api, { cpf = "99999999999", senha = "senh
   const { criarHashComSal } = await import("../src/lib/senha.js");
   const hash = await criarHashComSal(senha);
 
-  api.memoria.public.none(`
+  api.executar(`
     INSERT INTO usuario (cpf, nome, senha, email, titulo, aluno, professor, admin, ativo)
     VALUES ('${cpf}', 'Admin Teste', '${hash}', 'admin@teste.com', '999999999999', TRUE, TRUE, TRUE, TRUE)
   `);

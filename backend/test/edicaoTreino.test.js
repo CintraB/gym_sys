@@ -318,7 +318,7 @@ test("editar não desativa o treino nem cria outro para o aluno", async (t) => {
     { token: tokenProfessor }
   );
 
-  const treinos = api.memoria.public.many(
+  const treinos = api.consultar(
     `SELECT id_treino, ativo FROM treino WHERE id_aluno = ${idAluno}`
   );
   assert.equal(treinos.length, 1);

@@ -26,7 +26,7 @@ async function cenario() {
 }
 
 const corteDe = (api, id) =>
-  api.memoria.public.many(`SELECT sessoes_invalidadas_em FROM usuario WHERE id = ${id}`)[0]
+  api.consultar(`SELECT sessoes_invalidadas_em FROM usuario WHERE id = ${id}`)[0]
     .sessoes_invalidadas_em;
 
 // O CPF é o login. Sem isto, o token anterior continuaria valendo sete dias
