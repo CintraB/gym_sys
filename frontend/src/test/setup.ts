@@ -44,6 +44,16 @@ Object.defineProperty(globalThis, 'localStorage', {
 })
 
 /**
+ * O que segue precisa de DOM, e não todo teste roda com um.
+ *
+ * Os testes do núcleo local (`src/local/`) declaram ambiente `node`: aquilo é
+ * código de servidor rodando dentro do cliente, e no jsdom o `jose` recusa a
+ * chave que o `TextEncoder` produz — `instanceof Uint8Array` falha entre o
+ * realm do jsdom e o do Node.
+ */
+const temDom = typeof window !== 'undefined'
+
+/**
  * jsdom não implementa matchMedia — é lacuna conhecida dele, não do Node.
  *
  * O useTema consulta `prefers-color-scheme` no modo "sistema", então sem este
@@ -51,24 +61,26 @@ Object.defineProperty(globalThis, 'localStorage', {
  * casa" (tema claro) e aceita registrar ouvinte sem fazer nada, que é o
  * bastante: o teste verifica que a tela monta, não qual cor o sistema pediu.
  */
-Object.defineProperty(window, 'matchMedia', {
-  value: (consulta: string) => ({
-    matches: false,
-    media: consulta,
-    onchange: null,
-    addEventListener: () => {},
-    removeEventListener: () => {},
-    addListener: () => {},
-    removeListener: () => {},
-    dispatchEvent: () => false,
-  }),
-  configurable: true,
-  writable: true,
-})
+if (temDom) {
+  Object.defineProperty(window, 'matchMedia', {
+    value: (consulta: string) => ({
+      matches: false,
+      media: consulta,
+      onchange: null,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      addListener: () => {},
+      removeListener: () => {},
+      dispatchEvent: () => false,
+    }),
+    configurable: true,
+    writable: true,
+  })
+}
 
 afterEach(() => {
   // Sem isso, o DOM de um teste sobrevive para o seguinte e um getByText passa
   // a encontrar dois elementos iguais.
-  cleanup()
+  if (temDom) cleanup()
   localStorage.clear()
 })

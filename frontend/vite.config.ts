@@ -1,9 +1,11 @@
+import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
-export default defineConfig({
+
+export default defineConfig(() => ({
   plugins: [
     react(),
     tailwindcss(),
@@ -64,6 +66,28 @@ export default defineConfig({
       },
     }),
   ],
+  resolve: {
+    /**
+     * Troca os três arquivos do backend que não atravessam para o browser pelas
+     * bordas de `src/local/`. É o que permite o app rodar os controllers de
+     * verdade sem editar nenhum deles.
+     *
+     * Casa pelo especificador do import, e cada um destes é único no projeto —
+     * conferido: `db.js` só é importado como '../config/db.js', `senha.js` só
+     * como '../lib/senha.js'. O `env.js` também é importado como './env.js',
+     * mas só por dentro do próprio `db.js`, que é substituído aqui — então esse
+     * caminho deixa de existir.
+     *
+     * Vale nos testes e no build. Um teste em `src/local/troca.test.js` prova
+     * que a substituição está de pé: sem ele, um caminho que deixasse de casar
+     * traria `dotenv`, `pg` e `node:crypto` para dentro do APK em silêncio.
+     */
+    alias: [
+      { find: /^\.\.\/config\/db\.js$/, replacement: fileURLToPath(new URL('./src/local/banco.js', import.meta.url)) },
+      { find: /^\.\.\/config\/env\.js$/, replacement: fileURLToPath(new URL('./src/local/ambiente.js', import.meta.url)) },
+      { find: /^\.\.\/lib\/senha\.js$/, replacement: fileURLToPath(new URL('./src/local/senha.js', import.meta.url)) },
+    ],
+  },
   server: {
     // host: true expõe o dev server na rede local — é o que permite abrir
     // no celular pelo IP do PC enquanto se desenvolve.
@@ -80,6 +104,15 @@ export default defineConfig({
   },
   test: {
     environment: 'jsdom',
+    server: {
+      deps: {
+        // Sem isto o Vitest externaliza o que esta fora da raiz do projeto e
+        // carrega direto pelo Node, sem passar pelos plugins — e a troca das
+        // bordas nao aconteceria: os testes usariam o db.js e o env.js de
+        // verdade, que exigem .env e o driver do Postgres.
+        inline: [/backend[\\/]src/],
+      },
+    },
     setupFiles: ['./src/test/setup.ts'],
     // globals desligado: os testes importam describe/it/expect de 'vitest'.
     // Com globals ligado, o ESLint (que roda com --max-warnings 0) acusaria
@@ -87,4 +120,4 @@ export default defineConfig({
     globals: false,
     css: false,
   },
-})
+}))
