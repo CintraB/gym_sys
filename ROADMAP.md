@@ -148,10 +148,11 @@ Coisas que a operação do dia a dia vai cobrar.
 
 ## 5. Qualidade técnica
 
-- [x] **Testes de frontend** — Vitest + Testing Library: 59 testes cobrindo
+- [x] **Testes de frontend** — Vitest + Testing Library: 64 testes cobrindo
       `formato.ts`, os hooks, a autorização de rota e o render das nove telas.
-      Com o backend, 233 no total. Foi a tela preta que motivou — o build
-      passava porque nada renderizava componente
+      Com o backend, **267 no total** (203 + 64), e os 203 rodam em dois bancos.
+      Foi a tela preta que motivou — o build passava porque nada renderizava
+      componente
 - [ ] **Testar os interceptors de `api.ts`** — o token no cabeçalho e o 401
       derrubando a sessão. A suíte do front mocka `src/lib/api.ts` inteiro, e
       é justamente esse módulo que os contém, então ficam de fora. Exige MSW,
@@ -175,17 +176,29 @@ usuário já cadastrado — para ver como o sistema se comporta em campo.**
 
 Não é o PWA com cache de leitura, nem acesso remoto ao PC. É o app rodando sozinho.
 
-### 6.1 O que o spike de 20/08 já provou
+O desenho completo está em
+[`docs/superpowers/specs/2026-08-22-app-android-standalone-design.md`](docs/superpowers/specs/2026-08-22-app-android-standalone-design.md).
 
-Rodei um **controller real do backend** dentro de um bundle de browser, sobre `pg-mem`, com o
-`schema.sql` e o `seed.sql` de verdade. Listou os 77 exercícios e aplicou a normalização de nome
+### 6.1 O que o spike de 20/08 provou, e o que as sondas de 22/08 mudaram
+
+Rodei um **controller real do backend** dentro de um bundle de browser, com o `schema.sql` e o
+`seed.sql` de verdade. Listou os 77 exercícios e aplicou a normalização de nome
 (`prancha lateral` → `PRANCHA LATERAL / ABDOMEN`). Sem reimplementar regra nenhuma.
 
-Isso decide a arquitetura: o APK leva **as regras verdadeiras**, cobertas pelos 169 testes de
-backend que já existem — e não uma imitação delas no cliente. É a diferença entre testar a tela e
-testar o sistema, que é o que o objetivo pede.
+Isso decide o que mais importa, e não se reabre: o APK leva **as regras verdadeiras**, cobertas pelos
+testes de backend que já existem — e não uma imitação delas no cliente.
 
-Números: bundle de **180 KB gzipado**. Irrelevante para app instalado.
+O que **mudou** foi o banco. O spike usava `pg-mem`, um Postgres em memória, e as sondas de 22/08
+mostraram que a persistência sairia caro: dá para salvar e recarregar as tabelas, mas o contador de
+`id` volta a 1 e colide com as linhas restauradas no primeiro cadastro novo. `setval`,
+`ALTER SEQUENCE`, trocar o `DEFAULT` da coluna e inserir pela API do emulador — nenhum funciona.
+Sobrariam duas gambiarras: queimar o contador com inserções que falham de propósito, ou renumerar
+tudo traduzindo as chaves estrangeiras à mão.
+
+Por isso o APK usa **SQLite nativo**: um arquivo, com a persistência a cargo do próprio motor, e
+nada de contador para reacertar. O custo é traduzir o dialeto — medido em 43 consultas, com o `$1` do
+PostgreSQL correspondendo ao `?1` do SQLite. De quebra, o APK **ganha** a trava de uma sessão aberta
+por aluno, que o `pg-mem` perde por bug de índice parcial.
 
 **Falta portar três arquivos de borda, e só eles.** Nenhum controller muda:
 
@@ -193,30 +206,32 @@ Números: bundle de **180 KB gzipado**. Irrelevante para app instalado.
 |---|---|---|
 | `src/lib/senha.js` | `node:crypto` (scrypt) e `node:util` | `scrypt-js`, mantendo o formato `sal:hash` |
 | `src/config/env.js` | `dotenv` puxa `path`/`fs` | configuração fixa embutida |
-| `src/config/db.js` | `import pg` estático arrasta `net`/`events`, mesmo com o pool injetado | variante sem o driver real |
+| `src/config/db.js` | `import pg` estático arrasta `net`/`events`, mesmo com o pool injetado | o driver SQLite do aparelho |
 
 O `criarApp` do Express também não vai junto: entra um roteador mínimo no lugar, mapeando
 método + caminho para o controller (~40 linhas). A fachada `db` já é injetável — foi feita assim
-para os testes, e é o que torna isto barato.
+para os testes, e é o que torna isto barato. Nas telas, nada muda: a interceptação é no adapter do
+axios, que preserva os interceptors de token e de 401.
 
-### 6.2 As duas incertezas que o spike não resolveu
+### 6.2 A incerteza que resta
 
-- [ ] **Persistência.** O `pg-mem` é memória pura. Para o banco sobreviver a fechar o app, é
-      preciso despejar as tabelas em JSON e regravar na abertura (IndexedDB, ou Preferences do
-      Capacitor). Para o volume daqui é tranquilo, mas é o ponto mais provável de dar problema
 - [ ] **`scrypt-js` no celular.** É JS puro, e scrypt é lento de propósito. Num Android modesto o
-      login pode demorar. Baixar o custo resolve, mas faz o hash divergir do backend — e aí a
-      mesma senha não vale nos dois
+      login pode demorar. Só dá para medir no aparelho. Baixar o custo resolve, mas faz o hash
+      divergir do backend — e aí a mesma senha não vale nos dois
 
-### 6.3 Plano, em três etapas
+A persistência saiu desta lista: com SQLite ela é do motor.
 
-Cada uma entrega algo utilizável sozinha:
+### 6.3 Plano, em três levas
 
-- [ ] **Núcleo portável** — os três arquivos de borda + o roteador mínimo, com os testes que já
-      existem rodando também contra o modo browser. Sem isso, nada mais anda
-- [ ] **Persistência e seed próprio** — o banco sobrevive ao fechar, e o app nasce com o usuário
-      dele cadastrado (admin + professor + aluno), alunos de exemplo e um treino montado
-- [ ] **Capacitor e APK** — empacota e instala no telefone
+Cada uma entrega algo verificável sozinha:
+
+- [x] **Leva 1 — o banco do APK, provado sem Android.** Tradutor de dialeto, driver SQLite com a
+      interface do pool do `pg`, e os 203 testes rodando nos dois bancos (`npm test` e
+      `npm run test:sqlite`). Nenhuma divergência, e nenhum controller alterado
+- [ ] **Leva 2 — núcleo portável.** Os três arquivos de borda, o roteador mínimo e o adapter do
+      axios, cobertos por teste
+- [ ] **Leva 3 — Capacitor e APK.** Empacota, nasce com a conta dele cadastrada (admin + professor
+      + aluno), alunos de exemplo e um treino montado, e instala no telefone
 
 ### 6.4 O que fica de fora
 

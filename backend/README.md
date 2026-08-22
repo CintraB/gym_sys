@@ -187,14 +187,52 @@ nascem com senha conhecida.
 ## Execução
 
 ```plaintext
-npm run dev     # desenvolvimento, com reload
-npm start       # produção
-npm test        # suíte de testes (169)
+npm run dev          # desenvolvimento, com reload
+npm start            # produção
+npm test             # suíte de testes (203), sobre PostgreSQL em memória
+npm run test:sqlite  # a mesma suíte, sobre SQLite
 ```
 
 Os testes rodam sobre um PostgreSQL em memória — não precisam de banco nem de `.env`.
 `test/seguranca.test.js` verifica falsificação de token, escalada de privilégio, acesso a dados de
 terceiros, injeção de SQL, limites de payload, CORS e vazamento de informação em mensagens de erro.
+
+### Dois bancos, uma suíte
+
+`npm run test:sqlite` roda **os mesmos testes** sobre SQLite, que é o banco embutido no APK Android
+(seção 6 do roadmap; o desenho está em
+`docs/superpowers/specs/2026-08-22-app-android-standalone-design.md`). Um teste que passa num banco e
+falha no outro é divergência entre a versão web e o aplicativo — e é para isso que os dois existem.
+
+O SQLite cobre **um caso a mais**: o índice parcial de "uma sessão aberta por aluno", que o `pg-mem`
+obriga a derrubar por bug do emulador.
+
+Duas peças sustentam isso, e nenhum controller sabe que elas existem:
+
+- **`src/lib/dialetoSqlite.js`** traduz o SQL na borda: `$1` vira `?1` (o SQLite numera igual, e isso
+  preserva o parâmetro reusado na mesma consulta), `ILIKE` vira `LIKE`, `NOW()` vira um `strftime` em
+  ISO UTC, e os tipos do DDL viram os equivalentes do SQLite.
+- **`src/config/sqlite.js`** é um driver com a mesma interface do pool do `pg`, o que permite entrar
+  pela fachada `db` via `configurarPool()` — o mesmo encaixe dos testes.
+
+O `NOW()` não vira `CURRENT_TIMESTAMP` de propósito: o do SQLite grava `"2026-08-22 19:48:04"`, sem
+`T` e sem `Z`, e `new Date()` disso interpreta como hora **local** — três horas de erro no Brasil, o
+que deslocaria a comparação do `iat` do token com `sessoes_invalidadas_em`.
+
+O driver converte valores nas duas direções, e cada conversão evita um bug concreto:
+
+| Valor | Sem converter | Conversão |
+|---|---|---|
+| `boolean` como parâmetro | erro "cannot be bound" | `true`/`false` → `1`/`0` |
+| `Date` como parâmetro | **aceito, e gravado como `null`, em silêncio** | `.toISOString()` |
+| `0`/`1` lido de coluna `BOOLEAN` | a API devolve `ativo: 1` | volta a `true`/`false` |
+
+O caso do `Date` é o mais perigoso: `sessaoController` grava `finalizado_em` passando um `Date`, e
+sem a conversão a coluna ficaria nula, a sessão nunca fecharia, e o índice de sessão aberta barraria
+a seguinte — no meio de um treino, sem nada no log explicando.
+
+**Divergência conhecida:** o `LIKE` do SQLite só ignora maiúsculas em ASCII. Buscar `JOSE` acha
+`Jose`, mas `JOSÉ` não acha `José`; no PostgreSQL o `ILIKE` acharia.
 
 Por padrão o servidor escuta em `0.0.0.0`, então responde também pelo IP da máquina na rede local —
 é assim que o celular alcança a API. Atrás de um proxy reverso, mude para `HOST_BIND=127.0.0.1`.
