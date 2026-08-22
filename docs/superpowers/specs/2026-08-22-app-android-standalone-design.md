@@ -194,8 +194,8 @@ Só backend. Não depende de Capacitor, nem de Android Studio, nem do front.
     `TEXT`; `VARCHAR(n)` → `TEXT`; `SMALLINT` → `INTEGER`; `DEFAULT CURRENT_TIMESTAMP` → o mesmo
     `strftime`
 - `src/config/sqlite.js` — objeto compatível com o pool: `query` devolvendo `{ rows }`, `connect()`
-  devolvendo a conexão única com `release()` vazio, `PRAGMA foreign_keys = ON`, e a **conversão de
-  0/1 para booleano** nas colunas declaradas `BOOLEAN`
+  devolvendo a conexão única com `release()` vazio, `PRAGMA foreign_keys = ON`, e três conversões de
+  valor (abaixo)
 - `test/helpers.js` — `criarApiDeTeste({ banco: 'sqlite' })`, e o script `test:sqlite`
 
 **Por que o `strftime` em vez do `CURRENT_TIMESTAMP` do SQLite:** o padrão do SQLite grava
@@ -205,7 +205,21 @@ que é o que expulsa sessão depois de trocar senha ou CPF: a expulsão passaria
 errada. Com `strftime('%Y-%m-%dT%H:%M:%fZ','now')` o valor sai em ISO UTC e a sonda confirmou o
 round-trip exato.
 
-**Por que a conversão de booleano:** o SQLite guarda `0`/`1`. Sem converter, a API do app devolveria
+**As três conversões de valor, e por que cada uma existe.** O `node:sqlite` aceita `null`, número,
+texto e binário — nada além disso, e a forma como ele recusa o resto é desigual:
+
+| Valor | O que acontece sem converter | Conversão |
+|---|---|---|
+| `boolean` como parâmetro | recusa com erro claro: "cannot be bound" | `true`/`false` → `1`/`0` |
+| `Date` como parâmetro | **aceita e grava `null`, em silêncio** | `.toISOString()` |
+| `0`/`1` lido de coluna booleana | a API devolve `ativo: 1` | volta a `true`/`false` |
+
+O caso do `Date` é o mais perigoso dos três, e foi medido: `sessaoController` grava `finalizado_em`
+passando um `Date`. Sem a conversão, a coluna ficaria nula, a sessão nunca fecharia, e o índice de
+"uma sessão aberta por aluno" — o mesmo que este projeto ganha ao trocar de banco — barraria a sessão
+seguinte. O aluno descobriria isso no meio do treino, e nada no log diria por quê.
+
+**Por que a conversão de booleano na leitura:** o SQLite guarda `0`/`1`. Sem converter, a API do app devolveria
 `ativo: 1`, e o `EditarUsuario.tsx` compara `perfis.aluno !== usuario.aluno` — `false !== 0` é
 verdadeiro, então a tela acharia que os perfis mudaram a cada abertura e dispararia a rota de perfis
 sem necessidade.
