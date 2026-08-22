@@ -1,4 +1,5 @@
 import axios from 'axios'
+import type { AxiosAdapter } from 'axios'
 
 const CHAVE_TOKEN = 'gymsys.token'
 
@@ -50,6 +51,17 @@ api.interceptors.response.use(
     return Promise.reject(erro)
   },
 )
+
+/**
+ * Instala um adapter no lugar da rede. Usado pelo modo standalone, em que o
+ * nucleo do backend roda dentro do proprio aplicativo.
+ *
+ * Fica aqui, e nao no modulo do app local, para o api.ts continuar sendo o unico
+ * lugar que conhece a instancia do axios.
+ */
+export function instalarAdaptador(adaptador: AxiosAdapter) {
+  api.defaults.adapter = adaptador
+}
 
 export const tokenArmazenado = {
   ler: () => localStorage.getItem(CHAVE_TOKEN),

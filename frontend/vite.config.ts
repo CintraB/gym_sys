@@ -5,7 +5,21 @@ import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
 
-export default defineConfig(() => ({
+export default defineConfig(({ mode }) => ({
+  /**
+   * Qual modo o app está rodando, decidido no build.
+   *
+   * Fica aqui, e não num `.env.standalone`, porque `.env` é ignorado pelo git —
+   * o modo de build é configuração do projeto, não segredo de máquina, e
+   * precisa viajar no repositório.
+   *
+   * É isto que liga o núcleo local no `main.tsx`. Sem a variável definida, o
+   * Vite avalia a condição como falsa e o tree-shaking remove o núcleo inteiro
+   * do bundle — build passando, e o APK sem banco.
+   */
+  define: {
+    'import.meta.env.VITE_MODO_APP': JSON.stringify(mode === 'standalone' ? 'standalone' : 'web'),
+  },
   plugins: [
     react(),
     tailwindcss(),
@@ -78,9 +92,10 @@ export default defineConfig(() => ({
      * mas só por dentro do próprio `db.js`, que é substituído aqui — então esse
      * caminho deixa de existir.
      *
-     * Vale nos testes e no build. Um teste em `src/local/troca.test.js` prova
-     * que a substituição está de pé: sem ele, um caminho que deixasse de casar
-     * traria `dotenv`, `pg` e `node:crypto` para dentro do APK em silêncio.
+     * Vale nos testes e no build. Quem prova que a substituição está de pé é o
+     * `scripts/verificarBundleDoApp.mjs`, que roda depois do build do app: sem
+     * ele, um caminho que deixasse de casar traria `dotenv`, `pg` e
+     * `node:crypto` para dentro do APK em silêncio.
      */
     alias: [
       { find: /^\.\.\/config\/db\.js$/, replacement: fileURLToPath(new URL('./src/local/banco.js', import.meta.url)) },
