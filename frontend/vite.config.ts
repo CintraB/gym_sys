@@ -69,6 +69,10 @@ export default defineConfig({
     // no celular pelo IP do PC enquanto se desenvolve.
     host: true,
     port: 5173,
+    // O modo standalone importa os controllers de ../backend, fora da raiz do
+    // projeto. Sem isto o dev server recusa a leitura, e o teste que compara a
+    // borda de senha com a do backend nem carrega.
+    fs: { allow: ['..'] },
   },
   preview: {
     host: true,
