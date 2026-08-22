@@ -234,8 +234,10 @@ Cada uma entrega algo verificável sozinha:
       adapter do axios, cobertos por teste: o login roda ponta a ponta com controller de verdade,
       senha em scrypt e SQLite, sem Express e sem Node. `npm run build:standalone` empacota, e um
       script confere que o núcleo entrou no bundle e que `dotenv`, `pg` e `node:crypto` ficaram fora
-- [ ] **Leva 3 — Capacitor e APK.** Empacota, nasce com a conta dele cadastrada (admin + professor
-      + aluno), alunos de exemplo e um treino montado, e instala no telefone
+- [ ] **Leva 3 — Capacitor e APK.** O driver do SQLite nativo, o seed e o empacotamento estão
+      **prontos**: `npm run apk` gera um APK de 13 MB com a conta inicial, dois alunos de exemplo e
+      um treino de dois blocos. Falta **a verificação no aparelho** — instalar, executar um treino,
+      fechar o app e conferir que o histórico continua lá. É o que fecha a seção 6
 
 ### 6.4 O que fica de fora
 

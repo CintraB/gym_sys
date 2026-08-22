@@ -159,8 +159,62 @@ O `build:standalone` termina rodando `scripts/verificarBundleDoApp.mjs`, que fal
 estiver no bundle ou se `dotenv`, `node:crypto` ou `pg` tiverem vazado. As duas coisas já aconteceram
 em silêncio durante o desenvolvimento, com o build passando e o bundle do mesmo tamanho do web.
 
-Falta a leva 3: o driver de SQLite do aparelho e o Capacitor. Hoje `src/local/bancoDoAparelho.js`
-falha com mensagem clara, de propósito — abrir com banco vazio pareceria perda de treinos.
+### Gerar e instalar o APK
+
+> **Depois de instalar, a primeira coisa a fazer é trocar a senha.** A conta com que o app nasce é
+> pública — está neste repositório e dentro do APK. A tela é Perfil → Trocar minha senha.
+>
+> Conta inicial: CPF `000.000.000-00`, senha `gymsys123`, com os três perfis (admin, professor e
+> aluno). Os dois alunos de exemplo entram com senha `treino123`.
+
+```bash
+cd frontend && npm run apk
+```
+
+Isso roda o `build:standalone`, sincroniza o projeto Android e chama o Gradle. Sai em
+`android/app/build/outputs/apk/debug/app-debug.apk`, com cerca de 13 MB.
+
+**Duas coisas que o `scripts/apk.mjs` resolve, e que valem saber:**
+
+O `JAVA_HOME` e o `ANDROID_HOME` não estão definidos nesta máquina, e o script os descobre. Mais
+importante: ele **procura um JDK 21 e evita o JDK embutido no Android Studio**, que é o 25. O Gradle
+8.14 com AGP 8.13 — as versões que o Capacitor gera — vão até o Java 24, e com o 25 a falha é um
+`Unsupported class file major version 69`, que não diz o que fazer. Se um dia o Capacitor subir para
+um Gradle 9, o `jbr` do Studio volta a servir.
+
+Subir o Gradle para 9 **não** era a saída: o AGP 8.13 não suporta Gradle 9, então seria trocar um
+erro conhecido por um desconhecido.
+
+**Instalar no emulador:**
+
+Sem `cmdline-tools` na máquina, criar o dispositivo é pela interface do Studio: *More Actions →
+Virtual Device Manager → Create Virtual Device*, um Pixel com imagem API 35 ou 36 (x86_64, Google
+APIs). Depois:
+
+```bash
+"$LOCALAPPDATA/Android/Sdk/emulator/emulator" -list-avds
+"$LOCALAPPDATA/Android/Sdk/emulator/emulator" -avd <nome> &
+"$LOCALAPPDATA/Android/Sdk/platform-tools/adb" wait-for-device
+"$LOCALAPPDATA/Android/Sdk/platform-tools/adb" install -r frontend/android/app/build/outputs/apk/debug/app-debug.apk
+```
+
+Para ver o que o app registra:
+
+```bash
+"$LOCALAPPDATA/Android/Sdk/platform-tools/adb" logcat -s Capacitor Capacitor/Console chromium
+```
+
+**O que verificar, e nesta ordem** — com o Wi-Fi do aparelho **desligado**, porque offline é o ponto:
+
+1. Entrar com a conta inicial
+2. Na área do professor, a lista mostra os dois alunos de exemplo
+3. O treino da Ana tem os blocos A e B
+4. Na área do aluno: iniciar o treino, marcar um exercício, finalizar
+5. **Fechar o aplicativo de verdade** — arrastar para fora dos recentes, não só minimizar
+6. Abrir de novo e conferir que o histórico mostra a sessão
+
+O passo 6 é o objetivo da seção 6 inteira. Histórico vazio ali significa que o banco não persistiu.
+
 
 ## Design
 
