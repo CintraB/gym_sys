@@ -30,7 +30,8 @@ export function AppShell({ itens, children }: { itens: ItemNav[]; children: Reac
       {/* Lateral - desktop */}
       <aside className="sticky top-0 hidden h-dvh w-64 shrink-0 flex-col border-r border-borda bg-superficie px-4 py-6 lg:flex">
         <div className="mb-8 flex items-center gap-2.5 px-2">
-          <img src="/logoapp.png" alt="" className="size-9 rounded-xl object-cover" />
+          {/* Decorativo: o nome do sistema vem escrito ao lado. */}
+          <span className="logo-simbolo size-9 shrink-0" aria-hidden />
           <span className="text-lg font-semibold tracking-tight">Gym Sys</span>
         </div>
 
@@ -82,7 +83,7 @@ export function AppShell({ itens, children }: { itens: ItemNav[]; children: Reac
         */}
         <header className="area-segura-superior sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-borda bg-fundo/90 px-4 pb-3 backdrop-blur-md lg:hidden">
           <div className="flex min-w-0 items-center gap-2.5">
-            <img src="/logoapp.png" alt="" className="size-8 rounded-lg object-cover" />
+            <span className="logo-simbolo size-8 shrink-0" aria-hidden />
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold leading-tight">
                 {tituloAtual ?? 'Gym Sys'}

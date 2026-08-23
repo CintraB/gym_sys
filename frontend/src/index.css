@@ -36,6 +36,22 @@
   --radius-2xl: 1.25rem;
 }
 
+/*
+ * O símbolo do logo segue o tema como as cores seguem.
+ *
+ * São dois arquivos porque o halter é preto: sobre o fundo escuro ele sumiria,
+ * e era por isso que o logo aparecia dentro de um quadrado branco no cabeçalho.
+ * A versão clara troca só os tons neutros — o detalhe laranja é o mesmo nas
+ * duas. `scripts/gerarSimboloDoLogo.ps1` gera ambas a partir do logoapp.png.
+ *
+ * Vem como background-image, e não como <img>, para a troca de tema acontecer
+ * no CSS: com duas <img> seria preciso duplicar a marcação e escondê-las por
+ * media query, e a escondida ainda seria baixada.
+ */
+:root {
+  --logo-simbolo: url('/logo-simbolo.png');
+}
+
 /* Escuro por preferência do sistema — a menos que o claro tenha sido escolhido. */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='claro']) {
@@ -51,6 +67,7 @@
     --color-sobre-acento: #0a0d0c;
     --color-perigo: #f87171;
     --color-alerta: #fbbf24;
+    --logo-simbolo: url('/logo-simbolo-claro.png');
   }
 }
 
@@ -68,6 +85,7 @@
   --color-sobre-acento: #0a0d0c;
   --color-perigo: #f87171;
   --color-alerta: #fbbf24;
+  --logo-simbolo: url('/logo-simbolo-claro.png');
 }
 
 @layer base {
@@ -134,5 +152,16 @@
    */
   .area-segura-superior {
     padding-top: calc(env(safe-area-inset-top) + 0.75rem);
+  }
+
+  /*
+   * O símbolo do logo, seguindo o tema. O tamanho vem de fora, por classe de
+   * utilidade (`size-9`), como era com a <img> que estava aqui antes.
+   */
+  .logo-simbolo {
+    background-image: var(--logo-simbolo);
+    background-size: contain;
+    background-position: center;
+    background-repeat: no-repeat;
   }
 }

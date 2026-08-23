@@ -1,6 +1,5 @@
 import { useState, type FormEvent } from 'react'
 import { Navigate } from 'react-router-dom'
-import { Dumbbell } from 'lucide-react'
 import { useAuth } from '../auth/useAuth'
 import { rotaDoCargo } from '../auth/areas'
 import { mensagemDeErro } from '../lib/api'
@@ -44,8 +43,10 @@ export default function Login() {
     <div className="flex min-h-dvh flex-col justify-center px-5 py-10">
       <div className="mx-auto w-full max-w-sm">
         <div className="mb-8 flex flex-col items-center text-center">
+          {/* O logo de verdade, não mais o halter genérico do lucide: é a
+              primeira tela do aplicativo, e a marca vale mais aqui. */}
           <div className="mb-4 grid size-16 place-items-center rounded-2xl bg-acento/12">
-            <Dumbbell className="size-8 text-acento-texto" aria-hidden />
+            <span className="logo-simbolo size-11" aria-hidden />
           </div>
           <h1 className="text-2xl font-semibold tracking-tight">Gym Sys</h1>
           <p className="mt-1 text-sm text-texto-suave">Entre para ver seus treinos</p>
