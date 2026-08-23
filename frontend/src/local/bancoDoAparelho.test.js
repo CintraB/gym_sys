@@ -66,27 +66,27 @@ describe('driver do aparelho', () => {
     const { plugin, chamadas } = pluginFalso({ aoConsultar: () => ({ values: [{ id: 7 }] }) })
     const bd = await abrirBancoDoAparelho({ plugin, semear: semSeed })
 
-    const r = await bd.query('SELECT id FROM usuario WHERE id = ?1', [7])
+    const r = await bd.query('SELECT id FROM usuario WHERE id = $1', [7])
 
     expect(r.rows).toEqual([{ id: 7 }])
     expect(chamadas).toContainEqual(['query', 'SELECT id FROM usuario WHERE id = ?', [7]])
   })
 
-  // returnMode 'all' e o que faz o RETURNING voltar. Com o padrao 'no' do
-  // plugin, todo INSERT ... RETURNING id voltaria vazio e o controller quebraria
-  // ao ler rows[0].id — e o projeto tem 16 desses.
-  it('INSERT com RETURNING vai por run, pedindo as linhas de volta', async () => {
-    const { plugin, chamadas } = pluginFalso({
-      aoEscrever: () => ({ changes: { changes: 1, lastId: 3, values: [{ id: 3 }] } }),
-    })
+  // INSERT com RETURNING vai por `query`, e nao por `run`.
+  //
+  // Medido no emulador: o `run` do Android responde `values: []` mesmo pedindo
+  // returnMode 'all' — ele devolve `lastId`, mas nao as linhas. O `query` le o
+  // cursor, que e onde as linhas do RETURNING aparecem. O projeto tem 16
+  // RETURNING, e o seed morria no primeiro deles.
+  it('INSERT com RETURNING vai por query, que le o cursor', async () => {
+    const { plugin, chamadas } = pluginFalso({ aoConsultar: () => ({ values: [{ id: 3 }] }) })
     const bd = await abrirBancoDoAparelho({ plugin, semear: semSeed })
 
-    const r = await bd.query('INSERT INTO usuario (nome) VALUES (?1) RETURNING id', ['Fulano'])
+    const r = await bd.query('INSERT INTO usuario (nome) VALUES ($1) RETURNING id', ['Fulano'])
 
     expect(r.rows).toEqual([{ id: 3 }])
-    const chamada = chamadas.find((c) => c[0] === 'run')
-    expect(chamada[3]).toBe(false) // transaction
-    expect(chamada[4]).toBe('all') // returnMode
+    expect(chamadas.find((c) => c[0] === 'query')[1]).toContain('RETURNING id')
+    expect(chamadas.find((c) => c[0] === 'run')).toBeUndefined()
   })
 
   // transaction: false em toda escrita. Com o padrao true do plugin, cada UPDATE
@@ -97,7 +97,7 @@ describe('driver do aparelho', () => {
     const { plugin, chamadas } = pluginFalso()
     const bd = await abrirBancoDoAparelho({ plugin, semear: semSeed })
 
-    await bd.query('UPDATE usuario SET nome = ?1 WHERE id = ?2', ['Outro', 1])
+    await bd.query('UPDATE usuario SET nome = $1 WHERE id = $2', ['Outro', 1])
 
     const chamada = chamadas.find((c) => c[0] === 'run')
     expect(chamada[3]).toBe(false)
@@ -130,7 +130,7 @@ describe('driver do aparelho', () => {
     const bd = await abrirBancoDoAparelho({ plugin, semear: semSeed })
 
     const quando = new Date('2026-08-22T19:00:00.000Z')
-    await bd.query('UPDATE usuario SET ativo = ?1, visto = ?2 WHERE id = ?3', [false, quando, 1])
+    await bd.query('UPDATE usuario SET ativo = $1, visto = $2 WHERE id = $3', [false, quando, 1])
 
     const chamada = chamadas.find((c) => c[0] === 'run')
     expect(chamada[2]).toEqual([0, '2026-08-22T19:00:00.000Z', 1])
@@ -164,7 +164,7 @@ describe('driver do aparelho', () => {
     })
     const bd = await abrirBancoDoAparelho({ plugin, semear: semSeed })
 
-    await expect(bd.query('INSERT INTO usuario (cpf) VALUES (?1)', ['1'])).rejects.toMatchObject({
+    await expect(bd.query('INSERT INTO usuario (cpf) VALUES ($1)', ['1'])).rejects.toMatchObject({
       code: '23505',
     })
   })
@@ -181,6 +181,43 @@ describe('driver do aparelho', () => {
     })
 
     expect(vezes).toBe(1)
+  })
+
+  // ESTE e o teste que faltava, e o bug foi descoberto no emulador por isso.
+  //
+  // O driver so convertia ?1 para ?, sem chamar o tradutor de dialeto — e quem
+  // GERA o ?1 e o tradutor. O SQL chegava ao SQLite em dialeto PostgreSQL cru, e
+  // o app morria na primeira consulta com "unrecognized token: :".
+  //
+  // Os outros testes nao pegavam porque entravam com ?1 ja pronto, presumindo
+  // uma traducao que ninguem fazia.
+  it('traduz o dialeto do PostgreSQL antes de falar com o plugin', async () => {
+    const { plugin, chamadas } = pluginFalso({ aoConsultar: () => ({ values: [{ n: 0 }] }) })
+    const bd = await abrirBancoDoAparelho({ plugin, semear: semSeed })
+
+    await bd.query('SELECT COUNT(*)::int AS n FROM usuario')
+    await bd.query('SELECT id FROM usuario WHERE nome ILIKE $1', ['%ana%'])
+
+    const consultas = chamadas.filter((c) => c[0] === 'query').map((c) => c[1])
+    expect(consultas[0]).toBe('SELECT COUNT(*) AS n FROM usuario')
+    expect(consultas[0]).not.toContain('::')
+    expect(consultas[1]).toBe('SELECT id FROM usuario WHERE nome LIKE ?')
+    expect(consultas[1]).not.toContain('ILIKE')
+  })
+
+  // O schema.sql e DDL de PostgreSQL: sem traduzir, nenhuma tabela e criada, e
+  // o app abre com banco vazio.
+  it('traduz tambem o SQL cru do schema', async () => {
+    const { plugin, chamadas } = pluginFalso()
+    const bd = await abrirBancoDoAparelho({ plugin, semear: semSeed })
+
+    bd.aplicarSql('CREATE TABLE t (id SERIAL PRIMARY KEY, nome VARCHAR(60), quando TIMESTAMPTZ)')
+
+    const [, enviado] = chamadas.find((c) => c[0] === 'execute')
+    expect(enviado).toContain('INTEGER PRIMARY KEY AUTOINCREMENT')
+    expect(enviado).not.toContain('SERIAL')
+    expect(enviado).not.toContain('VARCHAR')
+    expect(enviado).not.toContain('TIMESTAMPTZ')
   })
 
   // A lista fixa e a unica duplicacao de conhecimento do banco neste arquivo.

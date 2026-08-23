@@ -43,11 +43,22 @@ export async function adaptadorLocal(config) {
   )
 }
 
-/** Junta baseURL, url e params no caminho que o roteador entende. */
+/**
+ * Junta baseURL, url e params no caminho que o roteador entende.
+ *
+ * Só o **pathname** interessa, e é preciso extraí-lo de propósito: no APK o
+ * `api.ts` monta a baseURL como `https://localhost:8080`, e concatenar isso daria
+ * `https://localhost:8080/login` ao roteador — que responderia 404 "Rota não
+ * encontrada", porque a tabela tem `/login`. Foi assim que o app falhou no
+ * emulador na primeira tentativa de login.
+ */
 function montarCaminho(config) {
   const base = (config.baseURL ?? '').replace(/\/$/, '')
   const url = config.url ?? '/'
-  const caminho = url.startsWith('http') ? new URL(url).pathname : `${base}${url}`
+
+  // A base falsa serve para caminhos relativos sem baseURL: o construtor de URL
+  // exige uma origem, e ela é descartada logo em seguida.
+  const caminho = new URL(`${base}${url}`, 'http://app.local').pathname
 
   const busca = new URLSearchParams(
     Object.entries(config.params ?? {}).filter(

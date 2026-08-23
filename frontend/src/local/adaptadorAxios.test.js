@@ -58,6 +58,34 @@ describe('adapter do axios', () => {
     expect(resposta.status).toBe(200)
   })
 
+  // ESTE e o teste que faltava. No APK o api.ts monta a baseURL como
+  // https://localhost:8080 (o fallback de desenvolvimento), e concatenar isso
+  // entregava "https://localhost:8080/login" ao roteador, que respondia 404
+  // "Rota nao encontrada". O login do app morria ai, e o teste anterior nao
+  // pegava porque usava baseURL vazia.
+  it('baseURL absoluta nao vira parte do caminho', async () => {
+    const api = axios.create({ baseURL: 'https://localhost:8080', adapter: adaptadorLocal })
+
+    const resposta = await api.get('/health')
+
+    expect(resposta.status).toBe(200)
+    expect(resposta.data).toEqual({ status: 'ok' })
+  })
+
+  it('baseURL com barra no fim tambem funciona', async () => {
+    const api = axios.create({ baseURL: 'https://localhost:8080/', adapter: adaptadorLocal })
+
+    const resposta = await api.get('/health')
+
+    expect(resposta.status).toBe(200)
+  })
+
+  it('url absoluta na chamada tambem e reduzida ao caminho', async () => {
+    const resposta = await apiLocal().get('https://qualquer.host/health')
+
+    expect(resposta.status).toBe(200)
+  })
+
   // mensagemDeErro() usa isAxiosError para achar a mensagem que a API mandou.
   it('o erro e reconhecido como erro do axios', async () => {
     try {

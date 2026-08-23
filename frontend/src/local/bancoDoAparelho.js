@@ -1,3 +1,4 @@
+import { traduzir } from '../../../backend/src/lib/dialetoSqlite.js'
 import { paraPosicionais } from './parametros.js'
 
 const NOME_DO_BANCO = 'gymsys'
@@ -77,10 +78,20 @@ export async function abrirBancoDoAparelho({ plugin, semear } = {}) {
       return { rows: [] }
     }
 
-    const pedido = paraPosicionais(sql, valores.map(paraSqlite))
+    // Duas conversões, nesta ordem, e as duas são necessárias:
+    //
+    // 1. `traduzir` leva o dialeto do PostgreSQL para o do SQLite — é o mesmo
+    //    tradutor que o driver dos testes usa. Sem ele, um `COUNT(*)::int`
+    //    chega cru no SQLite e falha com "unrecognized token: :".
+    // 2. `paraPosicionais` troca o `?1` que o tradutor gera por `?` simples,
+    //    porque não há garantia de que a numeração sobreviva à camada nativa.
+    const pedido = paraPosicionais(traduzir(sql), valores.map(paraSqlite))
 
     try {
-      if (ehLeitura(pedido.sql)) {
+      // RETURNING vai por `query`, e não por `run`: no Android o `run` devolve
+      // `values: []` mesmo pedindo returnMode 'all' — medido no emulador. O
+      // `query` lê o cursor, que é onde as linhas do RETURNING aparecem.
+      if (ehLeitura(pedido.sql) || temRetorno(pedido.sql)) {
         const resultado = await conexao.query(pedido.sql, pedido.valores)
         return { rows: (resultado.values ?? []).map(daSqlite) }
       }
@@ -111,8 +122,14 @@ export async function abrirBancoDoAparelho({ plugin, semear } = {}) {
       await conexao.close()
       await sqlite.closeConnection(NOME_DO_BANCO, false)
     },
-    /** SQL cru sem retorno: é como o seed aplica o schema e o catálogo. */
-    aplicarSql: (sql) => conexao.execute(sql, false),
+    /**
+     * SQL cru sem retorno: é como o seed aplica o schema e o catálogo.
+     *
+     * Traduz igual, e por um motivo maior que as consultas: o `schema.sql` está
+     * em DDL de PostgreSQL, com `SERIAL`, `VARCHAR(n)` e `TIMESTAMPTZ`. Sem
+     * traduzir, nenhuma tabela é criada.
+     */
+    aplicarSql: (sql) => conexao.execute(traduzir(sql), false),
   }
 
   await semearBanco(bd)
