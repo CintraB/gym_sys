@@ -15,17 +15,17 @@ test("cadastra um exercício e ele passa a aparecer na listagem", async () => {
   try {
     const criado = await api.post(
       "/professores/exercicios",
-      { nome_exercicio: "PRANCHA LATERAL", tipo: "ABDOMEN" },
+      { nome_exercicio: "ABDOMINAL CANIVETE", tipo: "ABDOMEN" },
       { token }
     );
 
     assert.equal(criado.status, 201, JSON.stringify(criado.corpo));
-    assert.equal(criado.corpo.nome_exercicio, "PRANCHA LATERAL");
+    assert.equal(criado.corpo.nome_exercicio, "ABDOMINAL CANIVETE");
     assert.equal(criado.corpo.tipo, "ABDOMEN");
     assert.ok(Number.isInteger(criado.corpo.id_exercicio));
 
     const lista = await api.get("/professores/exercicios", { token });
-    const achados = buscarPorNome(lista.corpo, "PRANCHA LATERAL");
+    const achados = buscarPorNome(lista.corpo, "ABDOMINAL CANIVETE");
     assert.equal(achados.length, 1);
     assert.equal(achados[0].id_exercicio, criado.corpo.id_exercicio);
   } finally {

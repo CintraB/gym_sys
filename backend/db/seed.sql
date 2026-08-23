@@ -83,4 +83,10 @@ INSERT INTO exercicio (nome_exercicio, tipo) VALUES
     ('GLÚTEO CROSS OVER',        'POSTERIOR/GLÚTEO'),
     ('GLÚTEO LEG PRESS',         'POSTERIOR/GLÚTEO'),
     ('GLÚTEO ESPALDAR',          'POSTERIOR/GLÚTEO'),
-    ('GLÚTEO BARRA GUIADA',      'POSTERIOR/GLÚTEO');
+    ('GLÚTEO BARRA GUIADA',      'POSTERIOR/GLÚTEO'),
+    -- Escritos à mão nas fichas, fora do formulário impresso da academia. Vêm
+    -- no fim, e não junto do bloco de ABDOMEN, porque a ordem das linhas define
+    -- o id_exercicio: inserir no meio deslocaria o id de tudo que vem depois, e
+    -- os treinos já cadastrados passariam a apontar para outro exercício.
+    ('PRANCHA LATERAL',          'ABDOMEN'),
+    ('REMADOR ALTERNADO',        'ABDOMEN');
