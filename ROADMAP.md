@@ -153,10 +153,12 @@ Coisas que a operação do dia a dia vai cobrar.
       Com o backend, **334 no total** (206 + 128), e os 206 rodam em dois bancos.
       Foi a tela preta que motivou — o build passava porque nada renderizava
       componente
-- [ ] **Testar os interceptors de `api.ts`** — o token no cabeçalho e o 401
-      derrubando a sessão. A suíte do front mocka `src/lib/api.ts` inteiro, e
-      é justamente esse módulo que os contém, então ficam de fora. Exige MSW,
-      ou testar o módulo sem o mock
+- [x] **Testar os interceptors de `api.ts`** — feito em `src/lib/api.test.ts`,
+      sem MSW: o módulo entra sem mock e a rede é trocada por um adapter falso,
+      o mesmo ponto de troca que o modo standalone usa. Cobre o token no
+      cabeçalho, o 401 derrubando a sessão e a exceção das rotas cujo 401 fala
+      do formulário. Foi essa lacuna que deixou o bug de "errar a senha atual
+      expulsa do app" chegar ao aparelho
 - [ ] **Interações de formulário no front** — montar treino ponta a ponta,
       login com erro, o modal de novo exercício. Hoje a suíte garante que as
       telas montam, não que os fluxos funcionam

@@ -40,12 +40,37 @@ export function registrarExpiracaoDeSessao(callback: AoExpirarSessao) {
   aoExpirarSessao = callback
 }
 
+/**
+ * Rotas em que um 401 fala da credencial digitada no formulário, e não da
+ * sessão.
+ *
+ * `PUT /me/senha` responde 401 quando a senha atual está errada — de propósito,
+ * com a mesma mensagem do login, para não confirmar qual campo falhou. Sem esta
+ * exceção o interceptor lia isso como "seu token morreu" e mandava para o login
+ * quem apenas errou a digitação. Apareceu no APK, onde não há como perceber que
+ * a sessão caiu por outro motivo.
+ *
+ * Se a sessão tiver expirado de verdade durante o formulário, a pessoa vê o erro
+ * no modal e a requisição seguinte a derruba — que é o preço certo a pagar por
+ * não expulsar ninguém por um erro de digitação.
+ */
+const ROTAS_COM_401_DE_FORMULARIO = ['/me/senha']
+
+function ehErroDeCredencialDigitada(erro: { config?: { url?: string } }) {
+  const url = erro.config?.url ?? ''
+  return ROTAS_COM_401_DE_FORMULARIO.some((rota) => url.endsWith(rota))
+}
+
 api.interceptors.response.use(
   (resposta) => resposta,
   (erro) => {
     // Token expirado ou usuário desativado: derruba a sessão em vez de
     // deixar a tela quebrada com erros silenciosos no console.
-    if (erro.response?.status === 401 && localStorage.getItem(CHAVE_TOKEN)) {
+    if (
+      erro.response?.status === 401 &&
+      localStorage.getItem(CHAVE_TOKEN) &&
+      !ehErroDeCredencialDigitada(erro)
+    ) {
       aoExpirarSessao()
     }
     return Promise.reject(erro)
