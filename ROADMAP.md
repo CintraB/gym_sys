@@ -148,9 +148,9 @@ Coisas que a operação do dia a dia vai cobrar.
 
 ## 5. Qualidade técnica
 
-- [x] **Testes de frontend** — Vitest + Testing Library: 64 testes cobrindo
+- [x] **Testes de frontend** — Vitest + Testing Library: 128 testes cobrindo
       `formato.ts`, os hooks, a autorização de rota e o render das nove telas.
-      Com o backend, **267 no total** (203 + 64), e os 203 rodam em dois bancos.
+      Com o backend, **334 no total** (206 + 128), e os 206 rodam em dois bancos.
       Foi a tela preta que motivou — o build passava porque nada renderizava
       componente
 - [ ] **Testar os interceptors de `api.ts`** — o token no cabeçalho e o 401
@@ -213,31 +213,30 @@ método + caminho para o controller (~40 linhas). A fachada `db` já é injetáv
 para os testes, e é o que torna isto barato. Nas telas, nada muda: a interceptação é no adapter do
 axios, que preserva os interceptors de token e de 401.
 
-### 6.2 A incerteza que resta
+### 6.2 As incertezas, resolvidas
 
-- [ ] **`scrypt-js` no celular.** É JS puro, e scrypt é lento de propósito. Medido no PC: **133 ms
-      por operação, contra 27 ms do nativo** — cinco vezes mais lento. Num celular três vezes mais
-      lento que o PC, o login fica em torno de meio segundo, o que resolve a dúvida na prática.
-      Confirmar no aparelho na leva 3; se doer, baixar o custo resolve, mas faz o hash divergir do
-      backend
-
-A persistência saiu desta lista: com SQLite ela é do motor.
+- [x] **`scrypt-js` no celular.** Medido no PC em 133 ms por operação, contra 27 ms do nativo. No
+      emulador, o login inteiro (scrypt + consulta + render) leva alguns segundos — perceptível, mas
+      longe de inviável. Se incomodar no aparelho real, baixar o custo resolve, ao preço de o hash
+      divergir do servidor
+- [x] **Persistência.** É do motor: o SQLite grava um arquivo, e o histórico sobreviveu a matar o
+      processo do aplicativo
 
 ### 6.3 Plano, em três levas
 
 Cada uma entrega algo verificável sozinha:
 
 - [x] **Leva 1 — o banco do APK, provado sem Android.** Tradutor de dialeto, driver SQLite com a
-      interface do pool do `pg`, e os 203 testes rodando nos dois bancos (`npm test` e
+      interface do pool do `pg`, e a suíte inteira rodando nos dois bancos (`npm test` e
       `npm run test:sqlite`). Nenhuma divergência, e nenhum controller alterado
 - [x] **Leva 2 — núcleo portável.** Os três arquivos de borda, o roteador no lugar do Express e o
       adapter do axios, cobertos por teste: o login roda ponta a ponta com controller de verdade,
       senha em scrypt e SQLite, sem Express e sem Node. `npm run build:standalone` empacota, e um
       script confere que o núcleo entrou no bundle e que `dotenv`, `pg` e `node:crypto` ficaram fora
-- [ ] **Leva 3 — Capacitor e APK.** O driver do SQLite nativo, o seed e o empacotamento estão
-      **prontos**: `npm run apk` gera um APK de 13 MB com a conta inicial, dois alunos de exemplo e
-      um treino de dois blocos. Falta **a verificação no aparelho** — instalar, executar um treino,
-      fechar o app e conferir que o histórico continua lá. É o que fecha a seção 6
+- [x] **Leva 3 — Capacitor e APK.** Verificado no emulador (Android 16, API 36), **em modo avião**:
+      o APK instala, abre offline, faz login com a conta do seed, executa um treino do bloco A — e
+      depois de o processo ser morto e o app reaberto, o histórico mostra a sessão de 58s. A sugestão
+      do próximo bloco passou a apontar o B, lida do banco recém-gravado
 
 ### 6.4 O que fica de fora
 

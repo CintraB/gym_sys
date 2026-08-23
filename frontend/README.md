@@ -215,6 +215,32 @@ Para ver o que o app registra:
 
 O passo 6 é o objetivo da seção 6 inteira. Histórico vazio ali significa que o banco não persistiu.
 
+**Verificado no emulador** (Pixel 6, Android 16 / API 36), com o aparelho em **modo avião**: o APK
+instala, abre offline, faz login com a conta do seed, mostra os alunos de exemplo e o treino de dois
+blocos, executa o bloco A marcando os dois exercícios, e registra a sessão de 58 s. Depois de
+`am force-stop` e reabertura, o histórico mostra a sessão, e a sugestão de bloco passou a apontar o
+**B** — lida do banco recém-gravado. A sessão do usuário também sobreviveu, porque o token fica no
+armazenamento do WebView.
+
+O login leva alguns segundos no emulador (scrypt + consulta + render). É perceptível, e o emulador
+não representa bem um celular modesto: medir no aparelho de verdade antes de decidir baixar o custo
+do scrypt.
+
+**Três bugs só apareceram no aparelho**, e todos viraram teste:
+
+1. **O driver não chamava o tradutor de dialeto.** Ele convertia `?1` para `?`, mas quem *gera* o
+   `?1` é o tradutor — o SQL chegava ao SQLite em dialeto PostgreSQL e o app morria na primeira
+   consulta com `unrecognized token: ":"`. Vale para o `aplicarSql` também: sem traduzir o
+   `schema.sql`, nenhuma tabela é criada. Os testes não pegavam porque entravam com `?1` pronto,
+   presumindo uma tradução que ninguém fazia.
+2. **O adapter concatenava a `baseURL` no caminho.** O `api.ts` monta `https://localhost:8080`, então
+   o roteador recebia `https://localhost:8080/login` e respondia 404. O teste usava `baseURL` vazia.
+3. **`RETURNING` não volta pelo `run`.** O plugin responde `values: []` mesmo com `returnMode: 'all'`
+   — devolve `lastId`, mas não as linhas. Passou a ir por `query`, que lê o cursor. O seed morria no
+   primeiro dos 16 `RETURNING` do projeto.
+
+
+
 
 ## Design
 
