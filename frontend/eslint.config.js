@@ -5,7 +5,10 @@ import reactHooks from 'eslint-plugin-react-hooks'
 import reactRefresh from 'eslint-plugin-react-refresh'
 
 export default tseslint.config(
-  { ignores: ['dist'] },
+  // `android/` entra aqui porque o build do APK deixa o native-bridge.js do
+  // Capacitor em app/build/intermediates, e ele vem com diretivas de eslint
+  // próprias — o lint parava com três erros de código que não é nosso.
+  { ignores: ['dist', 'dist-app', 'android', 'coverage'] },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
     files: ['**/*.{ts,tsx}'],
