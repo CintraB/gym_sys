@@ -58,18 +58,59 @@ describe('seed da primeira abertura', () => {
     expect(exercicios[0].n).toBe(77)
   })
 
-  it('nasce com alunos de exemplo e um treino de dois blocos', async () => {
+  it('nasce com alunos de exemplo e treino de dois blocos', async () => {
     const bd = await bancoVazio()
     await semear(bd)
 
     const alunos = await linhas(bd, 'SELECT nome FROM usuario WHERE aluno = TRUE AND admin = FALSE')
     expect(alunos.length).toBeGreaterThan(0)
 
-    const blocos = await linhas(bd, 'SELECT letra FROM treino_bloco ORDER BY letra')
+    const blocos = await linhas(bd, 'SELECT DISTINCT letra FROM treino_bloco ORDER BY letra')
     expect(blocos.map((b) => b.letra)).toEqual(['A', 'B'])
 
     const exercicios = await linhas(bd, 'SELECT COUNT(*)::int AS n FROM ex_usuario')
     expect(exercicios[0].n).toBeGreaterThan(0)
+  })
+
+  // A conta com que o app abre precisa ter treino: sem isso, quem instala entra
+  // e ve "Meu treino" vazio, sem saber se e assim mesmo ou se quebrou.
+  it('a conta padrao tem treino proprio, com os dois blocos', async () => {
+    const bd = await bancoVazio()
+    await semear(bd)
+
+    const [treino] = await linhas(
+      bd,
+      `SELECT t.id_treino FROM treino t
+         JOIN usuario u ON u.id = t.id_aluno
+        WHERE u.cpf = '${CONTA_PADRAO.cpf}' AND t.ativo = TRUE`,
+    )
+    expect(treino).toBeTruthy()
+
+    const blocos = await linhas(
+      bd,
+      `SELECT letra FROM treino_bloco WHERE id_treino = ${treino.id_treino} ORDER BY letra`,
+    )
+    expect(blocos.map((b) => b.letra)).toEqual(['A', 'B'])
+
+    const exercicios = await linhas(
+      bd,
+      `SELECT COUNT(*)::int AS n FROM ex_usuario WHERE id_treino = ${treino.id_treino}`,
+    )
+    expect(exercicios[0].n).toBe(4)
+  })
+
+  it('a aluna de exemplo tambem tem treino, para a area do professor', async () => {
+    const bd = await bancoVazio()
+    await semear(bd)
+
+    const treinos = await linhas(
+      bd,
+      `SELECT u.cpf FROM treino t JOIN usuario u ON u.id = t.id_aluno WHERE t.ativo = TRUE`,
+    )
+    const cpfs = treinos.map((t) => t.cpf)
+
+    expect(cpfs).toContain(CONTA_PADRAO.cpf)
+    expect(cpfs).toContain('11111111111')
   })
 
   // O treino de exemplo aponta para exercicios do catalogo por nome. Se o
@@ -87,27 +128,29 @@ describe('seed da primeira abertura', () => {
     expect(orfaos[0].n).toBe(0)
   })
 
-  // O treino precisa estar ligado ao aluno e ao professor certos, senao a tela
-  // do professor abre vazia e o "Meu treino" do aluno nao acha nada.
+  // Todo treino precisa ter o dono como professor: e ele quem da aula na
+  // propria academia, inclusive no treino dele mesmo.
   //
   // As colunas booleanas NAO sao renomeadas com AS de proposito: a conversao de
   // 0/1 para boolean e por nome de coluna, e um alias escapa dela — limite
   // conhecido, registrado na spec. A primeira versao deste teste caiu nele.
-  it('o treino pertence a aluna de exemplo e ao dono como professor', async () => {
+  it('todo treino tem o dono da conta como professor', async () => {
     const bd = await bancoVazio()
     await semear(bd)
 
-    const [treino] = await linhas(
+    const treinos = await linhas(
       bd,
-      `SELECT a.cpf, p.admin, p.professor
+      `SELECT p.cpf, p.admin, p.professor
          FROM treino t
-         JOIN usuario a ON a.id = t.id_aluno
          JOIN usuario p ON p.id = t.id_professor
         WHERE t.ativo = TRUE`,
     )
 
-    expect(treino.cpf).not.toBe(CONTA_PADRAO.cpf)
-    expect(treino.admin).toBe(true)
-    expect(treino.professor).toBe(true)
+    expect(treinos.length).toBeGreaterThan(1)
+    for (const treino of treinos) {
+      expect(treino.cpf).toBe(CONTA_PADRAO.cpf)
+      expect(treino.admin).toBe(true)
+      expect(treino.professor).toBe(true)
+    }
   })
 })

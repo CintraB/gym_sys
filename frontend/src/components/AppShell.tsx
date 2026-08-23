@@ -74,7 +74,13 @@ export function AppShell({ itens, children }: { itens: ItemNav[]; children: Reac
 
       <div className="flex min-w-0 flex-1 flex-col">
         {/* Topo - celular */}
-        <header className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-borda bg-fundo/90 px-4 py-3 backdrop-blur-md lg:hidden">
+        {/*
+          `area-segura-superior` no lugar do `pt` da classe: dentro do APK a
+          página vai por baixo da barra de status, e sem isso o cabeçalho fica
+          embaixo do relógio do sistema. No navegador o inset é zero e o
+          resultado é o mesmo de antes.
+        */}
+        <header className="area-segura-superior sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-borda bg-fundo/90 px-4 pb-3 backdrop-blur-md lg:hidden">
           <div className="flex min-w-0 items-center gap-2.5">
             <img src="/logoapp.png" alt="" className="size-8 rounded-lg object-cover" />
             <div className="min-w-0">

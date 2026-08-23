@@ -63,27 +63,30 @@ export async function semear(bd) {
     )
   }
 
-  await semearTreinoDeExemplo(bd)
+  // O dono primeiro: é a conta com que o app abre, e sem treino nela o
+  // "Meu treino" apareceria vazio para quem instalou.
+  await montarTreino(bd, CONTA_PADRAO.cpf)
+  // E um para a aluna de exemplo, para a área do professor ter o que mostrar.
+  await montarTreino(bd, ALUNOS_DE_EXEMPLO[0].cpf)
 }
 
 /**
- * Um treino montado para a primeira aluna, com dois blocos.
+ * Monta um treino de dois blocos para o aluno indicado, com o dono da conta
+ * como professor.
  *
  * Existe para o app não abrir com todas as telas vazias: sem isto, "Meu treino"
  * e o histórico não mostrariam nada, e não se saberia se está vazio ou quebrado.
  */
-async function semearTreinoDeExemplo(bd) {
+async function montarTreino(bd, cpfDoAluno) {
   const { rows: donos } = await bd.query('SELECT id FROM usuario WHERE cpf = $1', [
     CONTA_PADRAO.cpf,
   ])
-  const { rows: alunas } = await bd.query('SELECT id FROM usuario WHERE cpf = $1', [
-    ALUNOS_DE_EXEMPLO[0].cpf,
-  ])
+  const { rows: alunos } = await bd.query('SELECT id FROM usuario WHERE cpf = $1', [cpfDoAluno])
 
   const { rows: treinos } = await bd.query(
     `INSERT INTO treino (id_aluno, id_professor, ativo) VALUES ($1, $2, TRUE)
      RETURNING id_treino`,
-    [alunas[0].id, donos[0].id],
+    [alunos[0].id, donos[0].id],
   )
   const idTreino = treinos[0].id_treino
 
@@ -110,7 +113,7 @@ async function semearTreinoDeExemplo(bd) {
         `INSERT INTO ex_usuario (id_treino, id_bloco, id_user, id_exercicio,
                                  numero_serie, carga, repeticoes, ativo)
          VALUES ($1, $2, $3, $4, 3, 20, '12', TRUE)`,
-        [idTreino, criados[0].id_bloco, alunas[0].id, achados[0].id_exercicio],
+        [idTreino, criados[0].id_bloco, alunos[0].id, achados[0].id_exercicio],
       )
     }
     ordem += 1

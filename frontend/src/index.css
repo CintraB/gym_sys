@@ -119,4 +119,20 @@
   .area-segura-inferior {
     padding-bottom: calc(env(safe-area-inset-bottom) + 0.5rem);
   }
+
+  /*
+   * Afasta o conteúdo da barra de status.
+   *
+   * Precisa existir porque o `viewport-fit=cover` do index.html deixa a página
+   * ocupar a tela inteira, inclusive por baixo da barra de notificação — no
+   * navegador isso não aparece, mas dentro do APK o cabeçalho fica embaixo do
+   * relógio e dos ícones do sistema.
+   *
+   * Vai no elemento, e não no `body`: o cabeçalho é `sticky top-0`, então um
+   * padding no body o empurraria para baixo e ele grudaria no lugar errado ao
+   * rolar a tela.
+   */
+  .area-segura-superior {
+    padding-top: calc(env(safe-area-inset-top) + 0.75rem);
+  }
 }
