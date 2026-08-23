@@ -7,15 +7,13 @@ import {
   erroProibido,
   erroRequisicao,
 } from "../lib/erros.js";
-import { normalizarDigitos } from "../lib/validacao.js";
+import { exigirSenhaAceitavel, normalizarDigitos } from "../lib/validacao.js";
 import { tokenAposTrocaDeLogin } from "../lib/sessao.js";
 
 // A senha jamais entra aqui. É a mesma lista do professorController, com admin.
 const CAMPOS_PUBLICOS = "id, nome, cpf, email, titulo, aluno, professor, admin, ativo";
 
 const PERFIS = ["aluno", "professor", "admin"];
-
-const TAMANHO_MINIMO_SENHA = 6;
 
 /**
  * Lista todos os usuários, com filtro por perfil e status.
@@ -71,11 +69,8 @@ export const listarUsuarios = asyncHandler(async (req, res) => {
  */
 export const redefinirSenha = asyncHandler(async (req, res) => {
   const id = Number(req.params.id);
-  const senhaNova = typeof req.body?.senha_nova === "string" ? req.body.senha_nova : "";
+  const senhaNova = exigirSenhaAceitavel(req.body?.senha_nova, "A senha nova");
 
-  if (senhaNova.length < TAMANHO_MINIMO_SENHA) {
-    throw erroRequisicao(`A senha nova deve ter ao menos ${TAMANHO_MINIMO_SENHA} caracteres`);
-  }
   if (id === req.usuario.id) {
     throw erroProibido("Use a troca de senha comum para a sua própria conta");
   }

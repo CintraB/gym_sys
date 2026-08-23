@@ -42,9 +42,7 @@ export function validarCadastroUsuario(corpo) {
   if (nome.length > TAMANHO_NOME) {
     throw erroRequisicao(`Nome passa de ${TAMANHO_NOME} caracteres`);
   }
-  if (senha.length < 6) {
-    throw erroRequisicao("Senha deve ter ao menos 6 caracteres");
-  }
+  exigirSenhaAceitavel(senha, "Senha");
   if (email.length > TAMANHO_EMAIL) {
     throw erroRequisicao("E-mail muito longo");
   }
@@ -226,19 +224,45 @@ function normalizarTextoDoCatalogo(valor) {
   return typeof valor === "string" ? valor.trim().replace(/\s+/g, " ").toUpperCase() : "";
 }
 
+export const TAMANHO_MINIMO_SENHA = 6;
+
+/**
+ * A regra única do que é senha aceitável: cadastro, troca e redefinição.
+ *
+ * Mora aqui, e não em cada rota, porque três cópias da mesma regra viram três
+ * regras diferentes — foi assim que "só de espaços" passou nas três ao mesmo
+ * tempo. Espaço é caractere e conta no comprimento, mas uma senha inteira de
+ * espaços atende o mínimo sem ter conteúdo nenhum, e é o resultado típico de um
+ * erro de preenchimento: a pessoa tranca a conta com uma senha que não
+ * consegue reproduzir.
+ *
+ * Aparar as pontas seria o erro oposto — "  segredo  " é uma senha legítima, e
+ * quem a escolheu precisa que ela continue sendo exatamente aquilo no login.
+ */
+export function exigirSenhaAceitavel(valor, rotulo) {
+  const senha = typeof valor === "string" ? valor : "";
+
+  if (senha.length < TAMANHO_MINIMO_SENHA) {
+    throw erroRequisicao(`${rotulo} deve ter ao menos ${TAMANHO_MINIMO_SENHA} caracteres`);
+  }
+  if (senha.trim().length === 0) {
+    throw erroRequisicao(`${rotulo} não pode ser só espaços`);
+  }
+
+  return senha;
+}
+
 /**
  * Valida a troca de senha.
  *
- * O mínimo de 6 é o mesmo do cadastro — deixar a troca mais frouxa que o
- * cadastro permitiria enfraquecer a senha depois de criada.
+ * O mínimo é o mesmo do cadastro — deixar a troca mais frouxa que o cadastro
+ * permitiria enfraquecer a senha depois de criada.
  */
 export function validarTrocaDeSenha(corpo) {
   const senhaAtual = typeof corpo?.senha_atual === "string" ? corpo.senha_atual : "";
   const senhaNova = typeof corpo?.senha_nova === "string" ? corpo.senha_nova : "";
 
-  if (senhaNova.length < 6) {
-    throw erroRequisicao("A senha nova deve ter ao menos 6 caracteres");
-  }
+  exigirSenhaAceitavel(senhaNova, "A senha nova");
   if (senhaNova === senhaAtual) {
     throw erroRequisicao("A senha nova precisa ser diferente da atual");
   }
