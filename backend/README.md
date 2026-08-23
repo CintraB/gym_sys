@@ -114,7 +114,7 @@ Migrações, para bancos que já têm dados — aplicar na ordem, e só as que f
 | `db/migracao-v6-admin.sql` | perfil de `admin` e `senha_alterada_em` |
 | `db/migracao-v7-login.sql` | `senha_alterada_em` vira `sessoes_invalidadas_em` |
 
-O `seed.sql` popula o catálogo com 77 exercícios e roda **uma vez só** — a ordem das linhas define
+O `seed.sql` popula o catálogo com 79 exercícios e roda **uma vez só** — a ordem das linhas define
 os `id_exercicio`. Os triggers ficam separados porque preenchem `atualizado_em` via plpgsql, que o
 banco emulado dos testes não executa.
 
@@ -363,7 +363,8 @@ Cadastro de aluno ou professor:
 ```
 
 CPF e título são normalizados no servidor — podem chegar com máscara. Título é obrigatório (12
-dígitos, coluna `NOT NULL`); senha exige no mínimo 6 caracteres.
+dígitos, coluna `NOT NULL`); senha exige no mínimo 6 caracteres e não pode ser só espaços —
+`exigirSenhaAceitavel`, em `src/lib/validacao.js`, é a regra única do cadastro e das duas trocas.
 
 Novo exercício no catálogo:
 
@@ -469,6 +470,15 @@ PUT /admin/usuarios/7/senha  { "senha_nova": "..." }
 `/me/senha` **exige a senha atual**: sem isso, quem pega o aparelho destravado troca a senha e toma
 a conta sem nunca ter sabido a original. Senha atual errada responde 401 com a mesma mensagem de
 "não autenticado", para não confirmar que ela estava certa e outra coisa falhou.
+
+Esse 401 fala da senha digitada, **não da sessão** — o token continua valendo, e o cliente não pode
+tratá-lo como sessão expirada. No front isso é a lista `ROTAS_COM_401_DE_FORMULARIO` do
+`src/lib/api.ts`: sem ela, o interceptor derrubava a sessão e mandava para o login quem só errou a
+digitação. Apareceu no APK.
+
+A senha nova é recusada com 400 quando tem menos de 6 caracteres, quando é igual à atual e quando é
+só espaços. Espaço no meio ou nas pontas é caractere legítimo e **não** é aparado: `"  segredo  "`
+continua sendo exatamente isso no login.
 
 A rota de admin **não** pede a senha atual — é o caso de quem esqueceu — e por isso mesmo **recusa a
 própria conta do admin** com 403: para si ele usa `/me/senha`. Sem essa trava, a exigência da senha

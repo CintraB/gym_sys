@@ -72,7 +72,10 @@ Quem tem os dois perfis vê um atalho para alternar entre as áreas.
 ## Detalhes que valem saber
 
 **Sessão** é reidratada contra `GET /me` na carga, em vez de confiar num objeto
-do `localStorage`. Só o token é persistido, e um 401 derruba a sessão.
+do `localStorage`. Só o token é persistido, e um 401 derruba a sessão — menos
+nas rotas de `ROTAS_COM_401_DE_FORMULARIO`, em `lib/api.ts`. Hoje só
+`PUT /me/senha` está lá: o 401 dela é "a senha atual está errada", e tratá-lo
+como sessão morta mandava para o login quem apenas errou a digitação.
 
 **Marcações são otimistas**: a caixa responde na hora e a requisição segue
 atrás, desfazendo se o servidor recusar. Numa academia a rede oscila, e esperar
@@ -167,12 +170,51 @@ em silêncio durante o desenvolvimento, com o build passando e o bundle do mesmo
 > Conta inicial: CPF `000.000.000-00`, senha `gymsys123`, com os três perfis (admin, professor e
 > aluno). Os dois alunos de exemplo entram com senha `treino123`.
 
+**Semente local, para não recadastrar a cada build.** `SEMENTE_PUBLICA`, em `src/local/semear.js`,
+é o que vai no repositório. Se existir um `src/local/sementeLocal.js` exportando `SEMENTE` no mesmo
+formato — conta, alunos e blocos —, o build usa essa no lugar, e o APK daquela máquina nasce com a
+conta e o treino de verdade. O arquivo fica **fora do versionamento** (`.git/info/exclude`), então
+o dado pessoal não atravessa para o GitHub e quem clona o repositório continua recebendo a conta
+pública. `import.meta.glob` é o que permite isso: resolve no build e devolve vazio quando o arquivo
+não existe, onde um `import` direto quebraria a compilação.
+
+Cada linha de exercício aceita a forma curta (só o nome) ou a completa —
+`{ nome, tipo, series, repeticoes, carga, observacao }`. O `tipo` importa quando o nome se repete no
+catálogo: `CROSS OVER` existe em BÍCEPS e em TRÍCEPS, e sem ele viria o primeiro dos dois. Nome que
+não está no catálogo faz o seed **estourar na abertura** — o app não abre —, então vale testar a
+semente antes de gerar o APK.
+
 ```bash
 cd frontend && npm run apk
 ```
 
 Isso roda o `build:standalone`, sincroniza o projeto Android e chama o Gradle. Sai em
 `android/app/build/outputs/apk/debug/app-debug.apk`, com cerca de 13 MB.
+
+### O logo, e os três arquivos que saem dele
+
+A arte é `public/logoapp.png`, quadrada, com o halter em cima e o nome embaixo. Dela saem, por
+script, as imagens que a interface e o Android usam de fato — nenhuma delas é editada à mão:
+
+```bash
+powershell -File scripts/gerarSimboloDoLogo.ps1   # public/logo-simbolo{,-claro}.png
+powershell -File scripts/gerarIconeFonte.ps1      # assets/icon*.png
+npx capacitor-assets generate --android           # os mipmaps, a partir de assets/
+```
+
+O motivo dos dois primeiros é o mesmo: **o conteúdo ocupa ~40% do canvas, o resto é margem branca.**
+
+- `gerarSimboloDoLogo.ps1` recorta **só o halter** — o nome do sistema já aparece escrito ao lado, no
+  cabeçalho — e deixa o fundo transparente. Gera duas versões, porque o halter é preto e sumiria no
+  tema escuro: a clara troca apenas os tons neutros e preserva o laranja. O CSS escolhe entre elas
+  pela variável `--logo-simbolo`, redefinida nos mesmos três estados de tema da paleta, e a classe
+  `.logo-simbolo` a aplica como `background-image`. Duas `<img>` escondidas por media query também
+  funcionariam, mas a escondida seria baixada do mesmo jeito.
+- `gerarIconeFonte.ps1` recorta a margem e redesenha em três arquivos para o `capacitor-assets`: 80%
+  do canvas no ícone legado, que não tem máscara, e 60% na camada de frente do adaptativo, porque
+  acima disso a máscara do Android corta as pontas.
+
+Trocou a arte? Rode os três comandos acima, nessa ordem, e gere o APK.
 
 **Duas coisas que o `scripts/apk.mjs` resolve, e que valem saber:**
 
@@ -282,8 +324,10 @@ O smoke das telas é a resposta ao erro de importação que derrubou a tela do
 aluno sem ninguém perceber: o build passava porque nada renderizava componente.
 
 A API é substituída por `vi.mock` em `src/lib/api.ts`, que é o único ponto de
-saída HTTP do app. **Consequência:** os interceptors de token e de 401 não são
-exercitados por esta suíte — está anotado no [ROADMAP](../ROADMAP.md).
+saída HTTP do app. **Consequência:** as telas não exercitam os interceptors de
+token e de 401 — quem faz isso é `src/lib/api.test.ts`, que usa o `api` de
+verdade e troca só a rede, por um adapter falso. Foi essa lacuna que deixou o
+bug do 401 na troca de senha chegar ao aparelho.
 
 `src/test/utils.tsx` traz `renderizar(ui, { rota, caminho, usuario, carregando })`,
 que embrulha em `MemoryRouter` e injeta o `AuthContext` já resolvido — sem isso
