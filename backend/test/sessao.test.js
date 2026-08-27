@@ -541,6 +541,47 @@ test("remover série inexistente dá 404", async (t) => {
   assert.equal(resposta.status, 404);
 });
 
+test("finalizar grava observação e calorias opcionais", async (t) => {
+  const { api, token } = await cenario();
+  t.after(() => api.encerrar());
+
+  await api.post("/alunos/treino/sessao", null, { token });
+  const finalizada = await api.post(
+    "/alunos/treino/sessao/finalizar",
+    { observacao: " hoje rendeu pouco ", calorias: 350 },
+    { token }
+  );
+
+  assert.equal(finalizada.corpo.sessao.observacao, "hoje rendeu pouco");
+  assert.equal(Number(finalizada.corpo.sessao.calorias), 350);
+});
+
+test("finalizar sem observação nem calorias grava nulo", async (t) => {
+  const { api, token } = await cenario();
+  t.after(() => api.encerrar());
+
+  await api.post("/alunos/treino/sessao", null, { token });
+  const finalizada = await api.post("/alunos/treino/sessao/finalizar", null, { token });
+
+  assert.equal(finalizada.corpo.sessao.observacao, null);
+  assert.equal(finalizada.corpo.sessao.calorias, null);
+});
+
+test("calorias inválida é ignorada, não quebra o finalizar", async (t) => {
+  const { api, token } = await cenario();
+  t.after(() => api.encerrar());
+
+  await api.post("/alunos/treino/sessao", null, { token });
+  const finalizada = await api.post(
+    "/alunos/treino/sessao/finalizar",
+    { calorias: "muitas" },
+    { token }
+  );
+
+  assert.equal(finalizada.status, 200);
+  assert.equal(finalizada.corpo.sessao.calorias, null);
+});
+
 /* --------------------------------------------------- visão do professor */
 
 test("professor vê a frequência do aluno", async (t) => {

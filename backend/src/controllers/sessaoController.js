@@ -290,8 +290,9 @@ export const finalizarSessao = asyncHandler(async (req, res) => {
     throw erroConflito("Nenhum treino em andamento");
   }
 
-  // A duração sai de iniciado_em, que foi gravado pelo servidor. O corpo da
-  // requisição é ignorado de propósito: não há como o cliente inflar o tempo.
+  // A duração sai de iniciado_em, que foi gravado pelo servidor. Observação e
+  // calorias são as duas únicas coisas que o corpo pode de fato influenciar —
+  // tempo nunca vem do cliente, para não dar como inflar a duração.
   //
   // O cálculo acontece aqui, e não em SQL, porque iniciado_em é timestamptz e
   // o driver devolve um Date correto — subtrair em SQL exigiria sintaxe que
@@ -307,9 +308,22 @@ export const finalizarSessao = asyncHandler(async (req, res) => {
     Math.round((fim.getTime() - new Date(rows[0].iniciado_em).getTime()) / 1000)
   );
 
+  const observacao =
+    typeof req.body?.observacao === "string" && req.body.observacao.trim()
+      ? req.body.observacao.trim().slice(0, 200)
+      : null;
+  const calorias =
+    typeof req.body?.calorias === "number" &&
+    Number.isInteger(req.body.calorias) &&
+    req.body.calorias >= 0
+      ? req.body.calorias
+      : null;
+
   await db.query(
-    "UPDATE sessao_treino SET finalizado_em = $2, duracao_segundos = $3 WHERE id_sessao = $1",
-    [idSessao, fim, duracao]
+    `UPDATE sessao_treino
+        SET finalizado_em = $2, duracao_segundos = $3, observacao = $4, calorias = $5
+      WHERE id_sessao = $1`,
+    [idSessao, fim, duracao, observacao, calorias]
   );
 
   res.json(await carregarSessao(idSessao));
