@@ -1,12 +1,17 @@
+import { useEffect, useState } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import type { LucideIcon } from 'lucide-react'
 import { LogOut } from 'lucide-react'
 import { useAuth } from '../auth/useAuth'
+import { api } from '../lib/api'
 import { iniciais, primeiroNome } from '../lib/formato'
 import { cn } from '../lib/cn'
 import { BotaoTema, SeletorTema } from './ui/SeletorTema'
 import { TrocarArea } from './TrocarArea'
-import { descreverPerfis } from '../auth/areas'
+import { descreverPerfis, salvarUltimaRota } from '../auth/areas'
+import { Painel } from './ui/Painel'
+import { Botao } from './ui/Botao'
+import type { SessaoCompleta } from '../types'
 
 export interface ItemNav {
   para: string
@@ -24,6 +29,41 @@ export function AppShell({ itens, children }: { itens: ItemNav[]; children: Reac
   const { usuario, sair } = useAuth()
   const { pathname } = useLocation()
   const tituloAtual = itens.find((item) => item.para === pathname)?.rotulo
+  const [sessaoAtiva, setSessaoAtiva] = useState<SessaoCompleta | null>(null)
+
+  useEffect(() => {
+    salvarUltimaRota(pathname)
+  }, [pathname])
+
+  // Sair não derruba a sessão de treino aberta — ela sobrevive por design (é o
+  // que permite continuar depois de fechar e reabrir o app). Se o aluno tem
+  // uma em andamento, a decisão de finalizar ou descartar é forçada aqui, em
+  // vez de deixar o treino pendurado sem ele saber.
+  async function aoClicarSair() {
+    if (!usuario?.perfis.aluno) {
+      sair()
+      return
+    }
+    try {
+      const { data } = await api.get<SessaoCompleta | null>('/alunos/treino/sessao')
+      if (data) setSessaoAtiva(data)
+      else sair()
+    } catch {
+      sair()
+    }
+  }
+
+  async function finalizarEDeslogar() {
+    await api.post('/alunos/treino/sessao/finalizar')
+    setSessaoAtiva(null)
+    sair()
+  }
+
+  async function descartarEDeslogar() {
+    await api.delete('/alunos/treino/sessao')
+    setSessaoAtiva(null)
+    sair()
+  }
 
   return (
     <div className="min-h-dvh lg:flex">
@@ -64,7 +104,7 @@ export function AppShell({ itens, children }: { itens: ItemNav[]; children: Reac
           </div>
           <button
             type="button"
-            onClick={sair}
+            onClick={aoClicarSair}
             className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-sm text-texto-suave transition-colors hover:bg-superficie-2 hover:text-perigo"
           >
             <LogOut className="size-4" aria-hidden />
@@ -98,7 +138,7 @@ export function AppShell({ itens, children }: { itens: ItemNav[]; children: Reac
             <BotaoTema />
             <button
               type="button"
-              onClick={sair}
+              onClick={aoClicarSair}
               aria-label="Sair"
               className="rounded-xl p-2 text-texto-suave transition-colors hover:bg-superficie-2 hover:text-perigo"
             >
@@ -120,6 +160,27 @@ export function AppShell({ itens, children }: { itens: ItemNav[]; children: Reac
           ))}
         </div>
       </nav>
+
+      <Painel
+        aberto={sessaoAtiva !== null}
+        aoFechar={() => setSessaoAtiva(null)}
+        titulo="Treino em andamento"
+        rodape={
+          <div className="space-y-2">
+            <Botao onClick={finalizarEDeslogar} className="w-full">
+              Finalizar e sair
+            </Botao>
+            <Botao variante="perigo" onClick={descartarEDeslogar} className="w-full">
+              Descartar e sair
+            </Botao>
+          </div>
+        }
+      >
+        <p className="text-sm text-texto-suave">
+          Você tem um treino em andamento. Escolha o que fazer com ele antes de sair — ele não
+          continua sozinho enquanto você estiver deslogado.
+        </p>
+      </Painel>
     </div>
   )
 }

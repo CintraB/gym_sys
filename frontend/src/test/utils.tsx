@@ -43,6 +43,7 @@ interface Opcoes {
   caminho?: string
   usuario?: Usuario | null
   carregando?: boolean
+  sair?: () => void
 }
 
 /**
@@ -54,13 +55,13 @@ interface Opcoes {
  */
 export function renderizar(
   ui: ReactElement,
-  { rota = '/', caminho, usuario = PROFESSOR, carregando = false }: Opcoes = {},
+  { rota = '/', caminho, usuario = PROFESSOR, carregando = false, sair = () => {} }: Opcoes = {},
 ) {
   const valor = {
     usuario,
     carregando,
     entrar: async () => usuario as Usuario,
-    sair: () => {},
+    sair,
     atualizarUsuario: () => {},
   }
 

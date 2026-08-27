@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { Navigate } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth'
-import { rotaDoCargo } from '../auth/areas'
+import { rotaParaRetomar } from '../auth/areas'
 import { mensagemDeErro } from '../lib/api'
 import { mascararCpf, somenteDigitos } from '../lib/formato'
 import { Botao } from '../components/ui/Botao'
@@ -21,7 +21,7 @@ export default function Login() {
   }
 
   if (usuario) {
-    return <Navigate to={rotaDoCargo(usuario.cargo)} replace />
+    return <Navigate to={rotaParaRetomar(usuario)} replace />
   }
 
   const cpfCompleto = somenteDigitos(cpf).length === 11

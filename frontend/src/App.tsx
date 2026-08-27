@@ -1,6 +1,8 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AuthProvider } from './auth/AuthProvider'
 import { RotaProtegida } from './auth/RotaProtegida'
+import { useBotaoVoltarAndroid } from './lib/useBotaoVoltarAndroid'
+import { Toast } from './components/ui/Toast'
 import Login from './pages/Login'
 import ProfessorLayout from './pages/professor/ProfessorLayout'
 import Dashboard from './pages/professor/Dashboard'
@@ -15,10 +17,17 @@ import MeuTreino from './pages/aluno/MeuTreino'
 import Historico from './pages/aluno/Historico'
 import Perfil from './pages/aluno/Perfil'
 
+/** Fica dentro do Router só para poder usar useNavigate/useLocation. */
+function BotaoVoltarAndroid() {
+  const { avisoSaida } = useBotaoVoltarAndroid()
+  return <Toast mensagem={avisoSaida ? 'Toque voltar de novo para sair' : null} />
+}
+
 export default function App() {
   return (
     <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <AuthProvider>
+        <BotaoVoltarAndroid />
         <Routes>
           <Route path="/entrar" element={<Login />} />
 

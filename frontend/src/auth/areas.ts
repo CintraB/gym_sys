@@ -21,6 +21,33 @@ export function rotaDoCargo(cargo: Cargo) {
   return AREAS.find((area) => area.cargo === cargo)?.rota ?? '/aluno'
 }
 
+const CHAVE_ULTIMA_ROTA = 'gymsys.ultima_rota'
+
+/**
+ * Grava a rota atual, para reabrir nela depois.
+ *
+ * Existe porque o Android mata o app em segundo plano sob pressão de memória —
+ * comportamento normal do sistema, não um bug dele — e o WebView volta do
+ * zero: sem isso, a pessoa sempre cai na área do cargo principal, mesmo tendo
+ * saído de uma tela de outra área ou mais funda.
+ */
+export function salvarUltimaRota(pathname: string) {
+  localStorage.setItem(CHAVE_ULTIMA_ROTA, pathname)
+}
+
+/**
+ * Para onde levar quem já está autenticado: a última rota, se os perfis atuais
+ * ainda alcançarem essa área; senão a área do cargo principal.
+ */
+export function rotaParaRetomar(usuario: Usuario) {
+  const salva = localStorage.getItem(CHAVE_ULTIMA_ROTA)
+  if (salva) {
+    const area = AREAS.find((a) => salva === a.rota || salva.startsWith(`${a.rota}/`))
+    if (area && usuario.perfis[area.cargo]) return salva
+  }
+  return rotaDoCargo(usuario.cargo)
+}
+
 /** "Admin, professor e aluno" — descreve a conta, não a pessoa. */
 export function descreverPerfis(usuario: Usuario) {
   const nomes = AREAS.filter((area) => usuario.perfis[area.cargo]).map((area) =>
