@@ -89,6 +89,11 @@ export function descreverSerieCurta(
   return partes.join(' · ')
 }
 
+/** "20kg×10" — carga e repetição de uma série realmente lançada. */
+export function formatarSerieRealizada(carga: number, repeticoes: string) {
+  return `${carga}kg×${repeticoes}`
+}
+
 /** 3725 -> "1h02". Para o cronômetro e para o histórico. */
 export function formatarDuracao(segundos: number | null) {
   if (segundos === null || !Number.isFinite(segundos)) return '—'

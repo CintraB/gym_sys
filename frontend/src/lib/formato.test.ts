@@ -6,6 +6,7 @@ import {
   formatarCarga,
   formatarCronometro,
   formatarDuracao,
+  formatarSerieRealizada,
   iniciais,
   mascararCpf,
   mascararTitulo,
@@ -117,6 +118,16 @@ describe('descreverSerieCurta', () => {
 
   it('some inteira no cardio', () => {
     expect(descreverSerieCurta(0, '', 0)).toBe('')
+  })
+})
+
+describe('formatarSerieRealizada', () => {
+  it('junta carga e repetições', () => {
+    expect(formatarSerieRealizada(20, '10')).toBe('20kg×10')
+  })
+
+  it('aceita carga zero', () => {
+    expect(formatarSerieRealizada(0, '15')).toBe('0kg×15')
   })
 })
 

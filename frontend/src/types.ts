@@ -98,6 +98,14 @@ export interface Resumo {
 
 /* --------------------------------------------- execução do treino */
 
+/** Um lançamento de peso/repetição real numa série. */
+export interface SessaoSerie {
+  id: number
+  carga: string | number
+  repeticoes: string
+  criado_em: string
+}
+
 /** Um exercício dentro de uma sessão: o prescrito + se já foi feito. */
 export interface SessaoExercicio {
   id: number
@@ -110,6 +118,7 @@ export interface SessaoExercicio {
   observacao_ex_usuario: string | null
   nome_exercicio: string
   tipo: string | null
+  series: SessaoSerie[]
 }
 
 export interface Sessao {
@@ -124,6 +133,8 @@ export interface Sessao {
   nome_professor: string
   bloco_letra: string | null
   bloco_nome: string | null
+  observacao: string | null
+  calorias: number | null
 }
 
 export interface SessaoCompleta {
