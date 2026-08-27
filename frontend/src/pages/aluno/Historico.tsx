@@ -7,6 +7,7 @@ import {
   formatarData,
   formatarDataHora,
   formatarDuracao,
+  formatarSerieRealizada,
   rotularBloco,
   tempoRelativo,
 } from '../../lib/formato'
@@ -17,7 +18,7 @@ import { Carregando, Esqueleto } from '../../components/ui/Carregando'
 import { Vazio } from '../../components/ui/Vazio'
 import { Painel } from '../../components/ui/Painel'
 import { cn } from '../../lib/cn'
-import type { ItemHistoricoSessao, SessaoCompleta } from '../../types'
+import type { ItemHistoricoSessao, SessaoCompleta, SessaoExercicio } from '../../types'
 
 export default function Historico() {
   const [sessaoAberta, setSessaoAberta] = useState<number | null>(null)
@@ -105,11 +106,32 @@ export default function Historico() {
   )
 }
 
+function calcularOrdemETempo(exercicios: SessaoExercicio[], iniciadoEm: string) {
+  const concluidos = exercicios
+    .filter((e) => e.concluido && e.concluido_em)
+    .sort((a, b) => new Date(a.concluido_em!).getTime() - new Date(b.concluido_em!).getTime())
+  const mapa = new Map<number, { ordem: number; segundos: number }>()
+  let anterior = new Date(iniciadoEm).getTime()
+  concluidos.forEach((exercicio, indice) => {
+    const agora = new Date(exercicio.concluido_em!).getTime()
+    mapa.set(exercicio.id, {
+      ordem: indice + 1,
+      segundos: Math.max(0, Math.round((agora - anterior) / 1000)),
+    })
+    anterior = agora
+  })
+  return mapa
+}
+
 function DetalheSessao({ id, aoFechar }: { id: number | null; aoFechar: () => void }) {
   const detalhe = useRequisicao<SessaoCompleta | null>(
     () => (id ? api.get<SessaoCompleta>(`/alunos/sessoes/${id}`).then((r) => r.data) : Promise.resolve(null)),
     [id],
   )
+
+  const ordemETempo = detalhe.dados
+    ? calcularOrdemETempo(detalhe.dados.exercicios, detalhe.dados.sessao.iniciado_em)
+    : new Map<number, { ordem: number; segundos: number }>()
 
   return (
     <Painel aberto={id !== null} aoFechar={aoFechar} titulo="Detalhe do treino">
@@ -128,6 +150,17 @@ function DetalheSessao({ id, aoFechar }: { id: number | null; aoFechar: () => vo
             <span>{tempoRelativo(detalhe.dados.sessao.iniciado_em)}</span>
           </div>
 
+          {(detalhe.dados.sessao.observacao || detalhe.dados.sessao.calorias != null) && (
+            <div className="space-y-1 rounded-xl border border-borda bg-superficie-2 p-3 text-sm">
+              {detalhe.dados.sessao.observacao && (
+                <p className="text-texto">“{detalhe.dados.sessao.observacao}”</p>
+              )}
+              {detalhe.dados.sessao.calorias != null && (
+                <p className="text-texto-suave">{detalhe.dados.sessao.calorias} kcal</p>
+              )}
+            </div>
+          )}
+
           <ul className="space-y-2">
             {detalhe.dados.exercicios.map((exercicio) => {
               const linha = descreverSerie(
@@ -135,6 +168,7 @@ function DetalheSessao({ id, aoFechar }: { id: number | null; aoFechar: () => vo
                 exercicio.repeticoes,
                 exercicio.carga,
               )
+              const info = ordemETempo.get(exercicio.id)
               return (
                 <li
                   key={exercicio.id}
@@ -156,16 +190,37 @@ function DetalheSessao({ id, aoFechar }: { id: number | null; aoFechar: () => vo
                     )}
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span
-                      className={cn(
-                        'block text-sm font-medium',
-                        !exercicio.concluido && 'text-texto-suave',
+                    <span className="flex flex-wrap items-center gap-x-2">
+                      <span
+                        className={cn(
+                          'text-sm font-medium',
+                          !exercicio.concluido && 'text-texto-suave',
+                        )}
+                      >
+                        {exercicio.nome_exercicio}
+                      </span>
+                      {info && (
+                        <span className="flex items-center gap-1 text-xs tabular-nums text-texto-suave">
+                          <span>{info.ordem}º</span>
+                          <span aria-hidden>·</span>
+                          <span>{Math.round(info.segundos / 60)} min</span>
+                        </span>
                       )}
-                    >
-                      {exercicio.nome_exercicio}
                     </span>
                     {linha && (
                       <span className="block text-xs tabular-nums text-texto-suave">{linha}</span>
+                    )}
+                    {exercicio.series.length > 0 && (
+                      <span className="mt-1 flex flex-wrap gap-1.5">
+                        {exercicio.series.map((serie) => (
+                          <span
+                            key={serie.id}
+                            className="rounded-full bg-superficie-2 px-2 py-0.5 text-xs tabular-nums text-texto-suave"
+                          >
+                            {formatarSerieRealizada(Number(serie.carga), serie.repeticoes)}
+                          </span>
+                        ))}
+                      </span>
                     )}
                   </span>
                 </li>
