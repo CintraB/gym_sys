@@ -255,6 +255,35 @@ export const adicionarSerie = asyncHandler(async (req, res) => {
   res.status(201).json(rows[0]);
 });
 
+/** Remove um lançamento errado — só enquanto a sessão segue aberta. */
+export const removerSerie = asyncHandler(async (req, res) => {
+  const idItem = Number(req.params.id);
+  const idSerie = Number(req.params.idSerie);
+  if (!Number.isInteger(idItem) || idItem <= 0 || !Number.isInteger(idSerie) || idSerie <= 0) {
+    throw erroRequisicao("Identificador inválido");
+  }
+
+  const { rows } = await db.query(
+    `DELETE FROM sessao_serie
+      WHERE id = $1
+        AND id_sessao_exercicio = $2
+        AND id_sessao_exercicio IN (
+            SELECT se.id FROM sessao_exercicio se
+             WHERE se.id_sessao IN (
+                 SELECT id_sessao FROM sessao_treino
+                  WHERE id_aluno = $3 AND finalizado_em IS NULL
+             )
+        )
+      RETURNING id`,
+    [idSerie, idItem, req.usuario.id]
+  );
+
+  if (rows.length === 0) {
+    throw erroNaoEncontrado("Série não encontrada na sessão em andamento");
+  }
+  res.json({ message: "Série removida" });
+});
+
 export const finalizarSessao = asyncHandler(async (req, res) => {
   const idSessao = await buscarSessaoAberta(req.usuario.id);
   if (!idSessao) {

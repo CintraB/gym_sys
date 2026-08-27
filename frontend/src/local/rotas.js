@@ -34,6 +34,7 @@ export const TABELA = [
   { metodo: 'POST', caminho: '/alunos/treino/sessao/finalizar', autenticado: true, perfil: 'aluno', acao: sessao.finalizarSessao },
   { metodo: 'PUT', caminho: '/alunos/treino/sessao/exercicio/:id', autenticado: true, perfil: 'aluno', acao: sessao.alternarExercicio },
   { metodo: 'POST', caminho: '/alunos/treino/sessao/exercicio/:id/serie', autenticado: true, perfil: 'aluno', acao: sessao.adicionarSerie },
+  { metodo: 'DELETE', caminho: '/alunos/treino/sessao/exercicio/:id/serie/:idSerie', autenticado: true, perfil: 'aluno', acao: sessao.removerSerie },
   { metodo: 'GET', caminho: '/alunos/sessoes', autenticado: true, perfil: 'aluno', acao: sessao.minhasSessoes },
   { metodo: 'GET', caminho: '/alunos/sessoes/:id', autenticado: true, perfil: 'aluno', acao: sessao.detalheDaMinhaSessao },
 

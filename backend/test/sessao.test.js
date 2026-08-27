@@ -470,6 +470,77 @@ test("não lança série depois de finalizar a sessão", async (t) => {
   assert.equal(resposta.status, 404);
 });
 
+test("remove um lançamento de série", async (t) => {
+  const { api, token } = await cenario();
+  t.after(() => api.encerrar());
+
+  const sessao = await api.post("/alunos/treino/sessao", null, { token });
+  const idItem = sessao.corpo.exercicios[0].id;
+  const serie = await api.post(
+    `/alunos/treino/sessao/exercicio/${idItem}/serie`,
+    { carga: 20, repeticoes: "10" },
+    { token }
+  );
+
+  const removida = await api.requisicao(
+    "DELETE",
+    `/alunos/treino/sessao/exercicio/${idItem}/serie/${serie.corpo.id}`,
+    { token }
+  );
+  assert.equal(removida.status, 200);
+
+  const atual = await api.get("/alunos/treino/sessao", { token });
+  const exercicio = atual.corpo.exercicios.find((e) => e.id === idItem);
+  assert.equal(exercicio.series.length, 0);
+});
+
+test("não remove série de outro aluno", async (t) => {
+  const { api, tokenProfessor, token } = await cenario();
+  t.after(() => api.encerrar());
+
+  const sessao = await api.post("/alunos/treino/sessao", null, { token });
+  const idItem = sessao.corpo.exercicios[0].id;
+  const serie = await api.post(
+    `/alunos/treino/sessao/exercicio/${idItem}/serie`,
+    { carga: 20, repeticoes: "10" },
+    { token }
+  );
+
+  const outro = await api.post(
+    "/professores/alunos",
+    { ...ALUNO, cpf: "33333333333", titulo: "333333333333", email: "outro@teste.com" },
+    { token: tokenProfessor }
+  );
+  await api.post(
+    "/professores/treino",
+    { id_aluno: outro.corpo.aluno.id, exercicios: EXERCICIOS },
+    { token: tokenProfessor }
+  );
+  const loginOutro = await api.post("/login", { cpf: "33333333333", senha: ALUNO.senha });
+
+  const invasao = await api.requisicao(
+    "DELETE",
+    `/alunos/treino/sessao/exercicio/${idItem}/serie/${serie.corpo.id}`,
+    { token: loginOutro.corpo.token }
+  );
+  assert.equal(invasao.status, 404);
+});
+
+test("remover série inexistente dá 404", async (t) => {
+  const { api, token } = await cenario();
+  t.after(() => api.encerrar());
+
+  const sessao = await api.post("/alunos/treino/sessao", null, { token });
+  const idItem = sessao.corpo.exercicios[0].id;
+
+  const resposta = await api.requisicao(
+    "DELETE",
+    `/alunos/treino/sessao/exercicio/${idItem}/serie/999999`,
+    { token }
+  );
+  assert.equal(resposta.status, 404);
+});
+
 /* --------------------------------------------------- visão do professor */
 
 test("professor vê a frequência do aluno", async (t) => {
