@@ -308,6 +308,45 @@ test("treino novo do professor não invalida a sessão em andamento", async (t) 
   assert.equal(finalizada.status, 200, "e ainda pode ser finalizada");
 });
 
+/* ------------------------------------------------------- séries realizadas */
+
+test("sessao_serie guarda peso e repetição por lançamento", async (t) => {
+  const { api, token } = await cenario();
+  t.after(() => api.encerrar());
+
+  const sessao = await api.post("/alunos/treino/sessao", null, { token });
+  const idItem = sessao.corpo.exercicios[0].id;
+
+  api.executar(
+    `INSERT INTO sessao_serie (id_sessao_exercicio, carga, repeticoes) VALUES (${idItem}, 20, '10')`
+  );
+  const linhas = api.consultar(
+    `SELECT carga, repeticoes FROM sessao_serie WHERE id_sessao_exercicio = ${idItem}`
+  );
+
+  assert.equal(linhas.length, 1);
+  assert.equal(Number(linhas[0].carga), 20);
+  assert.equal(linhas[0].repeticoes, "10");
+});
+
+test("sessao_treino aceita observação e calorias", async (t) => {
+  const { api, token } = await cenario();
+  t.after(() => api.encerrar());
+
+  const sessao = await api.post("/alunos/treino/sessao", null, { token });
+  const idSessao = sessao.corpo.sessao.id_sessao;
+
+  api.executar(
+    `UPDATE sessao_treino SET observacao = 'rendeu pouco', calorias = 350 WHERE id_sessao = ${idSessao}`
+  );
+  const linhas = api.consultar(
+    `SELECT observacao, calorias FROM sessao_treino WHERE id_sessao = ${idSessao}`
+  );
+
+  assert.equal(linhas[0].observacao, "rendeu pouco");
+  assert.equal(Number(linhas[0].calorias), 350);
+});
+
 /* --------------------------------------------------- visão do professor */
 
 test("professor vê a frequência do aluno", async (t) => {

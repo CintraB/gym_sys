@@ -144,7 +144,11 @@ CREATE TABLE IF NOT EXISTS sessao_treino (
     iniciado_em       TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     -- NULL enquanto o treino está em andamento.
     finalizado_em     TIMESTAMPTZ,
-    duracao_segundos  INTEGER
+    duracao_segundos  INTEGER,
+    -- Livres, preenchidos ao finalizar. NULL é o estado de toda sessão já
+    -- registrada antes desta coluna existir.
+    observacao        VARCHAR(200),
+    calorias          INTEGER
 );
 
 CREATE TABLE IF NOT EXISTS sessao_exercicio (
@@ -153,6 +157,17 @@ CREATE TABLE IF NOT EXISTS sessao_exercicio (
     id_ex_usuario  INTEGER   NOT NULL REFERENCES ex_usuario (id) ON DELETE CASCADE,
     concluido      BOOLEAN   NOT NULL DEFAULT FALSE,
     concluido_em   TIMESTAMPTZ
+);
+
+-- Um lançamento por série realizada (peso e repetição de verdade, não o
+-- prescrito). Sem coluna de "número da série": a ordem de lançamento (id/
+-- criado_em) já numera, mesmo padrão de sessao_exercicio e ex_usuario.
+CREATE TABLE IF NOT EXISTS sessao_serie (
+    id                   SERIAL PRIMARY KEY,
+    id_sessao_exercicio  INTEGER   NOT NULL REFERENCES sessao_exercicio (id) ON DELETE CASCADE,
+    carga                INTEGER   NOT NULL,
+    repeticoes           VARCHAR(30) NOT NULL,
+    criado_em            TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX IF NOT EXISTS idx_usuario_cpf        ON usuario (cpf);
@@ -176,3 +191,4 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_sessao_aberta_por_aluno
     ON sessao_treino (id_aluno) WHERE finalizado_em IS NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_sessao_exercicio_unico
     ON sessao_exercicio (id_sessao, id_ex_usuario);
+CREATE INDEX IF NOT EXISTS idx_sessao_serie_exercicio ON sessao_serie (id_sessao_exercicio);
