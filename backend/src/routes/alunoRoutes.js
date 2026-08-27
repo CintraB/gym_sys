@@ -15,6 +15,7 @@ rotas.post("/treino/sessao", sessao.iniciarSessao);
 rotas.delete("/treino/sessao", sessao.descartarSessao);
 rotas.post("/treino/sessao/finalizar", sessao.finalizarSessao);
 rotas.put("/treino/sessao/exercicio/:id", sessao.alternarExercicio);
+rotas.post("/treino/sessao/exercicio/:id/serie", sessao.adicionarSerie);
 
 rotas.get("/sessoes", sessao.minhasSessoes);
 rotas.get("/sessoes/:id", sessao.detalheDaMinhaSessao);

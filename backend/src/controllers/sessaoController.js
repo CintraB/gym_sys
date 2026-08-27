@@ -211,6 +211,50 @@ export const alternarExercicio = asyncHandler(async (req, res) => {
   res.json(rows[0]);
 });
 
+/** Lança peso/repetição de uma série realizada. */
+export const adicionarSerie = asyncHandler(async (req, res) => {
+  const idItem = Number(req.params.id);
+  if (!Number.isInteger(idItem) || idItem <= 0) {
+    throw erroRequisicao("Identificador inválido");
+  }
+
+  const carga = req.body?.carga;
+  if (typeof carga !== "number" || !Number.isInteger(carga) || carga < 0) {
+    throw erroRequisicao("Informe a carga como um número inteiro maior ou igual a zero");
+  }
+
+  const repeticoes = typeof req.body?.repeticoes === "string" ? req.body.repeticoes.trim() : "";
+  if (!repeticoes) {
+    throw erroRequisicao("Informe as repetições");
+  }
+
+  // INSERT ... SELECT ... WHERE EXISTS: a mesma consulta garante a posse e
+  // grava, sem corrida entre checar e inserir.
+  // Os casts explícitos evitam o mesmo problema já visto em iniciarSessao:
+  // sem eles, o pg-mem infere os literais do SELECT como texto e recusa
+  // gravar em coluna integer.
+  const { rows } = await db.query(
+    `INSERT INTO sessao_serie (id_sessao_exercicio, carga, repeticoes)
+     SELECT $1::int, $2::int, $3
+      WHERE EXISTS (
+          SELECT 1 FROM sessao_exercicio se
+           WHERE se.id = $1::int
+             AND se.id_sessao IN (
+                 SELECT id_sessao FROM sessao_treino
+                  WHERE id_aluno = $4::int AND finalizado_em IS NULL
+             )
+      )
+     RETURNING id, carga, repeticoes, criado_em`,
+    [idItem, carga, repeticoes, req.usuario.id]
+  );
+
+  if (rows.length === 0) {
+    throw erroNaoEncontrado("Exercício não encontrado na sessão em andamento");
+  }
+
+  res.status(201).json(rows[0]);
+});
+
 export const finalizarSessao = asyncHandler(async (req, res) => {
   const idSessao = await buscarSessaoAberta(req.usuario.id);
   if (!idSessao) {

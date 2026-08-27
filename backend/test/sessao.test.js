@@ -376,6 +376,100 @@ test("exercício sem lançamento traz series vazio, não ausente", async (t) => 
   assert.equal(sessao.corpo.exercicios[0].series.length, 0);
 });
 
+test("lança peso e repetição numa série", async (t) => {
+  const { api, token } = await cenario();
+  t.after(() => api.encerrar());
+
+  const sessao = await api.post("/alunos/treino/sessao", null, { token });
+  const idItem = sessao.corpo.exercicios[0].id;
+
+  const resposta = await api.post(
+    `/alunos/treino/sessao/exercicio/${idItem}/serie`,
+    { carga: 20, repeticoes: "10" },
+    { token }
+  );
+
+  assert.equal(resposta.status, 201, JSON.stringify(resposta.corpo));
+  assert.equal(Number(resposta.corpo.carga), 20);
+  assert.equal(resposta.corpo.repeticoes, "10");
+  assert.ok(resposta.corpo.id);
+});
+
+test("carga precisa ser inteiro não negativo", async (t) => {
+  const { api, token } = await cenario();
+  t.after(() => api.encerrar());
+
+  const sessao = await api.post("/alunos/treino/sessao", null, { token });
+  const idItem = sessao.corpo.exercicios[0].id;
+
+  for (const carga of [-1, 1.5, "20", null]) {
+    const resposta = await api.post(
+      `/alunos/treino/sessao/exercicio/${idItem}/serie`,
+      { carga, repeticoes: "10" },
+      { token }
+    );
+    assert.equal(resposta.status, 400, `aceitou carga ${JSON.stringify(carga)}`);
+  }
+});
+
+test("repetições não pode ficar vazio", async (t) => {
+  const { api, token } = await cenario();
+  t.after(() => api.encerrar());
+
+  const sessao = await api.post("/alunos/treino/sessao", null, { token });
+  const idItem = sessao.corpo.exercicios[0].id;
+
+  const resposta = await api.post(
+    `/alunos/treino/sessao/exercicio/${idItem}/serie`,
+    { carga: 20, repeticoes: "   " },
+    { token }
+  );
+  assert.equal(resposta.status, 400);
+});
+
+test("não lança série em exercício de outro aluno", async (t) => {
+  const { api, tokenProfessor, token } = await cenario();
+  t.after(() => api.encerrar());
+
+  const sessao = await api.post("/alunos/treino/sessao", null, { token });
+  const idItem = sessao.corpo.exercicios[0].id;
+
+  const outro = await api.post(
+    "/professores/alunos",
+    { ...ALUNO, cpf: "33333333333", titulo: "333333333333", email: "outro@teste.com" },
+    { token: tokenProfessor }
+  );
+  await api.post(
+    "/professores/treino",
+    { id_aluno: outro.corpo.aluno.id, exercicios: EXERCICIOS },
+    { token: tokenProfessor }
+  );
+  const loginOutro = await api.post("/login", { cpf: "33333333333", senha: ALUNO.senha });
+
+  const invasao = await api.post(
+    `/alunos/treino/sessao/exercicio/${idItem}/serie`,
+    { carga: 20, repeticoes: "10" },
+    { token: loginOutro.corpo.token }
+  );
+  assert.equal(invasao.status, 404);
+});
+
+test("não lança série depois de finalizar a sessão", async (t) => {
+  const { api, token } = await cenario();
+  t.after(() => api.encerrar());
+
+  const sessao = await api.post("/alunos/treino/sessao", null, { token });
+  const idItem = sessao.corpo.exercicios[0].id;
+  await api.post("/alunos/treino/sessao/finalizar", null, { token });
+
+  const resposta = await api.post(
+    `/alunos/treino/sessao/exercicio/${idItem}/serie`,
+    { carga: 20, repeticoes: "10" },
+    { token }
+  );
+  assert.equal(resposta.status, 404);
+});
+
 /* --------------------------------------------------- visão do professor */
 
 test("professor vê a frequência do aluno", async (t) => {
