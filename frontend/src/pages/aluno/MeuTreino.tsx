@@ -1,5 +1,5 @@
 import { useMemo, useState, type FormEvent } from 'react'
-import { Check, Dumbbell, Flag, Play, Send, Timer, Trash2 } from 'lucide-react'
+import { Check, ChevronDown, Dumbbell, Flag, Play, Send, Timer, Trash2, X } from 'lucide-react'
 import { api, mensagemDeErro } from '../../lib/api'
 import { useRequisicao } from '../../lib/useRequisicao'
 import { useCronometro } from '../../lib/useCronometro'
@@ -9,24 +9,27 @@ import {
   formatarCronometro,
   formatarData,
   formatarDuracao,
+  formatarSerieRealizada,
   rotularBloco,
   tempoRelativo,
 } from '../../lib/formato'
 import { Abas } from '../../components/ui/Abas'
 import { Botao } from '../../components/ui/Botao'
-import { AreaTexto } from '../../components/ui/Campo'
+import { AreaTexto, Campo } from '../../components/ui/Campo'
 import { Cartao } from '../../components/ui/Cartao'
 import { Aviso } from '../../components/ui/Aviso'
 import { Esqueleto } from '../../components/ui/Carregando'
 import { Vazio } from '../../components/ui/Vazio'
 import { Selo } from '../../components/ui/Selo'
 import { Painel } from '../../components/ui/Painel'
+import { useConfirmacao } from '../../components/ui/Confirmacao'
 import { cn } from '../../lib/cn'
 import type {
   ExercicioDoTreino,
   PedidoProprio,
   SessaoCompleta,
   SessaoExercicio,
+  SessaoSerie,
   TreinoCompleto,
 } from '../../types'
 
@@ -63,7 +66,21 @@ export default function MeuTreino() {
   // Uma sessão aberta manda na tela: quem voltou ao app no meio do treino
   // precisa cair direto no modo de execução.
   if (sessao.dados) {
-    return <ModoExecucao dados={sessao.dados} aoMudar={() => sessao.recarregar()} />
+    return (
+      <ModoExecucao
+        dados={sessao.dados}
+        aoMudar={() => sessao.recarregar()}
+        aoAtualizarSemPiscar={async () => {
+          // `sessao.recarregar()` liga `sessao.carregando`, que desmonta o
+          // ModoExecucao pelo esqueleto de carregamento aqui em cima — e junto
+          // vai o estado local do acordeão de séries. Buscar direto e trocar só
+          // os dados evita isso: lançar/remover uma série não pode fechar o
+          // exercício que a pessoa acabou de abrir.
+          const { data } = await api.get<SessaoCompleta | null>('/alunos/treino/sessao')
+          sessao.definirDados(data)
+        }}
+      />
+    )
   }
 
   return <ModoLeitura treino={treino} aoIniciar={() => sessao.recarregar()} />
@@ -83,6 +100,7 @@ function ModoLeitura({
   const [painelPedido, setPainelPedido] = useState(false)
   const [painelBloco, setPainelBloco] = useState(false)
   const [blocoVisto, setBlocoVisto] = useState<number | null>(null)
+  const { confirmar, dialogo: dialogoInicio } = useConfirmacao()
 
   const pedido = useRequisicao<PedidoProprio | null>(
     () => api.get<PedidoProprio | null>('/alunos/pedidotreino').then((r) => r.data),
@@ -110,6 +128,16 @@ function ModoLeitura({
     }
   }
 
+  async function confirmarEIniciar(idBloco: number | null) {
+    setPainelBloco(false)
+    const ok = await confirmar({
+      titulo: 'Iniciar treino agora?',
+      mensagem: 'O tempo começa a contar assim que confirmar.',
+      acao: 'Iniciar',
+    })
+    if (ok) iniciar(idBloco)
+  }
+
   return (
     <div className="space-y-5">
       {treino.erro && <Aviso tipo="erro">{treino.erro}</Aviso>}
@@ -131,7 +159,7 @@ function ModoLeitura({
             {erro && <Aviso tipo="erro">{erro}</Aviso>}
 
             <Botao
-              onClick={() => (blocos.length > 1 ? setPainelBloco(true) : iniciar(null))}
+              onClick={() => (blocos.length > 1 ? setPainelBloco(true) : confirmarEIniciar(null))}
               carregando={iniciando}
               className="w-full"
             >
@@ -225,7 +253,7 @@ function ModoLeitura({
             <li key={bloco.id_bloco}>
               <button
                 type="button"
-                onClick={() => iniciar(bloco.id_bloco)}
+                onClick={() => confirmarEIniciar(bloco.id_bloco)}
                 className={cn(
                   'flex w-full items-center justify-between gap-3 rounded-2xl border p-4 text-left transition-colors',
                   bloco.id_bloco === sugerido
@@ -247,6 +275,8 @@ function ModoLeitura({
           ))}
         </ul>
       </Painel>
+
+      {dialogoInicio}
     </div>
   )
 }
@@ -267,15 +297,40 @@ function LinhaLeitura({ exercicio }: { exercicio: ExercicioDoTreino }) {
 
 /* ------------------------------------------------------------ execução */
 
-function ModoExecucao({ dados, aoMudar }: { dados: SessaoCompleta; aoMudar: () => void }) {
+function ModoExecucao({
+  dados,
+  aoMudar,
+  aoAtualizarSemPiscar,
+}: {
+  dados: SessaoCompleta
+  aoMudar: () => void
+  aoAtualizarSemPiscar: () => Promise<void>
+}) {
   const [erro, setErro] = useState<string | null>(null)
   const [finalizando, setFinalizando] = useState(false)
   const [confirmarFim, setConfirmarFim] = useState(false)
   const [resumo, setResumo] = useState<SessaoCompleta | null>(null)
+  const { confirmar, dialogo: dialogoDescarte } = useConfirmacao()
 
   // Marcações otimistas: a caixa responde na hora e a requisição segue atrás.
   // Numa academia a rede oscila, e esperar o servidor a cada toque trava a mão.
   const [otimistas, setOtimistas] = useState<Record<number, boolean>>({})
+
+  const [exercicioExpandido, setExercicioExpandido] = useState<number | null>(null)
+
+  async function adicionarSerie(item: SessaoExercicio, dados: { carga: number; repeticoes: string }) {
+    await api.post(`/alunos/treino/sessao/exercicio/${item.id}/serie`, dados)
+    await aoAtualizarSemPiscar()
+  }
+
+  async function removerSerie(item: SessaoExercicio, idSerie: number) {
+    try {
+      await api.delete(`/alunos/treino/sessao/exercicio/${item.id}/serie/${idSerie}`)
+      await aoAtualizarSemPiscar()
+    } catch (e) {
+      setErro(mensagemDeErro(e, 'Não foi possível remover a série.'))
+    }
+  }
 
   const segundos = useCronometro(dados.sessao.iniciado_em)
   const exercicios = dados.exercicios.map((e) => ({
@@ -313,6 +368,14 @@ function ModoExecucao({ dados, aoMudar }: { dados: SessaoCompleta; aoMudar: () =
   }
 
   async function descartar() {
+    const ok = await confirmar({
+      titulo: 'Descartar treino?',
+      mensagem: 'Apaga esta sessão e não fica registrada no histórico.',
+      acao: 'Descartar',
+      perigo: true,
+    })
+    if (!ok) return
+
     setConfirmarFim(false)
     try {
       await api.delete('/alunos/treino/sessao')
@@ -377,6 +440,12 @@ function ModoExecucao({ dados, aoMudar }: { dados: SessaoCompleta; aoMudar: () =
                 key={item.id}
                 item={item}
                 aoAlternar={() => alternar(item, !item.concluido)}
+                expandido={exercicioExpandido === item.id}
+                aoAlternarExpandido={() =>
+                  setExercicioExpandido((atual) => (atual === item.id ? null : item.id))
+                }
+                aoAdicionarSerie={(dados) => adicionarSerie(item, dados)}
+                aoRemoverSerie={(idSerie) => removerSerie(item, idSerie)}
               />
             ))}
           </ul>
@@ -424,6 +493,8 @@ function ModoExecucao({ dados, aoMudar }: { dados: SessaoCompleta; aoMudar: () =
           </p>
         </div>
       </Painel>
+
+      {dialogoDescarte}
     </div>
   )
 }
@@ -431,55 +502,173 @@ function ModoExecucao({ dados, aoMudar }: { dados: SessaoCompleta; aoMudar: () =
 function LinhaExecucao({
   item,
   aoAlternar,
+  expandido,
+  aoAlternarExpandido,
+  aoAdicionarSerie,
+  aoRemoverSerie,
 }: {
   item: SessaoExercicio
   aoAlternar: () => void
+  expandido: boolean
+  aoAlternarExpandido: () => void
+  aoAdicionarSerie: (dados: { carga: number; repeticoes: string }) => Promise<void>
+  aoRemoverSerie: (idSerie: number) => Promise<void>
 }) {
   const detalhe = descreverSerie(item.numero_serie, item.repeticoes, item.carga)
 
   return (
-    <li>
-      <button
-        type="button"
-        onClick={aoAlternar}
-        aria-pressed={item.concluido}
+    <li className="space-y-2">
+      <div
         className={cn(
-          'flex w-full items-center gap-3 rounded-2xl border p-4 text-left transition-colors',
+          'flex items-stretch gap-1 rounded-2xl border transition-colors',
           item.concluido
             ? 'border-acento/40 bg-acento/[0.08]'
             : 'border-borda bg-superficie hover:border-borda/80',
         )}
       >
-        <span
-          className={cn(
-            'grid size-6 shrink-0 place-items-center rounded-full border-2 transition-colors',
-            item.concluido ? 'border-acento bg-acento text-sobre-acento' : 'border-borda',
-          )}
-          aria-hidden
+        <button
+          type="button"
+          onClick={aoAlternar}
+          aria-pressed={item.concluido}
+          className="flex min-w-0 flex-1 items-center gap-3 p-4 text-left"
         >
-          {item.concluido && <Check className="size-3.5" strokeWidth={3} />}
-        </span>
-
-        <span className="min-w-0 flex-1">
           <span
             className={cn(
-              'block truncate font-medium',
-              item.concluido && 'text-texto-suave line-through decoration-texto-suave/50',
+              'grid size-6 shrink-0 place-items-center rounded-full border-2 transition-colors',
+              item.concluido ? 'border-acento bg-acento text-sobre-acento' : 'border-borda',
             )}
+            aria-hidden
           >
-            {item.nome_exercicio}
+            {item.concluido && <Check className="size-3.5" strokeWidth={3} />}
           </span>
-          {detalhe && (
-            <span className="mt-0.5 block text-sm tabular-nums text-texto-suave">{detalhe}</span>
-          )}
-          {item.observacao_ex_usuario && (
-            <span className="mt-1 block text-xs text-acento-texto">
-              {item.observacao_ex_usuario}
+
+          <span className="min-w-0 flex-1">
+            <span
+              className={cn(
+                'block truncate font-medium',
+                item.concluido && 'text-texto-suave line-through decoration-texto-suave/50',
+              )}
+            >
+              {item.nome_exercicio}
             </span>
-          )}
-        </span>
-      </button>
+            {detalhe && (
+              <span className="mt-0.5 block text-sm tabular-nums text-texto-suave">{detalhe}</span>
+            )}
+            {item.observacao_ex_usuario && (
+              <span className="mt-1 block text-xs text-acento-texto">
+                {item.observacao_ex_usuario}
+              </span>
+            )}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={aoAlternarExpandido}
+          aria-expanded={expandido}
+          aria-label={expandido ? 'Fechar séries lançadas' : 'Lançar peso e repetição'}
+          className="grid w-12 shrink-0 place-items-center text-texto-suave transition-colors hover:text-texto"
+        >
+          <ChevronDown
+            className={cn('size-5 transition-transform', expandido && 'rotate-180')}
+            aria-hidden
+          />
+        </button>
+      </div>
+
+      {expandido && (
+        <FormularioSerie
+          series={item.series}
+          aoAdicionar={aoAdicionarSerie}
+          aoRemover={aoRemoverSerie}
+        />
+      )}
     </li>
+  )
+}
+
+function FormularioSerie({
+  series,
+  aoAdicionar,
+  aoRemover,
+}: {
+  series: SessaoSerie[]
+  aoAdicionar: (dados: { carga: number; repeticoes: string }) => Promise<void>
+  aoRemover: (idSerie: number) => Promise<void>
+}) {
+  const [carga, setCarga] = useState('')
+  const [repeticoes, setRepeticoes] = useState('')
+  const [salvando, setSalvando] = useState(false)
+  const [erro, setErro] = useState<string | null>(null)
+
+  async function adicionar(evento: FormEvent) {
+    evento.preventDefault()
+    if (!repeticoes.trim()) return
+    setErro(null)
+    setSalvando(true)
+    try {
+      await aoAdicionar({ carga: Number(carga) || 0, repeticoes: repeticoes.trim() })
+      setCarga('')
+      setRepeticoes('')
+    } catch (e) {
+      setErro(mensagemDeErro(e, 'Não foi possível lançar a série.'))
+    } finally {
+      setSalvando(false)
+    }
+  }
+
+  return (
+    <div className="space-y-2 rounded-2xl border border-borda bg-superficie-2 p-3">
+      {series.length > 0 && (
+        <ul className="space-y-1">
+          {series.map((serie) => (
+            <li
+              key={serie.id}
+              className="flex items-center justify-between gap-2 text-sm tabular-nums"
+            >
+              <span>{formatarSerieRealizada(Number(serie.carga), serie.repeticoes)}</span>
+              <button
+                type="button"
+                onClick={() => aoRemover(serie.id)}
+                aria-label="Remover este lançamento"
+                className="rounded-lg p-1 text-texto-suave transition-colors hover:text-perigo"
+              >
+                <X className="size-3.5" aria-hidden />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {erro && <Aviso tipo="erro">{erro}</Aviso>}
+
+      <form onSubmit={adicionar} className="space-y-2">
+        <div className="grid grid-cols-2 gap-2">
+          <Campo
+            rotulo="Carga (kg)"
+            type="number"
+            inputMode="numeric"
+            min={0}
+            value={carga}
+            onChange={(e) => setCarga(e.target.value)}
+          />
+          <Campo
+            rotulo="Repetições"
+            value={repeticoes}
+            onChange={(e) => setRepeticoes(e.target.value)}
+          />
+        </div>
+        <Botao
+          type="submit"
+          tamanho="sm"
+          carregando={salvando}
+          disabled={!repeticoes.trim()}
+          className="w-full"
+        >
+          Adicionar
+        </Botao>
+      </form>
+    </div>
   )
 }
 
