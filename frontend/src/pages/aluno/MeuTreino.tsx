@@ -317,6 +317,8 @@ function ModoExecucao({
   const [otimistas, setOtimistas] = useState<Record<number, boolean>>({})
 
   const [exercicioExpandido, setExercicioExpandido] = useState<number | null>(null)
+  const [observacaoFinal, setObservacaoFinal] = useState('')
+  const [caloriasFinal, setCaloriasFinal] = useState('')
 
   async function adicionarSerie(item: SessaoExercicio, dados: { carga: number; repeticoes: string }) {
     await api.post(`/alunos/treino/sessao/exercicio/${item.id}/serie`, dados)
@@ -359,7 +361,10 @@ function ModoExecucao({
     setConfirmarFim(false)
     setFinalizando(true)
     try {
-      const { data } = await api.post<SessaoCompleta>('/alunos/treino/sessao/finalizar')
+      const corpo: { observacao?: string; calorias?: number } = {}
+      if (observacaoFinal.trim()) corpo.observacao = observacaoFinal.trim()
+      if (caloriasFinal.trim()) corpo.calorias = Number(caloriasFinal)
+      const { data } = await api.post<SessaoCompleta>('/alunos/treino/sessao/finalizar', corpo)
       setResumo(data)
     } catch (e) {
       setErro(mensagemDeErro(e, 'Não foi possível finalizar.'))
@@ -488,6 +493,21 @@ function ModoExecucao({
               Você ainda não marcou tudo. Pode finalizar assim mesmo — fica registrado o que fez.
             </p>
           )}
+          <AreaTexto
+            rotulo="Observação (opcional)"
+            rows={3}
+            value={observacaoFinal}
+            onChange={(e) => setObservacaoFinal(e.target.value)}
+            placeholder="Ex: hoje rendeu pouco, dor no ombro..."
+          />
+          <Campo
+            rotulo="Calorias gastas (opcional)"
+            type="number"
+            inputMode="numeric"
+            min={0}
+            value={caloriasFinal}
+            onChange={(e) => setCaloriasFinal(e.target.value)}
+          />
           <p className="text-texto-suave">
             Descartar apaga esta sessão e não registra nada no histórico.
           </p>

@@ -313,3 +313,42 @@ describe('MeuTreino — confirmar antes de descartar', () => {
     expect(del).not.toHaveBeenCalled()
   })
 })
+
+describe('MeuTreino — observação e calorias ao finalizar', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    responder({ '/alunos/treino/sessao': SESSAO_ATIVA })
+    post.mockResolvedValue({
+      data: { sessao: SESSAO_ATIVA.sessao, exercicios: SESSAO_ATIVA.exercicios },
+    } as never)
+  })
+
+  it('finaliza com observação e calorias preenchidas', async () => {
+    const usuario = userEvent.setup()
+    renderizar(<MeuTreino />, { usuario: ALUNO })
+
+    await usuario.click(await screen.findByRole('button', { name: /finalizar treino/i }))
+    await usuario.type(await screen.findByLabelText(/observação/i), 'rendeu pouco')
+    await usuario.type(screen.getByLabelText(/calorias/i), '350')
+    await usuario.click(screen.getByRole('button', { name: /finalizar e salvar/i }))
+
+    await waitFor(() => {
+      expect(post).toHaveBeenCalledWith('/alunos/treino/sessao/finalizar', {
+        observacao: 'rendeu pouco',
+        calorias: 350,
+      })
+    })
+  })
+
+  it('finaliza sem observação nem calorias manda corpo vazio', async () => {
+    const usuario = userEvent.setup()
+    renderizar(<MeuTreino />, { usuario: ALUNO })
+
+    await usuario.click(await screen.findByRole('button', { name: /finalizar treino/i }))
+    await usuario.click(await screen.findByRole('button', { name: /finalizar e salvar/i }))
+
+    await waitFor(() => {
+      expect(post).toHaveBeenCalledWith('/alunos/treino/sessao/finalizar', {})
+    })
+  })
+})
