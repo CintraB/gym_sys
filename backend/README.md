@@ -146,7 +146,10 @@ arquivo indica o que conferir antes de fechar as constraints.
   ter as três. O cargo principal, que decide para onde o app abre, é
   admin > professor > aluno.
 - A duração de uma sessão é sempre calculada no servidor a partir de `iniciado_em`. O corpo da
-  requisição de finalizar é ignorado: não há como o cliente inflar o tempo.
+  requisição de finalizar é ignorado para o tempo: não há como o cliente inflar o tempo.
+  `observacao` (texto, até 200 caracteres) e `calorias` (inteiro ≥ 0) são os dois campos que o
+  corpo de `POST .../finalizar` pode de fato influenciar — ambos opcionais, gravados como `NULL`
+  quando ausentes ou inválidos.
 
 As rotas de cadastro exigem um token do perfil que se quer criar, então em banco novo o primeiro
 usuário sai por script:
@@ -308,6 +311,8 @@ aluno — o caso de quem dá aula e também treina — e nesse caso alcança as 
 | DELETE | `/alunos/treino/sessao` | Descarta a sessão em andamento |
 | POST | `/alunos/treino/sessao/finalizar` | Finaliza e grava a duração |
 | PUT | `/alunos/treino/sessao/exercicio/:id` | Marca/desmarca um exercício |
+| POST | `/alunos/treino/sessao/exercicio/:id/serie` | Lança peso/repetição de uma série realizada |
+| DELETE | `/alunos/treino/sessao/exercicio/:id/serie/:idSerie` | Remove um lançamento, só com a sessão aberta |
 | GET | `/alunos/sessoes` | Histórico de treinos executados |
 | GET | `/alunos/sessoes/:id` | Detalhe de uma sessão |
 
