@@ -34,10 +34,19 @@ const SQL_EXERCICIOS_DA_SESSAO = `
    ORDER BY se.id
 `;
 
+const SQL_SERIES_DA_SESSAO = `
+  SELECT ss.id, ss.id_sessao_exercicio, ss.carga, ss.repeticoes, ss.criado_em
+    FROM sessao_serie ss
+    JOIN sessao_exercicio se ON se.id = ss.id_sessao_exercicio
+   WHERE se.id_sessao = $1
+   ORDER BY ss.id
+`;
+
 async function carregarSessao(idSessao) {
   const { rows } = await db.query(
     `SELECT s.id_sessao, s.id_treino, s.id_bloco, s.id_aluno, s.iniciado_em,
-            s.finalizado_em, s.duracao_segundos, u.nome AS nome_professor,
+            s.finalizado_em, s.duracao_segundos, s.observacao, s.calorias,
+            u.nome AS nome_professor,
             b.letra AS bloco_letra, b.nome AS bloco_nome
        FROM sessao_treino s
        JOIN treino t ON t.id_treino = s.id_treino
@@ -50,7 +59,22 @@ async function carregarSessao(idSessao) {
   if (rows.length === 0) return null;
 
   const { rows: exercicios } = await db.query(SQL_EXERCICIOS_DA_SESSAO, [idSessao]);
-  return { sessao: rows[0], exercicios };
+  const { rows: series } = await db.query(SQL_SERIES_DA_SESSAO, [idSessao]);
+
+  const seriesPorExercicio = new Map();
+  for (const serie of series) {
+    const lista = seriesPorExercicio.get(serie.id_sessao_exercicio) ?? [];
+    lista.push({ id: serie.id, carga: serie.carga, repeticoes: serie.repeticoes, criado_em: serie.criado_em });
+    seriesPorExercicio.set(serie.id_sessao_exercicio, lista);
+  }
+
+  return {
+    sessao: rows[0],
+    exercicios: exercicios.map((exercicio) => ({
+      ...exercicio,
+      series: seriesPorExercicio.get(exercicio.id) ?? [],
+    })),
+  };
 }
 
 async function buscarSessaoAberta(idAluno) {

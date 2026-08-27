@@ -347,6 +347,35 @@ test("sessao_treino aceita observação e calorias", async (t) => {
   assert.equal(Number(linhas[0].calorias), 350);
 });
 
+test("sessão traz as séries lançadas por exercício", async (t) => {
+  const { api, token } = await cenario();
+  t.after(() => api.encerrar());
+
+  const sessao = await api.post("/alunos/treino/sessao", null, { token });
+  const idItem = sessao.corpo.exercicios[0].id;
+
+  api.executar(
+    `INSERT INTO sessao_serie (id_sessao_exercicio, carga, repeticoes) VALUES (${idItem}, 20, '10')`
+  );
+
+  const atual = await api.get("/alunos/treino/sessao", { token });
+  const exercicio = atual.corpo.exercicios.find((e) => e.id === idItem);
+
+  assert.equal(exercicio.series.length, 1);
+  assert.equal(Number(exercicio.series[0].carga), 20);
+  assert.equal(exercicio.series[0].repeticoes, "10");
+});
+
+test("exercício sem lançamento traz series vazio, não ausente", async (t) => {
+  const { api, token } = await cenario();
+  t.after(() => api.encerrar());
+
+  const sessao = await api.post("/alunos/treino/sessao", null, { token });
+
+  assert.ok(Array.isArray(sessao.corpo.exercicios[0].series));
+  assert.equal(sessao.corpo.exercicios[0].series.length, 0);
+});
+
 /* --------------------------------------------------- visão do professor */
 
 test("professor vê a frequência do aluno", async (t) => {
