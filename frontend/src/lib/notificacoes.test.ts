@@ -29,6 +29,7 @@ import {
   anunciarTreino,
   garantirPermissao,
   limparTreino,
+  sincronizarTreino,
 } from './notificacoes'
 
 describe('limparTreino', () => {
@@ -234,5 +235,26 @@ describe('anunciarTreino', () => {
     await anunciarTreino(sessaoFalsa(AGORA.toISOString()))
 
     expect(schedule).not.toHaveBeenCalled()
+  })
+})
+
+describe('sincronizarTreino', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    isNativePlatform.mockReturnValue(true)
+    checkPermissions.mockResolvedValue({ display: 'granted' })
+  })
+
+  it('sem sessão aberta, apaga o que tiver sobrado', async () => {
+    await sincronizarTreino(null)
+
+    expect(cancel).toHaveBeenCalled()
+    expect(schedule).not.toHaveBeenCalled()
+  })
+
+  it('com sessão aberta, repõe o indicador', async () => {
+    await sincronizarTreino(sessaoFalsa(new Date().toISOString()))
+
+    expect(schedule).toHaveBeenCalled()
   })
 })

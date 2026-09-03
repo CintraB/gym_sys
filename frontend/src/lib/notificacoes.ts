@@ -133,3 +133,17 @@ export async function anunciarTreino({ sessao }: SessaoCompleta) {
 
   await LocalNotifications.schedule({ notifications: notificacoes })
 }
+
+/**
+ * Alinha a barra de notificação com o estado real do banco.
+ *
+ * Existe porque o Android mata o app em segundo plano sob pressão de memória —
+ * já aconteceu neste projeto, e foi o que causou o bug do perfil em 27/08.
+ * Sem esta reconciliação sobraria um indicador dizendo "treino em andamento"
+ * de um treino já finalizado, ou uma sessão aberta sem indicador nenhum.
+ */
+export async function sincronizarTreino(sessao: SessaoCompleta | null) {
+  if (!noAparelho()) return
+  if (sessao) await anunciarTreino(sessao)
+  else await limparTreino()
+}
