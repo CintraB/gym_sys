@@ -10,6 +10,7 @@ import {
   iniciais,
   mascararCpf,
   mascararTitulo,
+  normalizarBusca,
   primeiroNome,
   rotularBloco,
   somenteDigitos,
@@ -204,5 +205,20 @@ describe('iniciais', () => {
 
   it('não quebra com nome vazio', () => {
     expect(iniciais('')).toBe('')
+  })
+})
+
+describe('normalizarBusca', () => {
+  it('derruba a caixa para comparar', () => {
+    expect(normalizarBusca('SUPINO Reto')).toBe('supino reto')
+  })
+
+  it('remove o acento, para quem digita sem ele no celular', () => {
+    expect(normalizarBusca('BÍCEPS')).toBe('biceps')
+    expect(normalizarBusca('TRÍCEPS')).toBe('triceps')
+  })
+
+  it('apara as pontas', () => {
+    expect(normalizarBusca('  rosca  ')).toBe('rosca')
   })
 })

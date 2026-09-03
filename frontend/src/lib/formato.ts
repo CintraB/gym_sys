@@ -2,6 +2,22 @@ export function somenteDigitos(valor: string) {
   return valor.replace(/\D/g, '')
 }
 
+/**
+ * Deixa o texto comparável numa busca: sem caixa, sem acento, sem sobra nas
+ * pontas.
+ *
+ * O acento sai porque o catálogo é acentuado (BÍCEPS, TRÍCEPS) e ninguém
+ * digita acento no teclado do celular para filtrar uma lista — sem isso,
+ * "biceps" não acharia nada.
+ */
+export function normalizarBusca(valor: string) {
+  return valor
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+}
+
 /** 12345678901 -> 123.456.789-01 */
 export function mascararCpf(valor: string) {
   const digitos = somenteDigitos(valor).slice(0, 11)

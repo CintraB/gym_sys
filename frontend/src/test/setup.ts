@@ -78,6 +78,13 @@ if (temDom) {
   })
 }
 
+// O jsdom não implementa scrollIntoView — não há layout para rolar. Quem usa
+// (a SelecaoBuscavel, para manter o item ativo visível com o teclado do celular
+// ocupando meia tela) quebraria em todo teste sem este stub.
+if (temDom && !Element.prototype.scrollIntoView) {
+  Element.prototype.scrollIntoView = () => {}
+}
+
 afterEach(() => {
   // Sem isso, o DOM de um teste sobrevive para o seguinte e um getByText passa
   // a encontrar dois elementos iguais.
