@@ -19,12 +19,40 @@ export const HORAS_ATE_LEMBRETE = 2
  */
 const noAparelho = () => Capacitor.isNativePlatform()
 
-export async function limparTreino() {
+/**
+ * Embrulha uma rotina do plugin para que ela nunca rejeite.
+ *
+ * As telas chamam estas funções dentro do `try` do próprio fluxo de negócio:
+ * uma rejeição aqui viraria "Não foi possível iniciar o treino" com a sessão já
+ * criada no servidor, tela presa em modo execução depois de descartar, ou
+ * logout que não acontece. Notificação é enfeite: se o plugin falhar, o treino
+ * continua. E o modo de falha nem é exótico — um `cap sync` esquecido num APK
+ * futuro já basta.
+ */
+function aSalvo<A extends unknown[]>(rotina: (...args: A) => Promise<void>) {
+  return async (...args: A): Promise<void> => {
+    try {
+      await rotina(...args)
+    } catch {
+      // Silêncio de propósito: nenhuma tela depende do resultado.
+    }
+  }
+}
+
+export const limparTreino = aSalvo(async () => {
   if (!noAparelho()) return
   await LocalNotifications.cancel({
     notifications: [{ id: ID_EM_ANDAMENTO }, { id: ID_LEMBRETE }],
   })
-}
+  // `cancel` só alcança o que está pendente. O indicador é entregue na hora
+  // (não tem schedule.at), e o Android do plugin só chama
+  // dismissVisibleNotification no schedule e no toque — nunca no cancel. Como
+  // ele é `ongoing`, nem deslizando o usuário tira: sem esta linha o
+  // indicador fica grudado na barra para sempre.
+  await LocalNotifications.removeDeliveredNotificationsById({
+    ids: [ID_EM_ANDAMENTO, ID_LEMBRETE],
+  })
+})
 
 /**
  * Garante a permissão de notificar, pedindo no máximo uma vez.
@@ -84,7 +112,7 @@ const horaDe = (iso: string) =>
  * Posta o indicador fixo do treino em andamento e agenda o lembrete de
  * HORAS_ATE_LEMBRETE horas, numa chamada só de schedule.
  */
-export async function anunciarTreino({ sessao }: SessaoCompleta) {
+export const anunciarTreino = aSalvo(async ({ sessao }: SessaoCompleta) => {
   if (!noAparelho()) return
   if (!(await garantirPermissao())) return
 
@@ -100,6 +128,12 @@ export async function anunciarTreino({ sessao }: SessaoCompleta) {
   const inicio = `começou às ${horaDe(sessao.iniciado_em)}`
   const corpo = sessao.bloco_nome ? `${sessao.bloco_nome} · ${inicio}` : `${inicio} · toque para voltar`
 
+  // isExactNotification é `true` por padrão em toda notificação, tenha ela
+  // schedule.at ou não. Com targetSdkVersion 36 (variables.gradle) a permissão
+  // de alarme exato vem negada desde o Android 14, e aí o plugin abre a tela
+  // "Alarmes e lembretes" do sistema por cima do app a cada schedule. Nada aqui
+  // precisa de exatidão: o indicador nem é agendado, e um lembrete de 2 horas
+  // aguenta a janela do doze. Não "limpar" estas linhas.
   const notificacoes: LocalNotificationSchema[] = [
     {
       id: ID_EM_ANDAMENTO,
@@ -108,6 +142,7 @@ export async function anunciarTreino({ sessao }: SessaoCompleta) {
       channelId: CANAL_EM_ANDAMENTO,
       ongoing: true,
       autoCancel: false,
+      isExactNotification: false,
       extra: { rota: '/aluno' },
     },
   ]
@@ -127,12 +162,13 @@ export async function anunciarTreino({ sessao }: SessaoCompleta) {
       body: `Você começou há ${HORAS_ATE_LEMBRETE} horas. Finalize ou descarte quando puder.`,
       channelId: CANAL_LEMBRETES,
       schedule: { at: quandoLembrar },
+      isExactNotification: false,
       extra: { rota: '/aluno' },
     })
   }
 
   await LocalNotifications.schedule({ notifications: notificacoes })
-}
+})
 
 /**
  * Alinha a barra de notificação com o estado real do banco.
@@ -142,8 +178,8 @@ export async function anunciarTreino({ sessao }: SessaoCompleta) {
  * Sem esta reconciliação sobraria um indicador dizendo "treino em andamento"
  * de um treino já finalizado, ou uma sessão aberta sem indicador nenhum.
  */
-export async function sincronizarTreino(sessao: SessaoCompleta | null) {
+export const sincronizarTreino = aSalvo(async (sessao: SessaoCompleta | null) => {
   if (!noAparelho()) return
   if (sessao) await anunciarTreino(sessao)
   else await limparTreino()
-}
+})

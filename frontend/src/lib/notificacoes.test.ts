@@ -7,6 +7,7 @@ vi.mock('@capacitor/core', () => ({
 }))
 
 const cancel = vi.fn()
+const removeDeliveredNotificationsById = vi.fn()
 const schedule = vi.fn()
 const createChannel = vi.fn()
 const checkPermissions = vi.fn(async () => ({ display: 'granted' }))
@@ -15,6 +16,7 @@ const requestPermissions = vi.fn(async () => ({ display: 'granted' }))
 vi.mock('@capacitor/local-notifications', () => ({
   LocalNotifications: {
     cancel: (...args: unknown[]) => cancel(...args),
+    removeDeliveredNotificationsById: (...args: unknown[]) => removeDeliveredNotificationsById(...args),
     schedule: (...args: unknown[]) => schedule(...args),
     createChannel: (...args: unknown[]) => createChannel(...args),
     checkPermissions: () => checkPermissions(),
@@ -46,6 +48,16 @@ describe('limparTreino', () => {
     })
   })
 
+  // cancel só alcança o pendente. O indicador é entregue na hora e é `ongoing`:
+  // sem remover o entregue ele fica grudado na barra, e nem deslizando sai.
+  it('tira também o que já foi entregue à barra', async () => {
+    await limparTreino()
+
+    expect(removeDeliveredNotificationsById).toHaveBeenCalledWith({
+      ids: [ID_EM_ANDAMENTO, ID_LEMBRETE],
+    })
+  })
+
   // O módulo é importado pela versão web também: no navegador ele tem de
   // carregar e não fazer nada, em vez de estourar sem o plugin nativo.
   it('não toca no plugin fora do aparelho', async () => {
@@ -54,6 +66,15 @@ describe('limparTreino', () => {
     await limparTreino()
 
     expect(cancel).not.toHaveBeenCalled()
+    expect(removeDeliveredNotificationsById).not.toHaveBeenCalled()
+  })
+
+  // As telas chamam isto dentro do try do fluxo de negócio: uma rejeição aqui
+  // travaria a tela depois de descartar a sessão, ou impediria o logout.
+  it('não propaga falha do plugin', async () => {
+    cancel.mockRejectedValueOnce(new Error('sem plugin'))
+
+    await expect(limparTreino()).resolves.toBeUndefined()
   })
 })
 
@@ -222,6 +243,24 @@ describe('anunciarTreino', () => {
     )
   })
 
+  // O default do plugin é exato. Com targetSdkVersion 36 a permissão vem
+  // negada, e aí cada schedule abriria a tela "Alarmes e lembretes" do sistema
+  // por cima do app.
+  it('não pede alarme exato em nenhuma das duas', async () => {
+    await anunciarTreino(sessaoFalsa(AGORA.toISOString()))
+
+    expect(agendada(ID_EM_ANDAMENTO)).toMatchObject({ isExactNotification: false })
+    expect(agendada(ID_LEMBRETE)).toMatchObject({ isExactNotification: false })
+  })
+
+  // Iniciar o treino não pode virar "Não foi possível iniciar o treino" com a
+  // sessão já criada no servidor só porque o plugin nativo falhou.
+  it('não propaga falha do plugin', async () => {
+    schedule.mockRejectedValueOnce(new Error('sem plugin'))
+
+    await expect(anunciarTreino(sessaoFalsa(AGORA.toISOString()))).resolves.toBeUndefined()
+  })
+
   it('sem permissão, não agenda nada — e não estoura', async () => {
     checkPermissions.mockResolvedValue({ display: 'denied' })
 
@@ -256,5 +295,11 @@ describe('sincronizarTreino', () => {
     await sincronizarTreino(sessaoFalsa(new Date().toISOString()))
 
     expect(schedule).toHaveBeenCalled()
+  })
+
+  it('não propaga falha do plugin', async () => {
+    createChannel.mockRejectedValueOnce(new Error('sem plugin'))
+
+    await expect(sincronizarTreino(sessaoFalsa(new Date().toISOString()))).resolves.toBeUndefined()
   })
 })
