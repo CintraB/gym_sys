@@ -260,6 +260,14 @@ não pegou.
 No painel: Settings → API → *Exposed schemas* → remover `public`. É a segunda camada: o RLS já nega
 tudo, mas as duas juntas significam que religar uma não abre o banco sozinha.
 
+> **Isto será revertido de propósito mais adiante, e não é contradição.** A obra seguinte —
+> sincronização do APK — foi decidida em 03/09/2026 como **APK escrevendo direto no PostgREST**, o
+> que exige a Data API aberta. A ordem é essa por segurança: entre esta migração e aquela obra existe
+> uma janela em que as tabelas estariam alcançáveis **sem políticas RLS de verdade**, só com o
+> "nega tudo" automático. Fechar agora e reabrir depois, com as políticas prontas, é o caminho que
+> nunca deixa o banco exposto no meio. Quem reabrir sem ter escrito as políticas está criando o
+> buraco que este passo evita.
+
 - [ ] **Passo 5: revogar o EXECUTE da função do trigger**
 
 O advisor de segurança do Supabase aponta `public.rls_auto_enable()` como executável por `anon` e

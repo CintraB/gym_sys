@@ -170,12 +170,28 @@ o caminho alternativo. O provedor de Node acrescenta:
 
 - **Sincronização entre aparelhos.** Obra seguinte, e a intenção do dono está registrada:
   ele quer o APK **offline-first com sincronização** para o Supabase — treina sem rede, sobe depois.
-  O desenho dela tem uma pergunta em aberto que decide tudo, e que **não é decidida aqui**: o APK
-  sincroniza **através da API Express** (regra de negócio num lugar só, mas só sincroniza quando o
-  celular estiver na rede onde a API vive) ou **direto pelo PostgREST** (sincroniza de qualquer
-  lugar, mas exige reabrir a Data API, montar RLS de verdade e adotar o Auth do Supabase — boa parte
-  do caminho que este documento descartou). Nenhum caminho é possível ligando o app direto ao
-  Postgres: o WebView do Android não abre socket TCP para banco.
+  **Decidido em 03/09/2026: o APK sincronizará direto pelo PostgREST**, e não através da API. O dono
+  escolheu isso com o custo na mesa, depois de ver o caminho alternativo (API + túnel gratuito) lado
+  a lado. O que pesou: o PostgREST é o único desenho que **não depende do PC de casa estar ligado**.
+
+  O que essa escolha implica, e que a spec daquela obra terá de resolver:
+
+  1. **Identidade.** RLS decide pelo JWT do Supabase (`auth.uid()`), e o login aqui é CPF + scrypt
+     com JWT próprio. A saída que preserva o login por CPF é o backend passar a **assinar o token
+     com o JWT secret do Supabase**, em vez de adotar o Auth dele e duplicar cadastro em
+     `auth.users`.
+  2. **RLS de verdade, tabela por tabela** — reimplementar em SQL a autorização que hoje vive em
+     `exigirPerfil` e nas consultas dos controllers.
+  3. **A Data API reabre**, o que este documento fecha. Ver a nota de ordem no plano: fecha-se agora
+     e reabre-se depois, com as políticas prontas, para nunca existir uma janela de banco alcançável
+     sem política.
+  4. **Duas portas de escrita no mesmo dado**: o front web pela API Express, o APK pelo PostgREST.
+  5. **O modelo de confiança muda.** Hoje o servidor não confia no cliente. Ali, o app vira a
+     autoridade da regra (valida no SQLite com os controllers reais) e o Postgres vira armazenamento
+     com guarda-corpo. Aceitável na escala de uma academia, mas é mudança de premissa, não detalhe.
+
+  Ligar o app direto ao Postgres nunca foi opção: o WebView do Android não abre socket TCP para
+  banco.
 
   A regra de conflito já está decidida, e vale para os dois caminhos: **dono por tipo de dado** —
   sessão de treino pertence ao aluno e só cresce, então o aparelho ganha e o servidor acrescenta;
