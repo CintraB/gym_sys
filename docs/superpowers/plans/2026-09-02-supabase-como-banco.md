@@ -4,14 +4,15 @@
 > (recomendado) ou `superpowers:executing-plans` para implementar tarefa a tarefa. Os passos usam
 > caixa (`- [ ]`) para acompanhamento.
 
-**Objetivo:** o gym_sys passa a usar o Postgres do Supabase e a API fica acessível pela internet,
-sem que uma linha de regra de negócio mude.
+**Objetivo:** o gym_sys passa a usar o Postgres do Supabase, sem que uma linha de regra de negócio
+mude e sem que o app offline seja afetado.
 
-**Arquitetura:** o Supabase entra **só como banco**. O Express continua sendo a API e os controllers
-continuam únicos, compartilhados entre a web e o APK offline. A mudança no código é pequena de
-propósito — a fachada `db` já isola o pool, e o trabalho é sobre conexão, SSL, teto de pool e deploy.
+**Arquitetura:** o Supabase entra **só como banco**. O Express continua sendo a API, rodando no PC de
+casa na rede local, e os controllers continuam únicos, compartilhados entre a web e o APK offline. A
+mudança no código é pequena de propósito — a fachada `db` já isola o pool, e o trabalho é sobre
+conexão, SSL e teto de pool.
 
-**Stack:** Node ≥20, Express 4, `pg`, Postgres 17.6 no Supabase (sa-east-1), Fly.io (região `gru`).
+**Stack:** Node ≥20, Express 4, `pg`, Postgres 17.6 no Supabase (sa-east-1).
 
 **Spec:** `docs/superpowers/specs/2026-09-02-supabase-como-banco-design.md`
 
@@ -22,16 +23,16 @@ propósito — a fachada `db` já isola o pool, e o trabalho é sobre conexão, 
 - **Projeto Supabase**: ref `aluowtzsucntaqszpcsy`, região **sa-east-1 (São Paulo)**, plano **Free**,
   instância **t3.nano**, Postgres **17.6**.
 - **`max_connections` é 60, com 13 já em uso** pelos serviços do Supabase. Sobram ~47.
-- **A API vai para Fly.io na região `gru`.** Render e Railway não têm região no Brasil, e o
-  `autenticar` consulta o banco a cada requisição — hospedar fora do país paga a travessia duas
-  vezes por chamada.
+- **A API continua no PC de casa, na rede local.** Hospedagem paga está fora de orçamento, e tornar
+  a API alcançável de fora é assunto separado, para depois. Se um dia ela sair de casa, tem de ir
+  para um provedor com região no Brasil: o `autenticar` consulta o banco a cada requisição, e o
+  banco está em São Paulo.
 - **Conexão pelo pooler em session mode (porta 5432)**, nunca transaction mode (6543): os
   controllers usam `db.connect()` com `BEGIN … COMMIT`.
 - **SSL com `rejectUnauthorized: true`.** Nunca `false` — desligar a verificação do certificado
   reabre exatamente o ataque que o SSL impede.
 - **Segredo nenhum no repositório.** Senha do banco, `service_role` key e `TOKEN_SEG` vivem em
-  `backend/.env` (local, fora do git) e nas variáveis do Fly. `.env.example` recebe só o nome das
-  variáveis.
+  `backend/.env`, que é local e fora do git. O `.env.example` recebe só o nome das variáveis.
 - `npm test` no backend (247) e no front (261) continuam limpos ao fim de cada tarefa.
 - Backend em ESM, nomes e comentários em pt-BR, comentário explica **por quê**.
 - **Não editar arquivo-fonte com `sed -i`** neste Windows.
@@ -45,10 +46,12 @@ propósito — a fachada `db` já isola o pool, e o trabalho é sobre conexão, 
 | `backend/src/config/env.test.js` (novo, se não existir) | Testes da configuração nova |
 | `backend/src/config/db.js` | Repassa ssl e `max` ao `pg.Pool` |
 | `backend/.env.example` | Documenta as variáveis novas |
-| `backend/README.md` | Seção de conexão ao Supabase |
-| `deploy/fly/Dockerfile` (novo) | Imagem da API |
-| `deploy/fly/fly.toml` (novo) | App na região `gru` |
-| `deploy/README.md` | Ganha o caminho "nuvem" ao lado do caminho "PC de casa", que continua válido |
+| `backend/README.md` | Os dois modos de banco: container local e Supabase |
+| `deploy/README.md` | Registra que o Postgres local vira opcional |
+
+Nenhum arquivo é criado. O trabalho todo cabe em duas variáveis de configuração, a carga do schema
+no Supabase e documentação — o que é o sinal de que o desenho está certo: a fachada `db` já isolava
+exatamente isto.
 
 ---
 
@@ -349,164 +352,100 @@ Latência sentida, qualquer erro de SSL ou de conexão, e o resultado do fluxo d
 
 ---
 
-### Tarefa 5: hospedar a API no Fly.io, região `gru`
+### Tarefa 5: o container do Postgres sai de cena, e a documentação explica os dois modos
+
+Com o banco no Supabase, `npm run db:up` deixa de ser necessário no dia a dia — mas o
+`docker-compose.yml` **não sai do repositório**: ele continua sendo o caminho de volta se o Free do
+Supabase apertar, e é o que a suíte local usa quando alguém quer um banco de verdade sem rede.
 
 **Arquivos:**
-- Criar: `deploy/fly/Dockerfile`
-- Criar: `deploy/fly/fly.toml`
+- Modificar: `backend/README.md`
 - Modificar: `deploy/README.md`
 
-- [ ] **Passo 1: Dockerfile**
+- [ ] **Passo 1: documentar os dois modos no `backend/README.md`**
 
-```dockerfile
-# O backend é ESM puro e não tem etapa de build — só dependências e código.
-FROM node:22-alpine
+Uma seção curta, sem rodeios: com `DB_SSL=true` e o host do pooler, a API fala com o Supabase e
+**não se roda `npm run db:up`**; com o host local e `DB_SSL` vazio, sobe-se o container como sempre.
+Deixe explícito que quem decide é o `.env`, e que trocar de modo é trocar o `.env`.
 
-WORKDIR /app
+- [ ] **Passo 2: registrar a consequência que foi discutida e aceita**
 
-# Instala dependências antes de copiar o código: a camada só refaz quando o
-# package-lock muda, e não a cada alteração de controller.
-COPY backend/package*.json ./
-RUN npm ci --omit=dev
+Uma linha, porque é o tipo de coisa que se esquece e depois assusta: **com o banco no Supabase, a
+API precisa de internet mesmo servindo só a rede local.** Queda de fibra derruba o sistema dentro de
+casa — e nem as telas já abertas seguem funcionando, porque `autenticar` consulta o banco a cada
+requisição.
 
-COPY backend/ ./
+- [ ] **Passo 3: `deploy/README.md`**
 
-# Atrás do proxy do Fly, HOST_BIND precisa ser 0.0.0.0 para o contêiner receber
-# tráfego — o oposto do PC de casa, onde 127.0.0.1 protege a porta 8080.
-ENV HOST_BIND=0.0.0.0
-ENV PORTA=8080
-EXPOSE 8080
+O guia do PC de casa continua valendo inteiro (Caddy + systemd). Acrescente que o Postgres local
+vira opcional quando o banco está no Supabase, e que `PROXIES_CONFIAVEIS=1` e `HOST_BIND=127.0.0.1`
+continuam obrigatórios atrás do Caddy — isso não muda.
 
-CMD ["node", "server.js"]
-```
-
-- [ ] **Passo 2: `fly.toml`**
-
-```toml
-app = "gym-sys-api"
-# São Paulo. O banco está em sa-east-1 e o autenticar consulta o banco a cada
-# requisição — hospedar fora do Brasil pagaria a travessia duas vezes por chamada.
-primary_region = "gru"
-
-[build]
-  dockerfile = "Dockerfile"
-
-[http_service]
-  internal_port = 8080
-  force_https = true
-  auto_stop_machines = true
-  auto_start_machines = true
-  # Uma máquina só: o teto do pool foi dimensionado para isso, e subir a
-  # contagem exige rever DB_POOL_MAX contra as ~47 conexões livres.
-  min_machines_running = 0
-
-[[http_service.checks]]
-  interval = "30s"
-  timeout = "5s"
-  grace_period = "10s"
-  method = "GET"
-  path = "/health"
-```
-
-- [ ] **Passo 3: variáveis no Fly**
+- [ ] **Passo 4: commit**
 
 ```bash
-fly secrets set DB_HOST=... DB_PORT=5432 DB_USER=... DB_PASSWORD=... \
-  DB_NAME=postgres DB_SSL=true DB_POOL_MAX=10 \
-  TOKEN_SEG=<segredo NOVO> PROXIES_CONFIAVEIS=1 \
-  ENABLE_CORS=<origem do front>
-```
-
-Três pontos que não são detalhe:
-
-- **`TOKEN_SEG` novo**, gerado para a nuvem. Não reaproveite o de casa. Consequência esperada: todo
-  token existente deixa de valer.
-- **`PROXIES_CONFIAVEIS=1` é obrigatório** atrás do proxy do Fly. Sem ele o limitador de login
-  enxerga todos os clientes como o mesmo IP — o `CLAUDE.md` já registra isso para o Caddy.
-- **`ENABLE_CORS`** passa a importar: com o Caddy, front e API ficavam na mesma origem e CORS era
-  desnecessário. Hospedados separados, a origem do front precisa entrar na lista.
-
-- [ ] **Passo 4: subir e verificar**
-
-```bash
-fly deploy
-curl -s https://gym-sys-api.fly.dev/health
-```
-
-- [ ] **Passo 5: provar o fluxo pela internet**
-
-Login e carregar um treino, de fora da sua rede — use o 4G do celular, não o Wi-Fi de casa.
-
-- [ ] **Passo 6: atualizar o `deploy/README.md`**
-
-O caminho do PC de casa (Caddy + systemd) **continua válido e não sai** — vira alternativa. Acrescente
-a seção da nuvem, deixando claro qual configuração pertence a qual caminho, principalmente
-`HOST_BIND` (127.0.0.1 em casa, 0.0.0.0 no contêiner) e `ENABLE_CORS` (vazio em casa, preenchido na
-nuvem).
-
-- [ ] **Passo 7: commit**
-
-```bash
-git add deploy/
-git commit -m "adiciona o caminho de deploy na nuvem, com a API em Sao Paulo
-
-Fly.io na regiao gru porque o banco esta em sa-east-1 e o autenticar
-consulta o banco a cada requisicao. O caminho do PC de casa continua
-valido, agora como alternativa."
+git add backend/README.md deploy/README.md
+git commit -m "documenta os dois modos de banco, local e Supabase"
 ```
 
 ---
 
-### Tarefa 6: apontar o front e o APK para a API nova
+### Tarefa 6: provar que o front e o APK não foram afetados
 
-**Arquivos:** `frontend/.env` (local), `frontend/.env.example`, `frontend/README.md`.
+Esta tarefa não muda nada — ela **prova** que nada mudou. É o passo que pega um vazamento acidental
+do trabalho para o lado do app offline.
 
-- [ ] **Passo 1: `VITE_API_URL`**
+**Arquivos:** nenhum.
 
-```
-VITE_API_URL=https://gym-sys-api.fly.dev
-```
+- [ ] **Passo 1: o front continua apontando para o mesmo lugar**
 
-- [ ] **Passo 2: build e conferência**
+`VITE_API_URL` segue com o endereço do PC na rede local. A API trocou de banco, não de endereço — o
+front não sabe e não precisa saber. Confirme que o `.env` do front está intocado.
 
-```bash
-cd frontend && npm run build && npm run dev
-```
+- [ ] **Passo 2: exercitar a web**
 
-Entrar, carregar treino, iniciar e finalizar uma sessão.
+Com a API rodando contra o Supabase: entrar, carregar treino, iniciar sessão, lançar uma série,
+finalizar, abrir o histórico e ver a sessão lá.
 
-- [ ] **Passo 3: o APK — e o que NÃO muda nele**
-
-O APK standalone **não fala com a API**: ele roda o núcleo embarcado sobre SQLite. `VITE_API_URL` não
-o afeta, e o `capacitor.config.ts` continua como está.
-
-Gere e confira que ele continua funcionando **com a internet desligada** — é a prova de que nada
-deste trabalho vazou para o app offline:
+- [ ] **Passo 3: o APK, com a internet desligada**
 
 ```bash
 cd frontend && npm run apk
 ```
 
-- [ ] **Passo 4: `.env.example` e README**
+Instale com `adb uninstall` + `adb install` (nunca `-r`: o Service Worker guarda o bundle antigo),
+**ligue o modo avião** e use o app: entrar, carregar o treino, iniciar e finalizar uma sessão.
 
-Documente que `VITE_API_URL` agora aponta para a nuvem, e que o APK segue offline.
+Tudo tem de funcionar. O APK roda o núcleo embarcado sobre SQLite e não fala com a API nem com o
+Supabase — se algo aqui falhar, este trabalho vazou para o app offline e precisa ser investigado
+antes de seguir.
 
-- [ ] **Passo 5: commit**
+- [ ] **Passo 4: as duas suítes**
 
 ```bash
-git add frontend/.env.example frontend/README.md
-git commit -m "aponta o front para a API na nuvem"
+cd backend && npm test && npm run test:sqlite
+cd ../frontend && npm test
 ```
 
----
+Esperado: 247 e 261, como antes. **Nenhum número deveria mudar** — nada aqui toca regra de negócio.
+
+- [ ] **Passo 5: registrar no relatório**
+
+O que foi exercitado na web, o resultado do teste em modo avião, e os números das duas suítes.
 
 ## Depois das seis tarefas
 
-- **Sincronização entre aparelhos** é a obra seguinte, e a mais cara. A decisão de desenho já está
-  tomada na spec: dono por tipo de dado — sessão de treino é do aluno e só cresce (o aparelho ganha,
-  o servidor acrescenta); ficha de treino é escrita pelo professor (o servidor ganha).
-- **O cookie `httpOnly`** entra em jogo aqui. O `CLAUDE.md` registra que ele só fazia sentido depois
-  que o deploy estivesse de pé, porque front e API em origens diferentes exigiriam
-  `SameSite=None; Secure` e traria CSRF junto. Com a API hospedada, vale reavaliar.
-- **O `deploy/` de casa continua no repositório.** Se um dia o Free do Supabase apertar, o caminho de
-  volta está escrito.
+- **Sincronização entre aparelhos** é a obra seguinte, e a mais cara. É o que o dono realmente quer
+  do APK: treinar offline e subir depois. A regra de conflito já está decidida na spec — dono por
+  tipo de dado —, mas a primeira pergunta do desenho continua aberta: o APK sincroniza **através da
+  API** (regra num lugar só, mas só sincroniza na rede onde a API vive) ou **direto pelo PostgREST**
+  (de qualquer lugar, mas exige reabrir a Data API, montar RLS de verdade e adotar o Auth do
+  Supabase). Ligar o app direto ao Postgres não é opção: o WebView do Android não abre socket TCP
+  para banco.
+- **Tornar a API alcançável de fora**, que era metade do objetivo original e ficou de fora por
+  custo. Um túnel gratuito como o Cloudflare Tunnel resolveria sem abrir porta no roteador e sem
+  hospedagem paga — e destrava tanto o acesso remoto quanto a sincronização do APK pela API.
+- **O cookie `httpOnly`** continua esperando o deploy com Caddy, como o `CLAUDE.md` registra: só faz
+  sentido quando front e API estiverem na mesma origem.
+- **O `deploy/` de casa continua no repositório**, e agora também o `docker-compose.yml`. Se um dia
+  o Free do Supabase apertar, o caminho de volta está escrito.

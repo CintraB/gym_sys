@@ -7,8 +7,21 @@ Motivação declarada pelo dono: **acessar o sistema de fora de casa** e, mais a
 ## O que este trabalho é, e o que não é
 
 É **trocar onde o Postgres mora**: sai o container do PC de casa, entra o Postgres gerenciado do
-Supabase; e **colocar a API num lugar alcançável pela internet**, já que hoje ela só existe na rede
-local.
+Supabase. A API continua rodando no PC, na rede local, como hoje.
+
+**Revisão de 03/09/2026:** este documento começou querendo também colocar a API na internet, e
+chegou a escolher Fly.io. Isso caiu — o Fly é pago e não cabe agora. O dono decidiu manter a API na
+rede local por enquanto.
+
+Consequência que fica registrada, porque foi discutida e aceita: **com o banco fora de casa, a
+internet vira dependência para o sistema funcionar até dentro da rede local.** Hoje, com tudo no
+mesmo PC, uma queda de fibra não afeta nada; depois desta mudança, afeta — e nem as telas abertas
+seguem, porque o `autenticar` consulta o banco a cada requisição. O que se ganha em troca é backup
+gerenciado e os dados sobrevivendo à morte da máquina.
+
+Também fica registrado que, sozinha, esta mudança **não entrega os dois objetivos que a motivaram**:
+acessar de fora continua exigindo tornar a API alcançável (um túnel gratuito como o Cloudflare
+Tunnel resolveria, e ficou para depois), e a sincronização do APK é obra própria.
 
 Não é migrar para o Supabase como plataforma. O PostgREST, o Auth e as políticas RLS **não entram**.
 A razão está registrada abaixo, porque é a decisão mais importante deste documento.
@@ -39,7 +52,7 @@ offline-first que compartilha a regra com a web.
 | Pergunta | Decisão | Por quê |
 |---|---|---|
 | O que o Supabase substitui | Só o Postgres | Ver acima |
-| Onde a API roda | Um provedor de Node (Fly.io recomendado; Railway e Render servem) | O Supabase não hospeda Node. A API precisa estar acessível de fora, senão o objetivo não é atingido |
+| Onde a API roda | **No PC de casa, rede local** — como hoje | Hospedagem paga está fora de orçamento. Torná-la alcançável de fora é assunto separado, para depois |
 | O que muda no código | Praticamente nada: conexão e SSL | `src/config/db.js` já é fachada e o pool nasce de `carregarConfig().db` |
 | Sincronização entre aparelhos | **Fora deste trabalho** | É obra própria, e a mais cara. Este trabalho é pré-requisito dela, não a entrega |
 | APK offline | Intocado | Continua com SQLite e os controllers embarcados |
@@ -62,10 +75,10 @@ Levantado pelo MCP do Supabase, com o projeto já criado. Substitui as suposiç�
 
 Três consequências que mudam o desenho:
 
-1. **A hospedagem da API deixa de ser preferência e vira requisito de região.** O banco está em São
-   Paulo e o `autenticar` consulta o banco **a cada requisição**, de propósito. Hospedar a API fora
-   do Brasil pagaria a travessia duas vezes por chamada. **Fly.io tem a região `gru` (São Paulo);
-   Render e Railway não têm nada no Brasil.** Isso decide o provedor.
+1. **A região favorece o desenho escolhido.** O banco está em São Paulo e a API roda no PC do dono,
+   também no Brasil — a travessia por requisição é curta. Se um dia a API sair de casa, ela precisa
+   ir para um provedor com região no Brasil, porque o `autenticar` consulta o banco a cada
+   requisição.
 2. **O pool precisa de teto explícito.** Sobram ~47 conexões. O `pg` usa `max: 10` por padrão e o
    projeto nunca definiu esse valor — funciona hoje, mas passa a ser um número que alguém precisa
    ter escolhido, não herdado.
@@ -155,10 +168,19 @@ o caminho alternativo. O provedor de Node acrescenta:
 
 ## O que fica fora, explicitamente
 
-- **Sincronização entre aparelhos.** Obra seguinte. A decisão de desenho já tomada, para quando ela
-  chegar: **dono por tipo de dado** — sessão de treino pertence ao aluno e só cresce, então o
-  aparelho ganha e o servidor acrescenta; ficha de treino é escrita pelo professor, então o servidor
-  ganha. Nesse recorte, conflito real quase não existe.
+- **Sincronização entre aparelhos.** Obra seguinte, e a intenção do dono está registrada:
+  ele quer o APK **offline-first com sincronização** para o Supabase — treina sem rede, sobe depois.
+  O desenho dela tem uma pergunta em aberto que decide tudo, e que **não é decidida aqui**: o APK
+  sincroniza **através da API Express** (regra de negócio num lugar só, mas só sincroniza quando o
+  celular estiver na rede onde a API vive) ou **direto pelo PostgREST** (sincroniza de qualquer
+  lugar, mas exige reabrir a Data API, montar RLS de verdade e adotar o Auth do Supabase — boa parte
+  do caminho que este documento descartou). Nenhum caminho é possível ligando o app direto ao
+  Postgres: o WebView do Android não abre socket TCP para banco.
+
+  A regra de conflito já está decidida, e vale para os dois caminhos: **dono por tipo de dado** —
+  sessão de treino pertence ao aluno e só cresce, então o aparelho ganha e o servidor acrescenta;
+  ficha de treino é escrita pelo professor, então o servidor ganha. Nesse recorte, conflito real
+  quase não existe.
 - Auth, RLS e PostgREST do Supabase.
 - Storage e Realtime.
 - Qualquer mudança em controller, rota ou regra de negócio. **Se este trabalho precisar mexer num
