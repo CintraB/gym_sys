@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Check, History, Timer, X } from 'lucide-react'
 import { api } from '../../lib/api'
 import { useRequisicao } from '../../lib/useRequisicao'
@@ -20,15 +20,38 @@ import { Painel } from '../../components/ui/Painel'
 import { cn } from '../../lib/cn'
 import type { ItemHistoricoSessao, SessaoCompleta, SessaoExercicio } from '../../types'
 
+/**
+ * Recortes de tempo do histórico.
+ *
+ * `dias: null` é "Tudo", e é o padrão: quem abre a tela precisa ver tudo o que
+ * já fez, não descobrir que "sumiram" treinos por causa de um filtro que ele
+ * não escolheu.
+ */
+const PERIODOS = [
+  { rotulo: 'Tudo', dias: null },
+  { rotulo: '90 dias', dias: 90 },
+  { rotulo: '30 dias', dias: 30 },
+] as const
+
 export default function Historico() {
   const [sessaoAberta, setSessaoAberta] = useState<number | null>(null)
+  const [dias, setDias] = useState<number | null>(null)
 
   const sessoes = useRequisicao<ItemHistoricoSessao[]>(
     () => api.get<ItemHistoricoSessao[]>('/alunos/sessoes').then((r) => r.data),
     [],
   )
 
-  const totalTempo = (sessoes.dados ?? []).reduce((soma, s) => soma + (s.duracao_segundos ?? 0), 0)
+  // O recorte é no cliente: a lista de sessões já vem inteira do servidor, e
+  // filtrar aqui evita uma ida à rede a cada toque num botão.
+  const visiveis = useMemo(() => {
+    const todas = sessoes.dados ?? []
+    if (dias === null) return todas
+    const corte = Date.now() - dias * 24 * 60 * 60 * 1000
+    return todas.filter((s) => new Date(s.iniciado_em).getTime() >= corte)
+  }, [sessoes.dados, dias])
+
+  const totalTempo = visiveis.reduce((soma, s) => soma + (s.duracao_segundos ?? 0), 0)
 
   return (
     <div className="space-y-5">
@@ -47,11 +70,28 @@ export default function Historico() {
         </div>
       ) : sessoes.dados?.length ? (
         <>
+          <div className="flex gap-2" role="group" aria-label="Período">
+            {PERIODOS.map((periodo) => (
+              <button
+                key={periodo.rotulo}
+                type="button"
+                aria-pressed={dias === periodo.dias}
+                onClick={() => setDias(periodo.dias)}
+                className={cn(
+                  'rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors',
+                  dias === periodo.dias
+                    ? 'border-acento bg-acento text-sobre-acento'
+                    : 'border-borda text-texto-suave hover:border-acento/40',
+                )}
+              >
+                {periodo.rotulo}
+              </button>
+            ))}
+          </div>
+
           <div className="grid grid-cols-2 gap-3">
             <Cartao>
-              <p className="text-2xl font-semibold tabular-nums leading-none">
-                {sessoes.dados.length}
-              </p>
+              <p className="text-2xl font-semibold tabular-nums leading-none">{visiveis.length}</p>
               <p className="mt-1.5 text-xs text-texto-suave">Treinos feitos</p>
             </Cartao>
             <Cartao>
@@ -62,8 +102,14 @@ export default function Historico() {
             </Cartao>
           </div>
 
+          {visiveis.length === 0 && (
+            <p className="rounded-2xl border border-dashed border-borda p-6 text-center text-sm text-texto-suave">
+              Nenhum treino nesse período
+            </p>
+          )}
+
           <ol className="space-y-2">
-            {sessoes.dados.map((sessao) => (
+            {visiveis.map((sessao) => (
               <li key={sessao.id_sessao}>
                 <button
                   type="button"

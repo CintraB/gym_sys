@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ALUNO, renderizar } from '../../test/utils'
@@ -118,5 +118,98 @@ describe('Historico — detalhe da sessão', () => {
     expect(screen.getByText('5 min')).toBeInTheDocument()
     expect(screen.getByText('2º')).toBeInTheDocument()
     expect(screen.getByText('10 min')).toBeInTheDocument()
+  })
+})
+
+/**
+ * O histórico cresce para sempre — sem recorte, quem treina há um ano rola
+ * meses para chegar no mês passado.
+ */
+describe('Historico — filtro de período', () => {
+  const HOJE = new Date('2026-09-02T12:00:00Z')
+
+  const TRES_SESSOES = [
+    { ...LISTA[0], id_sessao: 1, iniciado_em: '2026-09-01T10:00:00Z', duracao_segundos: 1800 },
+    // 44 dias atrás: fora de 30, dentro de 90
+    { ...LISTA[0], id_sessao: 2, iniciado_em: '2026-07-20T10:00:00Z', duracao_segundos: 3600 },
+    // muito antes: só aparece em "Tudo"
+    { ...LISTA[0], id_sessao: 3, iniciado_em: '2026-01-10T10:00:00Z', duracao_segundos: 900 },
+  ]
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    vi.setSystemTime(HOJE)
+    get.mockImplementation((url: string) => {
+      if (url === '/alunos/sessoes') return Promise.resolve({ data: TRES_SESSOES } as never)
+      return Promise.resolve({ data: [] } as never)
+    })
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('abre em "Tudo", sem esconder treino nenhum', async () => {
+    renderizar(<Historico />, { usuario: ALUNO })
+
+    expect(await screen.findByText(/1 de set/i)).toBeInTheDocument()
+    expect(screen.getByText(/20 de jul/i)).toBeInTheDocument()
+    expect(screen.getByText(/10 de jan/i)).toBeInTheDocument()
+  })
+
+  it('30 dias deixa só o que está dentro da janela', async () => {
+    const usuario = userEvent.setup()
+    renderizar(<Historico />, { usuario: ALUNO })
+
+    await usuario.click(await screen.findByRole('button', { name: '30 dias' }))
+
+    expect(screen.getByText(/1 de set/i)).toBeInTheDocument()
+    expect(screen.queryByText(/20 de jul/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/10 de jan/i)).not.toBeInTheDocument()
+  })
+
+  it('90 dias alcança o que 30 dias deixou de fora', async () => {
+    const usuario = userEvent.setup()
+    renderizar(<Historico />, { usuario: ALUNO })
+
+    await usuario.click(await screen.findByRole('button', { name: '90 dias' }))
+
+    expect(screen.getByText(/20 de jul/i)).toBeInTheDocument()
+    expect(screen.queryByText(/10 de jan/i)).not.toBeInTheDocument()
+  })
+
+  // Os cartões são lidos pelo rótulo, e não por getByText do número: "30 min"
+  // também aparece na linha da sessão, e a busca solta pega os dois.
+  const cartao = (rotulo: string) =>
+    screen.getByText(rotulo).previousElementSibling?.textContent
+
+  it('os totais contam o período escolhido, não o histórico inteiro', async () => {
+    const usuario = userEvent.setup()
+    renderizar(<Historico />, { usuario: ALUNO })
+
+    // Tudo: 3 treinos, 1800+3600+900 = 6300s = 1h45
+    await screen.findByText(/1 de set/i)
+    expect(cartao('Treinos feitos')).toBe('3')
+    expect(cartao('Tempo total')).toBe('1h45')
+
+    await usuario.click(screen.getByRole('button', { name: '30 dias' }))
+
+    expect(cartao('Treinos feitos')).toBe('1')
+    expect(cartao('Tempo total')).toBe('30 min')
+  })
+
+  it('avisa quando o período escolhido não tem treino, sem sumir com os botões', async () => {
+    const usuario = userEvent.setup()
+    get.mockImplementation((url: string) => {
+      if (url === '/alunos/sessoes') return Promise.resolve({ data: [TRES_SESSOES[2]] } as never)
+      return Promise.resolve({ data: [] } as never)
+    })
+    renderizar(<Historico />, { usuario: ALUNO })
+
+    await usuario.click(await screen.findByRole('button', { name: '30 dias' }))
+
+    expect(screen.getByText('Nenhum treino nesse período')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Tudo' })).toBeInTheDocument()
   })
 })
