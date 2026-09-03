@@ -159,11 +159,14 @@ Por isso a hora de início é **escrita no corpo do texto**, calculada a partir 
 
 ```
 Treino A em andamento
-Peito e Tríceps · toque para voltar
+Peito e Tríceps · começou às 19:32
 ```
 
-O subtítulo cai para só "toque para voltar" quando o bloco não tem nome — `rotularBloco` já
-trata isso e é reaproveitado.
+O subtítulo troca o nome do bloco por uma dica quando o bloco não tem nome — vira
+"começou às 19:32 · toque para voltar".
+
+O título é montado no próprio módulo, e **não** por `rotularBloco`: aquele devolve
+"A — Peito e Tríceps", que não encaixa em "Treino A em andamento".
 
 **Lembrete** (2h depois, com som):
 
