@@ -74,6 +74,39 @@ describe('useNotificacaoDeTreino', () => {
     expect(get).not.toHaveBeenCalled()
   })
 
+  // O ouvinte sobrevive ao componente se não for removido: cada montagem
+  // acrescentaria mais um, e um toque na notificação navegaria várias vezes.
+  it('remove o ouvinte ao desmontar', async () => {
+    const remove = vi.fn()
+    // O handle vem cru, e não numa promessa: é o que o aparelho devolve, apesar
+    // do tipo declarado (o mesmo caso documentado no useBotaoVoltarAndroid).
+    // Chamar `.then` direto nele quebraria a limpeza no APK.
+    addListener.mockReturnValue({ remove })
+
+    const { unmount } = montar(ALUNO)
+    await waitFor(() => expect(addListener).toHaveBeenCalled())
+
+    unmount()
+
+    await waitFor(() => expect(remove).toHaveBeenCalled())
+  })
+
+  // Reconciliar depois do unmount postaria notificação de uma tela que já
+  // morreu — e, no logout, logo depois de limpar tudo.
+  it('não reconcilia se a resposta chega depois do unmount', async () => {
+    let responder: (v: { data: null }) => void = () => {}
+    get.mockReturnValue(new Promise((resolve) => { responder = resolve }) as never)
+
+    const { unmount } = montar(ALUNO)
+    await waitFor(() => expect(get).toHaveBeenCalled())
+
+    unmount()
+    responder({ data: null })
+    await Promise.resolve()
+
+    expect(sincronizarTreino).not.toHaveBeenCalled()
+  })
+
   it('não faz nada no navegador', async () => {
     isNativePlatform.mockReturnValue(false)
 

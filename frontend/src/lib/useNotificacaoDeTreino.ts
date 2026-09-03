@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Capacitor } from '@capacitor/core'
 import { LocalNotifications } from '@capacitor/local-notifications'
@@ -20,6 +20,13 @@ export function useNotificacaoDeTreino() {
   const navigate = useNavigate()
   const ehAluno = Boolean(usuario?.perfis.aluno)
 
+  // O useNavigate do react-router 6 é memoizado com o pathname na lista, então
+  // a identidade muda a cada navegação. Como dependência do efeito, ele fazia a
+  // "reconciliação na abertura do app" virar um GET da sessão + schedule
+  // inteiro a cada toque na barra inferior.
+  const navigateRef = useRef(navigate)
+  navigateRef.current = navigate
+
   useEffect(() => {
     if (!Capacitor.isNativePlatform() || !ehAluno) return
 
@@ -36,12 +43,17 @@ export function useNotificacaoDeTreino() {
     const promessa = LocalNotifications.addListener('localNotificationActionPerformed', (evento) => {
       const rota = evento.notification.extra?.rota
       // Sem isso o toque só traz o app à frente, na tela em que ele estava.
-      if (typeof rota === 'string') navigate(rota)
+      if (typeof rota === 'string') navigateRef.current(rota)
     })
 
     return () => {
       cancelado = true
-      promessa.then((ouvinte) => ouvinte.remove()).catch(() => {})
+      // Promise.resolve() por segurança: no aparelho, testado via CDP, o retorno
+      // do addListener não bate com o `.then` direto do tipo declarado — sem
+      // isso o ouvinte nunca é removido no APK.
+      Promise.resolve(promessa)
+        .then((ouvinte) => ouvinte.remove())
+        .catch(() => {})
     }
-  }, [ehAluno, navigate])
+  }, [ehAluno])
 }
