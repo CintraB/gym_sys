@@ -45,6 +45,47 @@ offline-first que compartilha a regra com a web.
 | APK offline | Intocado | Continua com SQLite e os controllers embarcados |
 | Testes | Intocados | Continuam em `pg-mem` e SQLite. Nada aqui muda a regra de negócio |
 
+## O projeto real, apurado em 02/09/2026
+
+Levantado pelo MCP do Supabase, com o projeto já criado. Substitui as suposições deste documento:
+
+| | |
+|---|---|
+| Postgres | **17.6** (o container de casa é 16-alpine) |
+| Região | **sa-east-1, São Paulo** |
+| Instância / plano | **t3.nano / Free** |
+| Tabelas em `public` | **nenhuma** — banco virgem, nada a migrar |
+| Timezone | UTC, igual ao container de casa |
+| `max_connections` | **60**, com **13 já em uso** pelos serviços do Supabase |
+| Data API (PostgREST) | **ligada** |
+| RLS automático | **já configurado** — ver abaixo |
+
+Três consequências que mudam o desenho:
+
+1. **A hospedagem da API deixa de ser preferência e vira requisito de região.** O banco está em São
+   Paulo e o `autenticar` consulta o banco **a cada requisição**, de propósito. Hospedar a API fora
+   do Brasil pagaria a travessia duas vezes por chamada. **Fly.io tem a região `gru` (São Paulo);
+   Render e Railway não têm nada no Brasil.** Isso decide o provedor.
+2. **O pool precisa de teto explícito.** Sobram ~47 conexões. O `pg` usa `max: 10` por padrão e o
+   projeto nunca definiu esse valor — funciona hoje, mas passa a ser um número que alguém precisa
+   ter escolhido, não herdado.
+3. **O Free pausa o projeto após 7 dias sem uso.** Numa academia em uso diário isso não acontece;
+   fica registrado porque o despausar é manual, pelo painel.
+
+## O RLS automático já está montado — e é melhor do que este documento planejava
+
+O projeto tem um **event trigger `ensure_rls`** (ativo) que executa `public.rls_auto_enable()` e
+liga RLS em **toda tabela criada no schema `public`**. Quando o `schema.sql` for aplicado, as 11
+tabelas nascem com RLS ligado sozinhas.
+
+Isso é superior a ligar tabela por tabela, que era o plano original: não depende de ninguém lembrar,
+e vale para qualquer tabela futura. A proteção nº 1 deixa de ser **tarefa** e vira **verificação**.
+
+Um ajuste pendente, apontado pelo próprio advisor do Supabase: `rls_auto_enable()` é
+`SECURITY DEFINER` e está executável por `anon` e `authenticated` via
+`/rest/v1/rpc/rls_auto_enable`. O risco prático é baixo — ela é `RETURNS event_trigger` e falha
+fora do contexto de trigger — mas é ruído no relatório de segurança e sai com um `REVOKE`.
+
 ## A armadilha de segurança que define este trabalho
 
 **Todo projeto Supabase expõe o schema `public` pela internet via PostgREST, autenticado pela
@@ -56,7 +97,8 @@ Este projeto **não usa PostgREST**, então não há nada a ganhar com essa expo
 proteções, e o desenho aplica **as duas**, porque uma sozinha depende de ninguém errar depois:
 
 1. **RLS ligado em todas as 11 tabelas, sem política nenhuma.** RLS ligado sem política nega tudo.
-   A API não é afetada: ela conecta com o papel dono da tabela, que ignora RLS.
+   A API não é afetada: ela conecta com o papel dono da tabela, que ignora RLS. **Já resolvido pelo
+   event trigger `ensure_rls` — vira verificação, não tarefa.**
 2. **O PostgREST não enxerga o schema.** Tirar `public` da lista de schemas expostos nas
    configurações da API do projeto.
 
