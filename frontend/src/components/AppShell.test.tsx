@@ -11,6 +11,22 @@ vi.mock('../lib/api', () => ({
   tokenArmazenado: { ler: () => null, gravar: vi.fn(), limpar: vi.fn() },
 }))
 
+const anunciarTreino = vi.fn()
+const limparTreino = vi.fn()
+vi.mock('../lib/notificacoes', () => ({
+  anunciarTreino: (...a: unknown[]) => anunciarTreino(...a),
+  limparTreino: (...a: unknown[]) => limparTreino(...a),
+  sincronizarTreino: vi.fn(),
+}))
+
+// A partir daqui o AppShell monta useNotificacaoDeTreino, que importa o
+// Capacitor no topo do módulo — mockar só '../lib/notificacoes' não basta,
+// senão o hook real vai atrás do plugin de verdade.
+vi.mock('@capacitor/core', () => ({ Capacitor: { isNativePlatform: () => false } }))
+vi.mock('@capacitor/local-notifications', () => ({
+  LocalNotifications: { addListener: vi.fn(async () => ({ remove: vi.fn() })) },
+}))
+
 import { api } from '../lib/api'
 import { AppShell, type ItemNav } from './AppShell'
 
@@ -184,5 +200,39 @@ describe('AppShell — sair com treino em andamento', () => {
     expect(post).not.toHaveBeenCalled()
     expect(del).not.toHaveBeenCalled()
     expect(sair).not.toHaveBeenCalled()
+  })
+
+  it('limpa a notificação ao finalizar e sair', async () => {
+    get.mockResolvedValue({ data: SESSAO_ATIVA } as never)
+    const usuario = userEvent.setup()
+    renderizar(
+      <AppShell itens={ITENS}>
+        <div>conteúdo</div>
+      </AppShell>,
+      { usuario: ALUNO, sair: vi.fn() },
+    )
+
+    await clicarSair(usuario)
+    const painel = await screen.findByRole('dialog', { name: /treino em andamento/i })
+    await usuario.click(within(painel).getByRole('button', { name: /finalizar e sair/i }))
+
+    await waitFor(() => expect(limparTreino).toHaveBeenCalled())
+  })
+
+  it('limpa a notificação ao descartar e sair', async () => {
+    get.mockResolvedValue({ data: SESSAO_ATIVA } as never)
+    const usuario = userEvent.setup()
+    renderizar(
+      <AppShell itens={ITENS}>
+        <div>conteúdo</div>
+      </AppShell>,
+      { usuario: ALUNO, sair: vi.fn() },
+    )
+
+    await clicarSair(usuario)
+    const painel = await screen.findByRole('dialog', { name: /treino em andamento/i })
+    await usuario.click(within(painel).getByRole('button', { name: /descartar e sair/i }))
+
+    await waitFor(() => expect(limparTreino).toHaveBeenCalled())
   })
 })

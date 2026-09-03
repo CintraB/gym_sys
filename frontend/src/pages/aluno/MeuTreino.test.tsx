@@ -11,6 +11,14 @@ vi.mock('../../lib/api', () => ({
   tokenArmazenado: { ler: () => null, gravar: vi.fn(), limpar: vi.fn() },
 }))
 
+const anunciarTreino = vi.fn()
+const limparTreino = vi.fn()
+vi.mock('../../lib/notificacoes', () => ({
+  anunciarTreino: (...a: unknown[]) => anunciarTreino(...a),
+  limparTreino: (...a: unknown[]) => limparTreino(...a),
+  sincronizarTreino: vi.fn(),
+}))
+
 import { api } from '../../lib/api'
 import MeuTreino from './MeuTreino'
 
@@ -116,7 +124,7 @@ describe('MeuTreino — confirmar antes de iniciar', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     responder()
-    post.mockResolvedValue({ data: {} } as never)
+    post.mockResolvedValue({ data: SESSAO_ATIVA } as never)
   })
 
   it('pede confirmação antes de iniciar o treino', async () => {
@@ -350,5 +358,55 @@ describe('MeuTreino — observação e calorias ao finalizar', () => {
     await waitFor(() => {
       expect(post).toHaveBeenCalledWith('/alunos/treino/sessao/finalizar', {})
     })
+  })
+})
+
+describe('MeuTreino — barra de notificação', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('anuncia o treino ao iniciar', async () => {
+    responder()
+    // A sessão criada é o que vai para a notificação, então a resposta do POST
+    // precisa parecer uma: com { data: {} } o teste passaria sem provar nada.
+    post.mockResolvedValue({ data: SESSAO_ATIVA } as never)
+    const usuario = userEvent.setup()
+    renderizar(<MeuTreino />, { usuario: ALUNO })
+
+    await screen
+      .findByRole('button', { name: /iniciar treino/i })
+      .then((botao) => usuario.click(botao))
+    await usuario.click(await screen.findByRole('button', { name: /^iniciar$/i }))
+
+    await waitFor(() => expect(anunciarTreino).toHaveBeenCalledWith(SESSAO_ATIVA))
+  })
+
+  it('limpa a notificação ao finalizar', async () => {
+    responder({ '/alunos/treino/sessao': SESSAO_ATIVA })
+    post.mockResolvedValue({
+      data: { sessao: SESSAO_ATIVA.sessao, exercicios: SESSAO_ATIVA.exercicios },
+    } as never)
+    const usuario = userEvent.setup()
+    renderizar(<MeuTreino />, { usuario: ALUNO })
+
+    await usuario.click(await screen.findByRole('button', { name: /finalizar treino/i }))
+    await usuario.click(screen.getByRole('button', { name: /finalizar e salvar/i }))
+
+    await waitFor(() => expect(limparTreino).toHaveBeenCalled())
+  })
+
+  it('limpa a notificação ao descartar', async () => {
+    responder({ '/alunos/treino/sessao': SESSAO_ATIVA })
+    del.mockResolvedValue({ data: {} } as never)
+    const usuario = userEvent.setup()
+    renderizar(<MeuTreino />, { usuario: ALUNO })
+
+    await usuario.click(await screen.findByRole('button', { name: /finalizar treino/i }))
+    await usuario.click(await screen.findByRole('button', { name: /descartar treino/i }))
+    const dialogo = await screen.findByRole('alertdialog')
+    await usuario.click(within(dialogo).getByRole('button', { name: /^descartar$/i }))
+
+    await waitFor(() => expect(limparTreino).toHaveBeenCalled())
   })
 })

@@ -11,6 +11,8 @@ import { TrocarArea } from './TrocarArea'
 import { descreverPerfis, salvarUltimaRota } from '../auth/areas'
 import { Painel } from './ui/Painel'
 import { Botao } from './ui/Botao'
+import { limparTreino } from '../lib/notificacoes'
+import { useNotificacaoDeTreino } from '../lib/useNotificacaoDeTreino'
 import type { SessaoCompleta } from '../types'
 
 export interface ItemNav {
@@ -35,6 +37,8 @@ export function AppShell({ itens, children }: { itens: ItemNav[]; children: Reac
     salvarUltimaRota(pathname)
   }, [pathname])
 
+  useNotificacaoDeTreino()
+
   // Sair não derruba a sessão de treino aberta — ela sobrevive por design (é o
   // que permite continuar depois de fechar e reabrir o app). Se o aluno tem
   // uma em andamento, a decisão de finalizar ou descartar é forçada aqui, em
@@ -55,12 +59,14 @@ export function AppShell({ itens, children }: { itens: ItemNav[]; children: Reac
 
   async function finalizarEDeslogar() {
     await api.post('/alunos/treino/sessao/finalizar')
+    await limparTreino()
     setSessaoAtiva(null)
     sair()
   }
 
   async function descartarEDeslogar() {
     await api.delete('/alunos/treino/sessao')
+    await limparTreino()
     setSessaoAtiva(null)
     sair()
   }

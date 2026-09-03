@@ -3,6 +3,7 @@ import { Check, ChevronDown, Dumbbell, Flag, Play, Send, Timer, Trash2, X } from
 import { api, mensagemDeErro } from '../../lib/api'
 import { useRequisicao } from '../../lib/useRequisicao'
 import { useCronometro } from '../../lib/useCronometro'
+import { anunciarTreino, limparTreino } from '../../lib/notificacoes'
 import {
   contar,
   descreverSerie,
@@ -120,7 +121,11 @@ function ModoLeitura({
     setPainelBloco(false)
     setIniciando(true)
     try {
-      await api.post('/alunos/treino/sessao', idBloco ? { id_bloco: idBloco } : {})
+      const { data } = await api.post<SessaoCompleta>(
+        '/alunos/treino/sessao',
+        idBloco ? { id_bloco: idBloco } : {},
+      )
+      await anunciarTreino(data)
       aoIniciar()
     } catch (e) {
       setErro(mensagemDeErro(e, 'Não foi possível iniciar o treino.'))
@@ -366,6 +371,7 @@ function ModoExecucao({
       if (caloriasFinal.trim()) corpo.calorias = Number(caloriasFinal)
       const { data } = await api.post<SessaoCompleta>('/alunos/treino/sessao/finalizar', corpo)
       setResumo(data)
+      await limparTreino()
     } catch (e) {
       setErro(mensagemDeErro(e, 'Não foi possível finalizar.'))
       setFinalizando(false)
@@ -384,6 +390,7 @@ function ModoExecucao({
     setConfirmarFim(false)
     try {
       await api.delete('/alunos/treino/sessao')
+      await limparTreino()
       aoMudar()
     } catch (e) {
       setErro(mensagemDeErro(e, 'Não foi possível descartar.'))
