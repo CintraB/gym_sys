@@ -20,7 +20,7 @@ alcança estando fechado.
 
 | Pergunta | Decisão | Por quê |
 |---|---|---|
-| Cronômetro vivo na notificação? | **Não.** Notificação fixa com a hora de início | O Android transforma `when` em "há 12 min" sozinho. Um cronômetro correndo exigiria foreground service em Java, canal próprio e `FOREGROUND_SERVICE_HEALTH` no Android 14+ — o app deixaria de ser "web dentro do Capacitor" e viraria manutenção a cada atualização do AGP |
+| Cronômetro vivo na notificação? | **Não.** Notificação fixa com a hora de início escrita no corpo | Um cronômetro correndo exigiria foreground service em Java, canal próprio e `FOREGROUND_SERVICE_HEALTH` no Android 14+ — o app deixaria de ser "web dentro do Capacitor" e viraria manutenção a cada atualização do AGP |
 | Lembrete dispara para quem? | **Todo treino em andamento** | Restringir a quem tem mais de um perfil criaria um caso que ninguém lembra de conferir. Quem esquece a sessão aberta esquece tendo um perfil ou três |
 | Tempo até o lembrete | **2h fixo, constante no código** | Tornar ajustável traz onde guardar a preferência, e no APK isso é mais uma coluna no SQLite ou uma chave em `localStorage` que some na reinstalação. Se 2h se mostrar errado, muda-se o número |
 | Ação "Finalizar" na notificação | **Não** | Exigiria acordar o WebView e rodar o controller com o app morto — frágil e caro. O toque abre o app na tela do treino, onde finalizar já funciona |
@@ -144,6 +144,16 @@ que navega para lá. Sem isso o toque só traz o app à frente, na tela em que e
 pode ser qualquer uma.
 
 ## Conteúdo das notificações
+
+### Correção ao desenho original: a hora vai no texto, não no `when`
+
+O plano de 02/09 apurou que o `LocalNotificationSchema` do plugin **não expõe o campo `when`**
+do Android. Sem ele, o "há 12 min" da gaveta sairia do instante em que a notificação foi
+postada — e a reconciliação reposta a notificação quando o app reabre, o que faria um treino de
+duas horas voltar a dizer "agora".
+
+Por isso a hora de início é **escrita no corpo do texto**, calculada a partir de `iniciado_em`.
+É estável em qualquer repost, e não depende de campo que o plugin não entrega.
 
 **Em andamento** (fixa, sem som):
 
