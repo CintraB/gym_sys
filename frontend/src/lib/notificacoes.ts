@@ -1,5 +1,6 @@
 import { Capacitor } from '@capacitor/core'
-import { LocalNotifications } from '@capacitor/local-notifications'
+import { LocalNotifications, type LocalNotificationSchema } from '@capacitor/local-notifications'
+import type { SessaoCompleta } from '../types'
 
 /**
  * Ids fixos. Cancelar exige conhecer o id, e um treino aberto por aluno é
@@ -46,4 +47,89 @@ export async function garantirPermissao() {
     // Notificação é enfeite: se o plugin falhar, o treino continua.
     return false
   }
+}
+
+const CANAL_EM_ANDAMENTO = 'treino-em-andamento'
+const CANAL_LEMBRETES = 'lembretes'
+
+/**
+ * Dois canais, não um.
+ *
+ * O indicador é informação, não alerta: com importância padrão, iniciar o
+ * treino faria o celular tocar dentro da academia. O lembrete é o oposto —
+ * precisa chamar quem já esqueceu, e silencioso não serviria para nada.
+ *
+ * Recriar canal existente é no-op no Android, e createChannel não desfaz o que
+ * a pessoa mudou à mão nas configurações.
+ */
+async function garantirCanais() {
+  await LocalNotifications.createChannel({
+    id: CANAL_EM_ANDAMENTO,
+    name: 'Treino em andamento',
+    description: 'Indicador fixo enquanto há um treino aberto',
+    importance: 1,
+  })
+  await LocalNotifications.createChannel({
+    id: CANAL_LEMBRETES,
+    name: 'Lembretes',
+    description: 'Avisos sobre treino esquecido em andamento',
+    importance: 3,
+  })
+}
+
+const horaDe = (iso: string) =>
+  new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+
+/**
+ * Posta o indicador fixo do treino em andamento e agenda o lembrete de
+ * HORAS_ATE_LEMBRETE horas, numa chamada só de schedule.
+ */
+export async function anunciarTreino({ sessao }: SessaoCompleta) {
+  if (!noAparelho()) return
+  if (!(await garantirPermissao())) return
+
+  await garantirCanais()
+
+  const titulo = sessao.bloco_letra
+    ? `Treino ${sessao.bloco_letra} em andamento`
+    : 'Treino em andamento'
+
+  // A hora vai no corpo porque o plugin não expõe o campo `when` do Android:
+  // sem ela, a notificação reposta pela reconciliação diria "agora" para um
+  // treino de duas horas.
+  const inicio = `começou às ${horaDe(sessao.iniciado_em)}`
+  const corpo = sessao.bloco_nome ? `${sessao.bloco_nome} · ${inicio}` : `${inicio} · toque para voltar`
+
+  const notificacoes: LocalNotificationSchema[] = [
+    {
+      id: ID_EM_ANDAMENTO,
+      title: titulo,
+      body: corpo,
+      channelId: CANAL_EM_ANDAMENTO,
+      ongoing: true,
+      autoCancel: false,
+      extra: { rota: '/aluno' },
+    },
+  ]
+
+  const quandoLembrar = new Date(
+    new Date(sessao.iniciado_em).getTime() + HORAS_ATE_LEMBRETE * 60 * 60 * 1000,
+  )
+
+  // Lembrete vencido é descartado, não disparado no ato: quem abre o app já
+  // está olhando para o treino em andamento.
+  if (quandoLembrar.getTime() > Date.now()) {
+    notificacoes.push({
+      id: ID_LEMBRETE,
+      title: 'Treino ainda em andamento',
+      // O número sai da constante: escrito à mão, mudar a constante faria a
+      // notificação mentir, e ninguém confere isso depois.
+      body: `Você começou há ${HORAS_ATE_LEMBRETE} horas. Finalize ou descarte quando puder.`,
+      channelId: CANAL_LEMBRETES,
+      schedule: { at: quandoLembrar },
+      extra: { rota: '/aluno' },
+    })
+  }
+
+  await LocalNotifications.schedule({ notifications: notificacoes })
 }
