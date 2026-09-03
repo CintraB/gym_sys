@@ -24,3 +24,26 @@ export async function limparTreino() {
     notifications: [{ id: ID_EM_ANDAMENTO }, { id: ID_LEMBRETE }],
   })
 }
+
+/**
+ * Garante a permissão de notificar, pedindo no máximo uma vez.
+ *
+ * O Android 13+ exige POST_NOTIFICATIONS em runtime, e só deixa pedir duas
+ * vezes: depois disso o pedido é negado sem diálogo nenhum, e a única saída
+ * são as configurações do sistema. Por isso quem já negou não é incomodado de
+ * novo — e nada no app depende do retorno para funcionar.
+ */
+export async function garantirPermissao() {
+  if (!noAparelho()) return false
+  try {
+    const atual = await LocalNotifications.checkPermissions()
+    if (atual.display === 'granted') return true
+    if (atual.display === 'denied') return false
+
+    const pedido = await LocalNotifications.requestPermissions()
+    return pedido.display === 'granted'
+  } catch {
+    // Notificação é enfeite: se o plugin falhar, o treino continua.
+    return false
+  }
+}
