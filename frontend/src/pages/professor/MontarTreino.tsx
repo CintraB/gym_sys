@@ -5,7 +5,8 @@ import { api, mensagemDeErro } from '../../lib/api'
 import { useRequisicao } from '../../lib/useRequisicao'
 import { contar, descreverSerieCurta, formatarData, rotularBloco } from '../../lib/formato'
 import { Botao } from '../../components/ui/Botao'
-import { Campo, Selecao } from '../../components/ui/Campo'
+import { Campo } from '../../components/ui/Campo'
+import { SelecaoBuscavel, type OpcaoBuscavel } from '../../components/ui/SelecaoBuscavel'
 import { Cartao, TituloSecao } from '../../components/ui/Cartao'
 import { Aviso } from '../../components/ui/Aviso'
 import { Esqueleto } from '../../components/ui/Carregando'
@@ -89,15 +90,29 @@ export default function MontarTreino() {
     [idAluno],
   )
 
-  // O <optgroup> por grupo muscular torna uma lista de 70+ exercícios navegável.
-  const porGrupo = useMemo(() => {
-    const mapa = new Map<string, Exercicio[]>()
-    for (const exercicio of exercicios.dados ?? []) {
-      const grupo = exercicio.tipo ?? 'Outros'
-      mapa.set(grupo, [...(mapa.get(grupo) ?? []), exercicio])
-    }
-    return [...mapa.entries()]
-  }, [exercicios.dados])
+  // O grupo muscular vira cabeçalho na lista; o filtro por digitação é o que
+  // torna 70+ exercícios navegáveis no celular, onde rolar tudo é penoso.
+  const opcoesExercicio = useMemo<OpcaoBuscavel[]>(
+    () =>
+      (exercicios.dados ?? []).map((exercicio) => ({
+        valor: exercicio.id_exercicio,
+        texto: exercicio.nome_exercicio,
+        grupo: exercicio.tipo ?? 'Outros',
+      })),
+    [exercicios.dados],
+  )
+
+  const opcoesAluno = useMemo<OpcaoBuscavel[]>(
+    () => (alunos.dados ?? []).map((aluno) => ({ valor: aluno.id, texto: aluno.nome })),
+    [alunos.dados],
+  )
+
+  // Os grupos que já existem no catálogo, para o formulário de exercício novo
+  // sugerir os mesmos em vez de deixar inventar um "PEITORAL" ao lado de "PEITO".
+  const gruposMusculares = useMemo(
+    () => [...new Set(opcoesExercicio.map((o) => o.grupo ?? 'Outros'))],
+    [opcoesExercicio],
+  )
 
   const alunoSelecionado = alunos.dados?.find((a) => String(a.id) === idAluno)
   const blocoAtual = blocos[ativo] ?? blocos[0]
@@ -218,25 +233,21 @@ export default function MontarTreino() {
         </p>
       </header>
 
-      <Selecao
+      <SelecaoBuscavel
         rotulo="Aluno"
-        value={idAluno}
-        onChange={(e) => {
-          const valor = e.target.value
+        valor={idAluno}
+        aoEscolher={(escolhido) => {
+          const valor = String(escolhido)
           setParams(valor ? { aluno: valor } : {}, { replace: true })
           setSucesso(null)
         }}
+        opcoes={opcoesAluno}
+        placeholder="Selecione um aluno"
+        substantivo="aluno"
         // Travado durante a edição: os ids no formulário são do treino deste
         // aluno, e trocar de aluno os mandaria no PUT do treino de outro.
-        disabled={Boolean(editando)}
-      >
-        <option value="">Selecione um aluno</option>
-        {alunos.dados?.map((aluno) => (
-          <option key={aluno.id} value={aluno.id}>
-            {aluno.nome}
-          </option>
-        ))}
-      </Selecao>
+        desabilitado={Boolean(editando)}
+      />
 
       {idAluno && (
         <TreinoVigente
@@ -337,21 +348,15 @@ export default function MontarTreino() {
                       Novo
                     </button>
                   </div>
-                  <Selecao
-                    value={linha.id_exercicio}
-                    onChange={(e) => atualizarLinha(indice, 'id_exercicio', e.target.value)}
-                  >
-                    <option value="">Selecione o exercício</option>
-                    {porGrupo.map(([grupo, lista]) => (
-                      <optgroup key={grupo} label={grupo}>
-                        {lista.map((exercicio) => (
-                          <option key={exercicio.id_exercicio} value={exercicio.id_exercicio}>
-                            {exercicio.nome_exercicio}
-                          </option>
-                        ))}
-                      </optgroup>
-                    ))}
-                  </Selecao>
+                  <SelecaoBuscavel
+                    valor={linha.id_exercicio}
+                    aoEscolher={(escolhido) =>
+                      atualizarLinha(indice, 'id_exercicio', String(escolhido))
+                    }
+                    opcoes={opcoesExercicio}
+                    placeholder="Selecione o exercício"
+                    substantivo="exercício"
+                  />
                 </div>
 
                 <div className="grid grid-cols-3 gap-2">
@@ -409,7 +414,7 @@ export default function MontarTreino() {
 
       {novoExercicioEm !== null && (
         <NovoExercicio
-          grupos={porGrupo.map(([grupo]) => grupo)}
+          grupos={gruposMusculares}
           aoFechar={() => setNovoExercicioEm(null)}
           aoCriar={(exercicio) => {
             exercicios.definirDados([...(exercicios.dados ?? []), exercicio])
