@@ -13,6 +13,12 @@ export function configurarPool(pool) {
 
 function obterPool() {
   if (!poolAtual) {
+    // ssl e max vem no mesmo objeto de config e o pg os entende direto — por
+    // isso ligar TLS no Supabase nao exigiu tocar aqui.
+    //
+    // O env.js sempre define `ssl`, mesmo como false, de proposito: quando o
+    // campo vem undefined, o pg cai em readSSLConfigFromEnvironment() e passa a
+    // obedecer PGSSLMODE do ambiente — a conexao mudaria sem ninguem declarar.
     poolAtual = new pg.Pool(carregarConfig().db);
 
     // Sem este listener o processo MORRE quando uma conexão ociosa cai —
