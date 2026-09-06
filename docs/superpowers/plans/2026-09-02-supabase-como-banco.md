@@ -71,7 +71,7 @@ O `env.js` monta hoje o objeto `db` sem SSL e sem teto de pool. O `pg` não liga
 - Produz: `carregarConfig().db` passa a conter `ssl` (objeto `{ rejectUnauthorized: true }` ou
   `false`) e `max` (número).
 
-- [ ] **Passo 1: escrever os testes que falham**
+- [x] **Passo 1: escrever os testes que falham**
 
 Os testes precisam manipular `process.env` e restaurá-lo. Siga o padrão do arquivo de teste onde
 você colocá-los.
@@ -98,7 +98,7 @@ test("o teto do pool tem padrão e é ajustável", () => {
 });
 ```
 
-- [ ] **Passo 2: rodar e confirmar que falham**
+- [x] **Passo 2: rodar e confirmar que falham**
 
 ```bash
 cd backend && node --test --test-name-pattern "DB_SSL|teto do pool"
@@ -106,7 +106,7 @@ cd backend && node --test --test-name-pattern "DB_SSL|teto do pool"
 
 Esperado: falham, porque `ssl` e `max` não existem no objeto devolvido.
 
-- [ ] **Passo 3: implementar**
+- [x] **Passo 3: implementar**
 
 Em `backend/src/config/env.js`, dentro do objeto `db`:
 
@@ -136,13 +136,13 @@ Em `backend/src/config/env.js`, dentro do objeto `db`:
 **Não** acrescente `DB_SSL` nem `DB_POOL_MAX` à lista `OBRIGATORIAS`: as duas têm padrão, e torná-las
 obrigatórias quebraria todo `.env` existente.
 
-- [ ] **Passo 4: rodar e confirmar que passam**
+- [x] **Passo 4: rodar e confirmar que passam**
 
 ```bash
 cd backend && node --test --test-name-pattern "DB_SSL|teto do pool"
 ```
 
-- [ ] **Passo 5: documentar no `.env.example`**
+- [x] **Passo 5: documentar no `.env.example`**
 
 ```
 # TLS na conexão do banco. "true" para Supabase ou qualquer banco gerenciado;
@@ -153,7 +153,7 @@ DB_SSL=
 DB_POOL_MAX=10
 ```
 
-- [ ] **Passo 6: suíte inteira**
+- [x] **Passo 6: suíte inteira**
 
 ```bash
 cd backend && npm test && npm run test:sqlite
@@ -161,7 +161,7 @@ cd backend && npm test && npm run test:sqlite
 
 Esperado: 247 e a suíte SQLite, ambas como antes. Nada aqui toca regra de negócio.
 
-- [ ] **Passo 7: commit**
+- [x] **Passo 7: commit**
 
 ```bash
 git add backend/src/config/env.js backend/.env.example backend/test
@@ -182,7 +182,7 @@ servicos dele. As duas variaveis tem padrao para nao quebrar .env existente."
 - Consome: `carregarConfig().db` da Tarefa 1.
 - Produz: nada novo — o pool passa a nascer com os dois campos.
 
-- [ ] **Passo 1: verificar se já funciona**
+- [x] **Passo 1: verificar se já funciona**
 
 `obterPool()` faz `new pg.Pool(carregarConfig().db)`, e o `pg.Pool` aceita `ssl` e `max` no mesmo
 objeto de configuração. **Provavelmente não há nada a mudar.** Confirme lendo
@@ -191,7 +191,7 @@ objeto de configuração. **Provavelmente não há nada a mudar.** Confirme lend
 Se for o caso, esta tarefa vira uma linha de comentário registrando por que os campos novos
 atravessam sem tratamento — e o commit é só isso. **Não invente trabalho** para justificar a tarefa.
 
-- [ ] **Passo 2: comentar a passagem**
+- [x] **Passo 2: comentar a passagem**
 
 Acima do `new pg.Pool(...)`:
 
@@ -200,13 +200,13 @@ Acima do `new pg.Pool(...)`:
     // isso ligar TLS no Supabase não exigiu tocar aqui.
 ```
 
-- [ ] **Passo 3: suíte inteira**
+- [x] **Passo 3: suíte inteira**
 
 ```bash
 cd backend && npm test && npm run test:sqlite
 ```
 
-- [ ] **Passo 4: commit**
+- [x] **Passo 4: commit**
 
 ```bash
 git add backend/src/config/db.js
