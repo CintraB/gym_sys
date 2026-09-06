@@ -27,6 +27,19 @@ export function carregarConfig() {
       database: process.env.DB_NAME,
       password: process.env.DB_PASSWORD,
       port: Number(process.env.DB_PORT),
+
+      // O Supabase exige TLS; o Postgres em container local nao tem
+      // certificado. Por isso e opcional, e desligado por padrao.
+      //
+      // rejectUnauthorized fica TRUE de proposito: aceitar certificado nao
+      // verificado devolve a conexao ao estado em que um intermediario pode se
+      // passar pelo banco — que e o ataque que o TLS existe para impedir.
+      ssl: process.env.DB_SSL === "true" ? { rejectUnauthorized: true } : false,
+
+      // Teto explicito porque o plano Free do Supabase da 60 conexoes, e 13 ja
+      // ficam com os servicos dele. Duas instancias da API a 10 cada ainda
+      // cabem; sem teto declarado, ninguem percebe quando deixar de caber.
+      max: Number(process.env.DB_POOL_MAX ?? 10),
     },
     jwt: {
       segredo: process.env.TOKEN_SEG,
