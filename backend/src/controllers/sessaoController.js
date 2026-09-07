@@ -120,8 +120,14 @@ export const iniciarSessao = asyncHandler(async (req, res) => {
 
     // O bloco pedido precisa ser do treino ativo — senão daria para iniciar o
     // bloco de outro aluno passando o id na requisição.
+    //
+    // `ativo` não é opcional aqui: a edição de treino desativa bloco em vez de
+    // apagar (sessao_treino.id_bloco referencia sem cascade), então bloco
+    // removido continua na tabela, sem exercício ativo nenhum. Sem o filtro, a
+    // rotação de sugerirBloco passava por ele e abria sessão vazia, e mandar o
+    // id de um bloco removido era aceito.
     const { rows: blocos } = await cliente.query(
-      "SELECT id_bloco FROM treino_bloco WHERE id_treino = $1 ORDER BY ordem",
+      "SELECT id_bloco FROM treino_bloco WHERE id_treino = $1 AND ativo = TRUE ORDER BY ordem",
       [idTreino]
     );
     if (blocos.length === 0) {

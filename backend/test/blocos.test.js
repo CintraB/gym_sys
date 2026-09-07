@@ -268,3 +268,81 @@ test("professor vê o treino do aluno dividido em blocos", async (t) => {
   assert.equal(corpo.blocos.length, 4);
   assert.equal(corpo.blocos[1].nome, "Costas e Bíceps");
 });
+
+// A edição de treino desativa o bloco em vez de apagar, porque
+// sessao_treino.id_bloco referencia treino_bloco sem cascade. Isso deixa
+// blocos inativos convivendo com os ativos — e a rotação de iniciarSessao
+// precisa ignorá-los.
+test("depois de remover um bloco, iniciar não cai no bloco desativado", async (t) => {
+  const { api, tokenProfessor, idAluno, token } = await cenario({
+    blocos: [
+      { nome: "Peito e Tríceps", exercicios: [ex(1), ex(49)] },
+      { nome: "Costas e Bíceps", exercicios: [ex(40), ex(13)] },
+    ],
+  });
+  t.after(() => api.encerrar());
+
+  const { corpo: antes } = await api.get("/alunos/meutreino", { token });
+  const blocoA = antes.blocos.find((b) => b.letra === "A");
+
+  // Faz o A e finaliza: a sugestão passa a apontar para "o seguinte".
+  await api.post("/alunos/treino/sessao", { id_bloco: blocoA.id_bloco }, { token });
+  await api.post("/alunos/treino/sessao/finalizar", null, { token });
+
+  // O professor remove o B, mandando de volta só o A com o próprio id.
+  const edicao = await api.put(
+    `/professores/treino/${antes.treino.id_treino}`,
+    {
+      id_aluno: idAluno,
+      blocos: [
+        {
+          id_bloco: blocoA.id_bloco,
+          nome: blocoA.nome,
+          exercicios: blocoA.exercicios.map((e) => ({ id: e.id, ...ex(e.id_exercicio) })),
+        },
+      ],
+    },
+    { token: tokenProfessor }
+  );
+  assert.equal(edicao.status, 200, JSON.stringify(edicao.corpo));
+
+  const nova = await api.post("/alunos/treino/sessao", null, { token });
+
+  assert.equal(nova.status, 201, JSON.stringify(nova.corpo));
+  assert.equal(nova.corpo.sessao.bloco_letra, "A", "o único bloco ativo é o A");
+  assert.ok(nova.corpo.exercicios.length > 0, "sessão em bloco desativado vem vazia");
+});
+
+test("iniciar num bloco desativado é recusado", async (t) => {
+  const { api, tokenProfessor, idAluno, token } = await cenario({
+    blocos: [
+      { nome: "Peito e Tríceps", exercicios: [ex(1)] },
+      { nome: "Costas e Bíceps", exercicios: [ex(40)] },
+    ],
+  });
+  t.after(() => api.encerrar());
+
+  const { corpo: antes } = await api.get("/alunos/meutreino", { token });
+  const blocoA = antes.blocos.find((b) => b.letra === "A");
+  const blocoB = antes.blocos.find((b) => b.letra === "B");
+
+  const edicao = await api.put(
+    `/professores/treino/${antes.treino.id_treino}`,
+    {
+      id_aluno: idAluno,
+      blocos: [
+        {
+          id_bloco: blocoA.id_bloco,
+          nome: blocoA.nome,
+          exercicios: blocoA.exercicios.map((e) => ({ id: e.id, ...ex(e.id_exercicio) })),
+        },
+      ],
+    },
+    { token: tokenProfessor }
+  );
+  assert.equal(edicao.status, 200, JSON.stringify(edicao.corpo));
+
+  const recusa = await api.post("/alunos/treino/sessao", { id_bloco: blocoB.id_bloco }, { token });
+
+  assert.equal(recusa.status, 404, JSON.stringify(recusa.corpo));
+});
