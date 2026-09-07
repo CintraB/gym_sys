@@ -514,7 +514,7 @@ front não sabe e não precisa saber. Confirme que o `.env` do front está intoc
 Com a API rodando contra o Supabase: entrar, carregar treino, iniciar sessão, lançar uma série,
 finalizar, abrir o histórico e ver a sessão lá.
 
-- [ ] **Passo 3: o APK, com a internet desligada** — **PENDENTE, com o dono**
+- [x] **Passo 3: o APK, com a internet desligada**
 
 ```bash
 cd frontend && npm run apk
@@ -536,7 +536,7 @@ cd ../frontend && npm test
 
 Esperado: 247 e 261, como antes. **Nenhum número deveria mudar** — nada aqui toca regra de negócio.
 
-- [x] **Passo 5: registrar no relatório** — parcial, à espera do passo 3
+- [x] **Passo 5: registrar no relatório**
 
 **Relatório da Tarefa 6 — 06/09/2026.** Feito tudo menos o APK em modo avião, que exige o aparelho.
 
@@ -589,6 +589,41 @@ funcionou.
 *Dados de teste no banco real, ao fim:* professor `#1`, aluno `#2`, treino `#1` com os blocos
 `1`/`3`/`2` descritos acima, e uma sessão finalizada. Servidores derrubados e portas 8080 e 5173
 conferidas como liberadas.
+
+#### Passo 3 — o APK em modo avião, feito pelo dono em 06/09/2026
+
+**Doze de doze itens passaram**, com o aparelho em modo avião: o app abre, entra com a conta da
+semente local, carrega os quatro blocos, inicia sessão com cronômetro, lança carga e repetição,
+marca exercício feito, finaliza com a duração gravada, e o histórico mostra a sessão com as séries no
+detalhe. Passaram também os quatro itens de armadilha conhecida: fechar o app no meio e reabrir
+mantém a sessão com o tempo certo, dois toques em "Iniciar" dão uma sessão só, senha atual errada
+mostra o erro **sem** expulsar para o login, e a rotação sugeriu o bloco seguinte.
+
+**Nada vazou para o app offline** — o objetivo do passo.
+
+Uma leitura honesta do último item: o APK testado é o build de 03/09, **anterior** à correção do
+filtro de `ativo`, e a rotação passou porque os quatro blocos da semente estão todos ativos. Com
+todos ativos, a consulta com e sem filtro devolve a mesma lista. O item prova que a rotação funciona
+no caso normal, **não** que o bug estivesse ausente — ele só aparece depois de uma edição que remove
+bloco. O APK do aparelho deve ser refeito para levar a correção.
+
+---
+
+## Estado do plano: as seis tarefas concluídas em 06/09/2026
+
+O gym_sys roda sobre o Postgres do Supabase, com o container local preservado como caminho de volta.
+Nenhum controller mudou **por causa desta obra** — a única mudança em `src/controllers/` do dia foi a
+correção do filtro de `ativo`, obra separada, autorizada depois e registrada em commit próprio.
+
+Os dois desvios do plano que valem memória:
+
+1. **A Tarefa 1 foi dada por concluída sem funcionar.** `rejectUnauthorized: true` sem `ca` não
+   conecta ao Supabase, e os testes dela só olhavam o objeto de configuração. A lição é do tipo que
+   se repete: *teste que não fecha uma conexão não prova que a conexão fecha.*
+2. **Duas justificativas do plano estavam erradas** sem que a conclusão mudasse — o pooler pelo
+   motivo errado (é IPv4, não transação) e o `revoke` para `anon`/`authenticated` quando o grant
+   era para `PUBLIC`. A segunda rodava sem erro e sem efeito, o que é o pior tipo de passo: parece
+   cumprido.
 
 ## Depois das seis tarefas
 
