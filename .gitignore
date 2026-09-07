@@ -1,5 +1,10 @@
 node_modules
 .env
+# Variantes do .env — backup, por-ambiente, por-maquina. Todas tem segredo
+# dentro, e `.env` sozinho casa so o nome exato: um `.env.bak` entraria no
+# commit sem ninguem notar. O .env.example e o unico versionado.
+.env.*
+!.env.example
 dist
 dist-ssr
 dist-app
