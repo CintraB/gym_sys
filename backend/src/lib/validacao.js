@@ -224,7 +224,19 @@ function normalizarTextoDoCatalogo(valor) {
   return typeof valor === "string" ? valor.trim().replace(/\s+/g, " ").toUpperCase() : "";
 }
 
-export const TAMANHO_MINIMO_SENHA = 6;
+export const TAMANHO_MINIMO_SENHA = 8;
+
+/**
+ * Teto do tamanho da senha — decisão do dono do projeto, não recomendação
+ * técnica, e por isso vale registrar o que se perde.
+ *
+ * A coluna guarda `"sal_hex:hash_hex"` em VARCHAR(255), e o scrypt devolve
+ * sempre o mesmo tamanho: senha de 8 e de 200 caracteres ocupam o mesmo espaço.
+ * O teto não protege recurso nenhum — o que ele faz é barrar frase-senha e
+ * senha de gerenciador, que é justamente o que o NIST SP 800-63B pede aceitar
+ * (64 no mínimo). Se a decisão for revista, é este número e mais nada.
+ */
+export const TAMANHO_MAXIMO_SENHA = 15;
 
 /**
  * A regra única do que é senha aceitável: cadastro, troca e redefinição.
@@ -244,6 +256,9 @@ export function exigirSenhaAceitavel(valor, rotulo) {
 
   if (senha.length < TAMANHO_MINIMO_SENHA) {
     throw erroRequisicao(`${rotulo} deve ter ao menos ${TAMANHO_MINIMO_SENHA} caracteres`);
+  }
+  if (senha.length > TAMANHO_MAXIMO_SENHA) {
+    throw erroRequisicao(`${rotulo} deve ter no máximo ${TAMANHO_MAXIMO_SENHA} caracteres`);
   }
   if (senha.trim().length === 0) {
     throw erroRequisicao(`${rotulo} não pode ser só espaços`);

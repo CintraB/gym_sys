@@ -301,7 +301,7 @@ function PainelCadastro({
           rotulo="Senha de acesso"
           value={form.senha}
           onChange={(e) => atualizar('senha', e.target.value)}
-          placeholder="Mínimo 6 caracteres"
+          placeholder="De 8 a 15 caracteres"
           dica="O aluno usa CPF + esta senha para entrar."
           required
         />

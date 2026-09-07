@@ -108,12 +108,12 @@ test("admin redefine a senha de outro usuário", async (t) => {
 
   const resposta = await api.put(
     `/admin/usuarios/${idAluno}/senha`,
-    { senha_nova: "senhaTemporaria1" },
+    { senha_nova: "senhaTemporari1" },
     { token }
   );
   assert.equal(resposta.status, 200, JSON.stringify(resposta.corpo));
 
-  const comNova = await api.post("/login", { cpf: ALUNO.cpf, senha: "senhaTemporaria1" });
+  const comNova = await api.post("/login", { cpf: ALUNO.cpf, senha: "senhaTemporari1" });
   assert.equal(comNova.status, 200);
 });
 
@@ -127,7 +127,7 @@ test("redefinir a senha derruba as sessões daquele usuário", async (t) => {
   const tokenAluno = login.corpo.token;
   assert.equal((await api.get("/me", { token: tokenAluno })).status, 200);
 
-  await api.put(`/admin/usuarios/${idAluno}/senha`, { senha_nova: "senhaTemporaria1" }, { token });
+  await api.put(`/admin/usuarios/${idAluno}/senha`, { senha_nova: "senhaTemporari1" }, { token });
 
   // O corte precisa ficar depois do iat, que tem resolução de segundos.
   api.adiarCorteDeSessao({ id: idAluno });
@@ -146,7 +146,7 @@ test("admin não redefine a própria senha pela rota de admin", async (t) => {
 
   const resposta = await api.put(
     `/admin/usuarios/${eu.corpo.id}/senha`,
-    { senha_nova: "senhaTemporaria1" },
+    { senha_nova: "senhaTemporari1" },
     { token }
   );
 
@@ -159,7 +159,7 @@ test("redefinir senha de usuário inexistente devolve 404", async (t) => {
 
   const resposta = await api.put(
     "/admin/usuarios/9999/senha",
-    { senha_nova: "senhaTemporaria1" },
+    { senha_nova: "senhaTemporari1" },
     { token }
   );
 

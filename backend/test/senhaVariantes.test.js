@@ -107,20 +107,60 @@ test("JSON malformado vira 400, e não 500", async (t) => {
 
 /* -------------------------------------------------- PUT /me/senha: limites */
 
-test("seis caracteres é o mínimo aceito, e cinco não passa", async (t) => {
+test("oito caracteres é o mínimo aceito, e sete não passa", async (t) => {
   const { api, token } = await cenario();
   t.after(() => api.encerrar());
 
-  const curta = await api.put("/me/senha", { senha_atual: SENHA, senha_nova: "12345" }, { token });
-  assert.equal(curta.status, 400);
+  const curta = await api.put("/me/senha", { senha_atual: SENHA, senha_nova: "1234567" }, { token });
+  assert.equal(curta.status, 400, JSON.stringify(curta.corpo));
 
   const noLimite = await api.put(
     "/me/senha",
-    { senha_atual: SENHA, senha_nova: "123456" },
+    { senha_atual: SENHA, senha_nova: "12345678" },
     { token }
   );
   assert.equal(noLimite.status, 200, JSON.stringify(noLimite.corpo));
-  await senhaContinuaSendo(api, "123456");
+  await senhaContinuaSendo(api, "12345678");
+});
+
+// O teto é decisão do dono, não recomendação técnica: a coluna guarda
+// "sal:hash" em VARCHAR(255), então o tamanho da senha não ocupa espaço, e o
+// NIST pede aceitar 64+ justamente para não barrar frase-senha e gerenciador.
+// Fica testado nas duas bordas para que mexer no número seja escolha, e não
+// acidente.
+test("quinze caracteres é o máximo aceito, e dezesseis não passa", async (t) => {
+  const { api, token } = await cenario();
+  t.after(() => api.encerrar());
+
+  const longa = await api.put(
+    "/me/senha",
+    { senha_atual: SENHA, senha_nova: "1234567890123456" },
+    { token }
+  );
+  assert.equal(longa.status, 400, JSON.stringify(longa.corpo));
+
+  const noLimite = await api.put(
+    "/me/senha",
+    { senha_atual: SENHA, senha_nova: "123456789012345" },
+    { token }
+  );
+  assert.equal(noLimite.status, 200, JSON.stringify(noLimite.corpo));
+  await senhaContinuaSendo(api, "123456789012345");
+});
+
+// O cadastro e as duas trocas compartilham exigirSenhaAceitavel. Se cada rota
+// tivesse a sua, o teto entraria em uma e faltaria na outra.
+test("o teto vale no cadastro, não só na troca", async (t) => {
+  const { api, token } = await cenario();
+  t.after(() => api.encerrar());
+
+  const resposta = await api.post(
+    "/professores/alunos",
+    { ...ALUNO, cpf: "44455566677", titulo: "444555666777", senha: "1234567890123456" },
+    { token }
+  );
+
+  assert.equal(resposta.status, 400, JSON.stringify(resposta.corpo));
 });
 
 test("senha nova igual à atual é recusada e não invalida a sessão", async (t) => {
@@ -259,7 +299,7 @@ test("id inválido na redefinição é 400, e não 500", async (t) => {
   for (const id of ["abc", "0", "-1", "1.5", "1%20OR%201=1"]) {
     const resposta = await api.put(
       `/admin/usuarios/${id}/senha`,
-      { senha_nova: "senhaTemporaria1" },
+      { senha_nova: "senhaTemporari1" },
       { token }
     );
 
@@ -280,18 +320,24 @@ test("redefinição com corpo vazio ou tipo errado é 400", async (t) => {
   await senhaContinuaSendo(api, ALUNO.senha, ALUNO.cpf);
 });
 
-test("redefinição aceita exatamente seis caracteres", async (t) => {
+// A redefinição do admin não pede a senha atual, então é a rota mais fácil de
+// esquecer ao mexer na regra. As três bordas ficam aqui para que ela não possa
+// divergir do cadastro e da troca em silêncio.
+test("redefinição usa os mesmos limites do resto", async (t) => {
   const { api, token, idAluno } = await cenarioAdmin();
   t.after(() => api.encerrar());
 
-  const resposta = await api.put(
-    `/admin/usuarios/${idAluno}/senha`,
-    { senha_nova: "123456" },
-    { token }
-  );
+  const rota = `/admin/usuarios/${idAluno}/senha`;
 
-  assert.equal(resposta.status, 200, JSON.stringify(resposta.corpo));
-  await senhaContinuaSendo(api, "123456", ALUNO.cpf);
+  const curta = await api.put(rota, { senha_nova: "1234567" }, { token });
+  assert.equal(curta.status, 400, JSON.stringify(curta.corpo));
+
+  const longa = await api.put(rota, { senha_nova: "1234567890123456" }, { token });
+  assert.equal(longa.status, 400, JSON.stringify(longa.corpo));
+
+  const noLimite = await api.put(rota, { senha_nova: "12345678" }, { token });
+  assert.equal(noLimite.status, 200, JSON.stringify(noLimite.corpo));
+  await senhaContinuaSendo(api, "12345678", ALUNO.cpf);
 });
 
 test("redefinição também recusa senha só de espaços", async (t) => {
@@ -314,12 +360,12 @@ test("a resposta da redefinição não traz senha nem hash", async (t) => {
 
   const resposta = await api.put(
     `/admin/usuarios/${idAluno}/senha`,
-    { senha_nova: "senhaTemporaria1" },
+    { senha_nova: "senhaTemporari1" },
     { token }
   );
 
   const texto = JSON.stringify(resposta.corpo);
-  assert.ok(!texto.includes("senhaTemporaria1"), `vazou a senha: ${texto}`);
+  assert.ok(!texto.includes("senhaTemporari1"), `vazou a senha: ${texto}`);
   assert.ok(!/[0-9a-f]{64}/.test(texto), `parece hash no corpo: ${texto}`);
 });
 
@@ -330,7 +376,7 @@ test("redefinir senha não mexe em perfil, nome nem em ativo", async (t) => {
   const antes = await api.get(`/admin/usuarios`, { token });
   const alunoAntes = antes.corpo.find((u) => u.id === idAluno);
 
-  await api.put(`/admin/usuarios/${idAluno}/senha`, { senha_nova: "senhaTemporaria1" }, { token });
+  await api.put(`/admin/usuarios/${idAluno}/senha`, { senha_nova: "senhaTemporari1" }, { token });
 
   const depois = await api.get(`/admin/usuarios`, { token });
   const alunoDepois = depois.corpo.find((u) => u.id === idAluno);
@@ -351,7 +397,7 @@ test("aluno comum não redefine a senha de ninguém", async (t) => {
 
   const resposta = await api.put(
     `/admin/usuarios/${idAluno}/senha`,
-    { senha_nova: "senhaTemporaria1" },
+    { senha_nova: "senhaTemporari1" },
     { token: login.corpo.token }
   );
 
@@ -363,7 +409,7 @@ test("a senha antiga deixa de valer depois da redefinição", async (t) => {
   const { api, token, idAluno } = await cenarioAdmin();
   t.after(() => api.encerrar());
 
-  await api.put(`/admin/usuarios/${idAluno}/senha`, { senha_nova: "senhaTemporaria1" }, { token });
+  await api.put(`/admin/usuarios/${idAluno}/senha`, { senha_nova: "senhaTemporari1" }, { token });
 
   const comAntiga = await api.post("/login", { cpf: ALUNO.cpf, senha: ALUNO.senha });
   assert.equal(comAntiga.status, 401);
@@ -391,12 +437,12 @@ test("redefinir a senha de um inativo não o reativa", async (t) => {
 
   const resposta = await api.put(
     `/admin/usuarios/${idAluno}/senha`,
-    { senha_nova: "senhaTemporaria1" },
+    { senha_nova: "senhaTemporari1" },
     { token }
   );
   assert.ok([200, 404].includes(resposta.status), `respondeu ${resposta.status}`);
 
-  const entrada = await api.post("/login", { cpf: ALUNO.cpf, senha: "senhaTemporaria1" });
+  const entrada = await api.post("/login", { cpf: ALUNO.cpf, senha: "senhaTemporari1" });
   assert.equal(entrada.status, 401, "inativo entrou depois da redefinição");
 });
 

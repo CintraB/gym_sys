@@ -119,7 +119,7 @@ export function TrocarSenha({ aoFechar }: { aoFechar: () => void }) {
               value={nova}
               onChange={(e) => setNova(e.target.value)}
               autoComplete="new-password"
-              dica="Ao menos 6 caracteres."
+              dica="De 8 a 15 caracteres."
             />
             <CampoSenha
               rotulo="Repita a senha nova"

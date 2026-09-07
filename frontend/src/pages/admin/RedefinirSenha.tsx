@@ -106,7 +106,7 @@ export function RedefinirSenha({
           value={nova}
           onChange={(e) => setNova(e.target.value)}
           autoComplete="new-password"
-          dica="Ao menos 6 caracteres. Passe a senha à pessoa e peça que ela troque."
+          dica="De 8 a 15 caracteres. Passe a senha à pessoa e peça que ela troque."
         />
         <CampoSenha
           rotulo="Repita a senha"

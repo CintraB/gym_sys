@@ -31,6 +31,11 @@ pedido em aberto. Nada é salvo em disco.
 | Admin, professor e aluno | `111.111.111-11` | `demo123` |
 | Aluno | `222.222.222-22` | `demo123` |
 
+`demo123` tem 7 caracteres e a regra do cadastro exige 8 — não é incoerência. `scripts/demo.js`
+chama `criarHashComSal` e insere direto no banco, sem passar por `exigirSenhaAceitavel`, do mesmo
+jeito que a semente do APK. Só quem entra pela API é validado, e o login não revalida tamanho —
+senão trocar a regra trancaria todas as contas existentes.
+
 ## Configuração
 
 ```plaintext
@@ -423,7 +428,7 @@ Cadastro de aluno ou professor:
 ```
 
 CPF e título são normalizados no servidor — podem chegar com máscara. Título é obrigatório (12
-dígitos, coluna `NOT NULL`); senha exige no mínimo 6 caracteres e não pode ser só espaços —
+dígitos, coluna `NOT NULL`); senha exige de 8 a 15 caracteres e não pode ser só espaços —
 `exigirSenhaAceitavel`, em `src/lib/validacao.js`, é a regra única do cadastro e das duas trocas.
 
 Novo exercício no catálogo:
@@ -536,8 +541,8 @@ tratá-lo como sessão expirada. No front isso é a lista `ROTAS_COM_401_DE_FORM
 `src/lib/api.ts`: sem ela, o interceptor derrubava a sessão e mandava para o login quem só errou a
 digitação. Apareceu no APK.
 
-A senha nova é recusada com 400 quando tem menos de 6 caracteres, quando é igual à atual e quando é
-só espaços. Espaço no meio ou nas pontas é caractere legítimo e **não** é aparado: `"  segredo  "`
+A senha nova é recusada com 400 quando tem menos de 8 ou mais de 15 caracteres, quando é igual à
+atual e quando é só espaços. Espaço no meio ou nas pontas é caractere legítimo e **não** é aparado: `"  segredo  "`
 continua sendo exatamente isso no login.
 
 A rota de admin **não** pede a senha atual — é o caso de quem esqueceu — e por isso mesmo **recusa a
