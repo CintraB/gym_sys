@@ -504,17 +504,17 @@ do trabalho para o lado do app offline.
 
 **Arquivos:** nenhum.
 
-- [ ] **Passo 1: o front continua apontando para o mesmo lugar**
+- [x] **Passo 1: o front continua apontando para o mesmo lugar**
 
 `VITE_API_URL` segue com o endereço do PC na rede local. A API trocou de banco, não de endereço — o
 front não sabe e não precisa saber. Confirme que o `.env` do front está intocado.
 
-- [ ] **Passo 2: exercitar a web**
+- [x] **Passo 2: exercitar a web**
 
 Com a API rodando contra o Supabase: entrar, carregar treino, iniciar sessão, lançar uma série,
 finalizar, abrir o histórico e ver a sessão lá.
 
-- [ ] **Passo 3: o APK, com a internet desligada**
+- [ ] **Passo 3: o APK, com a internet desligada** — **PENDENTE, com o dono**
 
 ```bash
 cd frontend && npm run apk
@@ -527,7 +527,7 @@ Tudo tem de funcionar. O APK roda o núcleo embarcado sobre SQLite e não fala c
 Supabase — se algo aqui falhar, este trabalho vazou para o app offline e precisa ser investigado
 antes de seguir.
 
-- [ ] **Passo 4: as duas suítes**
+- [x] **Passo 4: as duas suítes**
 
 ```bash
 cd backend && npm test && npm run test:sqlite
@@ -536,9 +536,59 @@ cd ../frontend && npm test
 
 Esperado: 247 e 261, como antes. **Nenhum número deveria mudar** — nada aqui toca regra de negócio.
 
-- [ ] **Passo 5: registrar no relatório**
+- [x] **Passo 5: registrar no relatório** — parcial, à espera do passo 3
 
-O que foi exercitado na web, o resultado do teste em modo avião, e os números das duas suítes.
+**Relatório da Tarefa 6 — 06/09/2026.** Feito tudo menos o APK em modo avião, que exige o aparelho.
+
+*Passo 1:* **não existe `frontend/.env`.** A base da API sai de `enderecoPadraoDaApi()` no
+`api.ts` — `hostname:8080` da própria página. A API trocou de banco, não de endereço, e o front não
+tem como saber. Nada a mudar, e nada foi mudado.
+
+*Passo 4, as três suítes:* backend **256** no pg-mem e **256** no SQLite (255 passando + 1 skip),
+front **261**. O plano esperava "247 e 261": o front bateu exato, e o backend subiu porque a
+correção da CA trouxe 5 testes novos — nenhum número caiu, que era o que importava.
+
+*Passo 2, a web exercitada contra o Supabase, pelo navegador:* login do aluno → `Meu treino`
+renderizando a versão **editada** do treino (supino 4×10 45 kg) com o cardio mostrando só a
+observação, como a convenção manda → iniciar sessão → finalizar → descartar → `Histórico` com
+"A — Peito e Tríceps, 3/3 exercícios, 59s" e nada da sessão descartada → detalhe trazendo a
+observação, 320 kcal, as duas séries (45kg×10, 45kg×9) e o cardio sem séries. Depois, como
+professor: painel com 1 aluno ativo e 1 treino ativo, e a lista de alunos com "Treinou hoje".
+**Console do navegador limpo** — só Vite e React DevTools, nenhum erro.
+
+#### Um bug pré-existente apareceu, e não é do Supabase
+
+A sessão iniciada pela web abriu no bloco **B, que a edição do treino havia removido**, com
+**0/0 exercícios**. A causa é uma consulta sem filtro:
+
+| Onde | Consulta a `treino_bloco` |
+|---|---|
+| `alunoController.js:28` | `… AND ativo = TRUE` |
+| `professorController.js:459` | `… AND ativo = TRUE` |
+| `sessaoController.js:124` | **sem `ativo`** |
+
+`iniciarSessao` monta a lista de blocos sem filtrar `ativo` e a entrega a `sugerirBloco`, que
+rotaciona sobre ela. No estado do teste os blocos eram `[1 (A, inativo), 3 (A, ativo),
+2 (B, inativo)]`; a última sessão foi no `3`, posição 1, então a sugestão foi `blocos[2]` — o B
+desativado, sem exercício nenhum. Pelo mesmo caminho, um cliente que mandasse o `id_bloco` de um
+bloco desativado seria aceito.
+
+**Isso não tem relação com o Supabase.** É filtro de coluna, idêntico nos dois bancos, e o código é o
+mesmo que a suíte roda no pg-mem — as 256 passam porque nenhum teste cobre "iniciar sessão depois de
+uma edição que removeu bloco". E não é caso raro: **toda** edição de treino que remove um bloco
+deixa o aluno nessa rotação, porque o `PUT` desativa em vez de apagar (de propósito, para o
+histórico sobreviver).
+
+Não foi corrigido aqui, seguindo a restrição global deste plano: *"Nenhum controller muda. Se uma
+tarefa exigir mexer em `src/controllers/`, pare e reporte."* Fica como obra própria.
+
+*Correção de uma leitura minha:* cheguei a anotar que o front não oferecia saída para a sessão
+vazia. Oferece — **"Descartar treino"** está dentro do modal de finalizar, com confirmação, e
+funcionou.
+
+*Dados de teste no banco real, ao fim:* professor `#1`, aluno `#2`, treino `#1` com os blocos
+`1`/`3`/`2` descritos acima, e uma sessão finalizada. Servidores derrubados e portas 8080 e 5173
+conferidas como liberadas.
 
 ## Depois das seis tarefas
 
