@@ -222,13 +222,13 @@ mas confirme isso antes de aplicar qualquer coisa, e **pare se encontrar tabela*
 
 **Arquivos:** nenhum de código. Trabalho no projeto Supabase.
 
-- [ ] **Passo 1: confirmar que o banco continua vazio**
+- [x] **Passo 1: confirmar que o banco continua vazio**
 
 Pelo MCP do Supabase (`list_tables` no schema `public`) ou pelo Table Editor. Esperado: nenhuma
 tabela. **Se houver alguma, pare e reporte** — alguém aplicou algo no meio do caminho e o plano
 precisa ser revisto.
 
-- [ ] **Passo 2: aplicar os três arquivos, nesta ordem**
+- [x] **Passo 2: aplicar os três arquivos, nesta ordem**
 
 1. `backend/db/schema.sql`
 2. `backend/db/seed.sql`
@@ -240,7 +240,7 @@ arquivos `migracao-v*.sql` **não entram** — eles atualizam bancos antigos, e 
 O MCP do Supabase precisa estar **sem `read_only=true`** para isso, ou aplique pelo editor SQL do
 painel. Se refizer o MCP sem read-only, é decisão consciente: registre no relatório.
 
-- [ ] **Passo 3: verificar que as 11 tabelas nasceram com RLS**
+- [x] **Passo 3: verificar que as 11 tabelas nasceram com RLS**
 
 O event trigger `ensure_rls` deve ter ligado sozinho:
 
@@ -268,7 +268,7 @@ tudo, mas as duas juntas significam que religar uma não abre o banco sozinha.
 > nunca deixa o banco exposto no meio. Quem reabrir sem ter escrito as políticas está criando o
 > buraco que este passo evita.
 
-- [ ] **Passo 5: revogar o EXECUTE da função do trigger**
+- [x] **Passo 5: revogar o EXECUTE da função do trigger**
 
 O advisor de segurança do Supabase aponta `public.rls_auto_enable()` como executável por `anon` e
 `authenticated`:
@@ -277,7 +277,7 @@ O advisor de segurança do Supabase aponta `public.rls_auto_enable()` como execu
 revoke execute on function public.rls_auto_enable() from anon, authenticated;
 ```
 
-- [ ] **Passo 6: o teste de fumaça — é o passo que prova tudo**
+- [x] **Passo 6: o teste de fumaça — é o passo que prova tudo**
 
 Com a **anon key** do projeto (Settings → API), de fora:
 
@@ -292,13 +292,50 @@ qualquer um. Nesse caso pare tudo e reporte.
 
 Repita para `treino` e `sessao_treino`.
 
-- [ ] **Passo 7: rodar o advisor de segurança de novo**
+- [x] **Passo 7: rodar o advisor de segurança de novo**
 
 Deve voltar limpo, ou só com avisos que você conscientemente aceitou. Registre o resultado.
 
-- [ ] **Passo 8: registrar no relatório** (não há commit: nada de código mudou)
+- [x] **Passo 8: registrar no relatório**
 
-O que foi aplicado, o resultado da consulta de RLS, e o código HTTP de cada curl.
+**Relatório da Tarefa 3 — 06/09/2026.** Aplicado pelo MCP do Supabase, **sem `read_only`** —
+decisão consciente, registrada aqui como o passo 2 pede.
+
+*Aplicado, na ordem do `docker-compose.yml`:* `schema.sql` → `triggers.sql` → `seed.sql`, como três
+migrações (`gym_sys_schema_inicial`, `gym_sys_triggers`, `gym_sys_seed_catalogo_exercicios`).
+**O passo 2 deste plano listava a ordem errada** (schema → seed → triggers), contradizendo a própria
+justificativa que dava: o `docker-compose.yml` e o cabeçalho do `schema.sql` mandam triggers antes do
+seed. Nesta carga tanto faria — o `triggers.sql` só depende de `usuario` e `ex_usuario` existirem —,
+mas a ordem seguida foi a do compose. Os `migracao-v*.sql` não entraram.
+
+*Banco vazio antes:* `list_tables` no `public` e `list_migrations` voltaram os dois vazios.
+
+*RLS:* **11 de 11 tabelas com `relrowsecurity = true`**, ligadas sozinhas pelo event trigger
+`ensure_rls`, que já existia no projeto. Nenhuma precisou de `alter table`.
+
+*Catálogo:* 79 linhas em `exercicio` — o número de linhas do `seed.sql`.
+
+*O `revoke` do passo 5 não fazia nada.* O `proacl` de `rls_auto_enable` era
+`{=X/postgres,postgres=X/postgres}`: o `=X` sem papel à esquerda é o grant para **`PUBLIC`**, e não
+para `anon`/`authenticated` nominalmente. O comando do plano rodava sem erro e sem efeito — o
+advisor continuava acusando depois dele. O que fechou foi
+`revoke execute on function public.rls_auto_enable() from public`.
+
+*Teste de fumaça (passo 6), com a anon key, de fora:* **401 nas quatro** tabelas testadas —
+`usuario`, `treino`, `sessao_treino` e `exercicio`. E o motivo é melhor do que o esperado: o corpo
+vem `42501 permission denied`, ou seja, o `anon` **nem tem `SELECT`** nas tabelas. São duas camadas
+independentes, não uma: falta de grant e RLS sem política. Nenhum 200 com dados.
+
+*Advisor de segurança:* **zero WARN**. Sobram os 11 INFO `rls_enabled_no_policy`, que são o estado
+desejado — é o "nega tudo" que a obra de sincronização vai substituir por políticas de verdade.
+
+*Um WARN foi introduzido por esta carga e fechado:* `atualizar_timestamp` nascia com `search_path`
+mutável. Corrigido no Supabase e **também no `backend/db/triggers.sql`**, para o container local não
+divergir — commit `e5b85d2`. Então **houve commit nesta tarefa**, ao contrário do que o passo 8
+previa. As duas suítes do backend seguem em 251 (250 passando + 1 skip).
+
+*Pendente, porque é no painel e exige a conta do dono:* o **passo 4**, tirar `public` dos *Exposed
+schemas*.
 
 ---
 
