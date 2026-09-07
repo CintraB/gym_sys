@@ -45,6 +45,9 @@ DB_HOST=localhost
 DB_NAME=
 DB_PASSWORD=
 DB_PORT=5432
+DB_SSL=
+DB_SSL_CA=
+DB_POOL_MAX=10
 TOKEN_SEG=
 JWT_EXPIRACAO=7d
 ENABLE_CORS=http://localhost:5173
@@ -66,6 +69,10 @@ node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
 ```
 
 `ENABLE_CORS` é uma lista de origens separadas por `;`. Vazio significa nenhuma origem liberada.
+
+`DB_SSL`, `DB_SSL_CA` e `DB_POOL_MAX` são as três que decidem entre o container local e um banco
+gerenciado — veja [Banco gerenciado (Supabase)](#banco-gerenciado-supabase). As três têm padrão e
+**não** são obrigatórias, senão todo `.env` existente quebraria.
 
 ## Banco de dados
 
@@ -128,6 +135,54 @@ psql -U <usuario> -d <banco> -f db/migracao-v2.sql
 Ela dá chave primária a `ex_usuario`, cria a coluna `id_treino` e liga cada exercício ao treino do
 respectivo aluno. Como esse vínculo não existia, o backfill é o melhor palpite possível; o próprio
 arquivo indica o que conferir antes de fechar as constraints.
+
+### Banco gerenciado (Supabase)
+
+Além do container local, a API roda contra o Postgres do Supabase — é o modo usado no projeto hoje.
+**Quem decide é o `.env`, e só ele.** Nenhuma linha de regra de negócio muda, porque tudo passa pela
+fachada `db` de `src/config/db.js`.
+
+| | Container local | Supabase |
+|---|---|---|
+| `DB_HOST` | `localhost` | `aws-0-<regiao>.pooler.supabase.com` |
+| `DB_USER` | `gymsys` | `postgres.<ref-do-projeto>` |
+| `DB_NAME` | `gymsys` | `postgres` |
+| `DB_SSL` | vazio | `true` |
+| `npm run db:up` | necessário | **não se roda** |
+
+Os dados saem de **Connect → Session pooler** no painel. Três armadilhas, todas já custaram tempo:
+
+- **Session pooler, porta 5432 — nunca o Transaction pooler da 6543.** Os controllers usam
+  `db.connect()` com `BEGIN … COMMIT`, e em transaction mode cada comando pode cair numa conexão
+  diferente: a transação deixa de existir sem ninguém receber erro.
+- **A Direct connection (`db.<ref>.supabase.co`) é IPv6-only** no plano Free — IPv4 nela é add-on
+  pago. Ela transaciona bem, o problema é alcance: se a rede não tiver IPv6 funcionando, não conecta.
+  O pooler tem IPv4.
+- **`DB_SSL=true` sozinho não basta, e o erro não fala de certificado nenhum.** O Supabase assina com
+  raiz própria (`Supabase Root 2021 CA`), que não está na loja do Node — sem fornecer essa CA, o `pg`
+  estoura `SELF_SIGNED_CERT_IN_CHAIN` antes de chegar na autenticação. Por isso a raiz vem
+  versionada em `db/prod-ca-2021.crt` e é usada automaticamente; `DB_SSL_CA` aponta outro arquivo
+  para quem usa outro banco gerenciado. **Nunca desligue a verificação com `rejectUnauthorized:
+  false`**: isso aceita qualquer certificado, que é exatamente o ataque que o TLS impede.
+
+Para carregar o schema num projeto novo, aplique `db/schema.sql`, `db/triggers.sql` e `db/seed.sql`
+nessa ordem pelo editor SQL do painel. As `migracao-v*.sql` **não** entram — elas atualizam bancos
+antigos, e um projeto novo nasce já com tudo.
+
+O container **não sai do repositório**. Ele continua sendo o caminho de volta se o Free do Supabase
+apertar, e é o que serve quem quer um banco de verdade sem rede. Guarde o `.env` de um modo antes de
+trocar para o outro (`.gitignore` cobre `.env.*`, então um `.env.container.bak` fica fora do git).
+
+#### A consequência que foi discutida e aceita
+
+**Com o banco no Supabase, a API precisa de internet mesmo servindo só a rede local.** Queda de fibra
+derruba o sistema dentro de casa — e nem as telas já abertas continuam funcionando, porque
+`autenticar` consulta o banco a cada requisição para carregar o usuário. É o preço de não manter um
+Postgres de pé; o caminho de volta é trocar o `.env` e subir o container.
+
+O plano Free dá **60 conexões**, com 13 já ocupadas pelos serviços do Supabase. `DB_POOL_MAX` existe
+para isso ser uma escolha explícita: duas instâncias da API a 10 cada ainda cabem, e sem teto
+declarado ninguém percebe quando deixar de caber.
 
 ### Detalhes do modelo
 
@@ -192,7 +247,7 @@ nascem com senha conhecida.
 ```plaintext
 npm run dev          # desenvolvimento, com reload
 npm start            # produção
-npm test             # suíte de testes (203), sobre PostgreSQL em memória
+npm test             # suíte de testes (256), sobre PostgreSQL em memória
 npm run test:sqlite  # a mesma suíte, sobre SQLite
 ```
 

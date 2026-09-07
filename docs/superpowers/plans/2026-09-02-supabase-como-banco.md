@@ -469,26 +469,26 @@ Supabase apertar, e é o que a suíte local usa quando alguém quer um banco de 
 - Modificar: `backend/README.md`
 - Modificar: `deploy/README.md`
 
-- [ ] **Passo 1: documentar os dois modos no `backend/README.md`**
+- [x] **Passo 1: documentar os dois modos no `backend/README.md`**
 
 Uma seção curta, sem rodeios: com `DB_SSL=true` e o host do pooler, a API fala com o Supabase e
 **não se roda `npm run db:up`**; com o host local e `DB_SSL` vazio, sobe-se o container como sempre.
 Deixe explícito que quem decide é o `.env`, e que trocar de modo é trocar o `.env`.
 
-- [ ] **Passo 2: registrar a consequência que foi discutida e aceita**
+- [x] **Passo 2: registrar a consequência que foi discutida e aceita**
 
 Uma linha, porque é o tipo de coisa que se esquece e depois assusta: **com o banco no Supabase, a
 API precisa de internet mesmo servindo só a rede local.** Queda de fibra derruba o sistema dentro de
 casa — e nem as telas já abertas seguem funcionando, porque `autenticar` consulta o banco a cada
 requisição.
 
-- [ ] **Passo 3: `deploy/README.md`**
+- [x] **Passo 3: `deploy/README.md`**
 
 O guia do PC de casa continua valendo inteiro (Caddy + systemd). Acrescente que o Postgres local
 vira opcional quando o banco está no Supabase, e que `PROXIES_CONFIAVEIS=1` e `HOST_BIND=127.0.0.1`
 continuam obrigatórios atrás do Caddy — isso não muda.
 
-- [ ] **Passo 4: commit**
+- [x] **Passo 4: commit**
 
 ```bash
 git add backend/README.md deploy/README.md

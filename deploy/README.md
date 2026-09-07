@@ -37,6 +37,16 @@ psql -U gymsys -d gymsys -f db/triggers.sql
 psql -U gymsys -d gymsys -f db/seed.sql
 ```
 
+**O Postgres local virou opcional.** Se o banco estiver no Supabase, pule os cinco comandos de banco
+acima — o schema já está lá — e configure `DB_HOST`, `DB_USER`, `DB_NAME` e `DB_SSL=true` no passo 3.
+O `backend/README.md` tem a seção com os valores e as armadilhas (Session pooler na 5432, CA
+própria). Tudo o mais deste guia continua igual: o Caddy, o systemd e o certificado no celular não
+sabem nem se importam com onde o banco está.
+
+Vale saber o que se troca: com o banco no Supabase não há Postgres para manter, fazer backup ou
+atualizar, mas **a API passa a precisar de internet mesmo servindo só a rede local** — queda de fibra
+derruba o sistema dentro de casa. Com o Postgres aqui, a rede local basta.
+
 ### 3. Configuração da API
 
 ```bash
@@ -60,6 +70,10 @@ node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
 
 `PROXIES_CONFIAVEIS=1` não é detalhe: sem isso o Express lê o IP do proxy em vez
 do IP real, o limite de login vira global e um único atacante tranca todo mundo.
+
+As duas linhas acima **continuam obrigatórias com o banco no Supabase** — elas são sobre o Caddy na
+frente da API, não sobre onde o banco está. `HOST_BIND=127.0.0.1` é o que impede a API de seguir
+alcançável na porta 8080, contornando o HTTPS.
 
 ### 4. Primeiro professor
 
