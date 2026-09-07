@@ -1,9 +1,40 @@
 import "dotenv/config";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 // Os nomes usam prefixo DB_ de proposito: variaveis como USER e HOST ja existem
 // no ambiente em Linux/macOS, e o dotenv nao sobrescreve o que ja esta definido —
 // o .env seria ignorado em silencio e a conexao usaria o usuario do sistema.
 const OBRIGATORIAS = ["DB_USER", "DB_HOST", "DB_NAME", "DB_PASSWORD", "DB_PORT", "TOKEN_SEG"];
+
+// A raiz da CA do Supabase, versionada junto do schema. Nao e segredo: e
+// certificado publico, o mesmo que o painel entrega em Settings -> Database ->
+// SSL Configuration. Vai ao repositorio para o servidor de casa subir sem
+// ninguem copiar arquivo a mao.
+const CA_PADRAO = path.join(path.dirname(fileURLToPath(import.meta.url)), "../../db/prod-ca-2021.crt");
+
+// carregarConfig() roda a cada emissao de token, entao a leitura fica
+// memoizada por caminho. Continua preguicosa: nada e lido no topo do modulo,
+// que e o que permite os testes variarem o ambiente.
+const caCache = new Map();
+
+function lerCa(caminho) {
+  if (caCache.has(caminho)) return caCache.get(caminho);
+  let conteudo;
+  try {
+    conteudo = fs.readFileSync(caminho, "utf8");
+  } catch (erro) {
+    // Cair para "sem ca" seria pior que falhar: a config pareceria certa e a
+    // conexao morreria com um erro de TLS que nao menciona arquivo nenhum.
+    throw new Error(
+      `Nao foi possivel ler a CA do banco em "${caminho}" (${erro.code}). ` +
+        `Ajuste DB_SSL_CA, ou baixe a CA em Settings -> Database -> SSL Configuration.`
+    );
+  }
+  caCache.set(caminho, conteudo);
+  return conteudo;
+}
 
 export function carregarConfig() {
   const faltando = OBRIGATORIAS.filter((nome) => !process.env[nome]);
@@ -34,7 +65,16 @@ export function carregarConfig() {
       // rejectUnauthorized fica TRUE de proposito: aceitar certificado nao
       // verificado devolve a conexao ao estado em que um intermediario pode se
       // passar pelo banco — que e o ataque que o TLS existe para impedir.
-      ssl: process.env.DB_SSL === "true" ? { rejectUnauthorized: true } : false,
+      //
+      // A CA vai junto, e nao e detalhe: o Supabase assina com raiz propria
+      // ("Supabase Root 2021 CA"), que nao esta na loja do Node. Verificar sem
+      // essa ancora nao aceita menos, aceita nada — o `pg` estoura
+      // SELF_SIGNED_CERT_IN_CHAIN antes de chegar na autenticacao. DB_SSL_CA
+      // troca o arquivo para quem usa outro banco gerenciado.
+      ssl:
+        process.env.DB_SSL === "true"
+          ? { rejectUnauthorized: true, ca: lerCa(process.env.DB_SSL_CA || CA_PADRAO) }
+          : false,
 
       // Teto explicito porque o plano Free do Supabase da 60 conexoes, e 13 ja
       // ficam com os servicos dele. Duas instancias da API a 10 cada ainda
