@@ -360,12 +360,12 @@ muito mais fácil de diagnosticar aqui do que dentro de um contêiner remoto.
 
 **Arquivos:** `backend/.env` (local, fora do git).
 
-- [ ] **Passo 1: pegar os dados do pooler em session mode**
+- [x] **Passo 1: pegar os dados do pooler em session mode**
 
 No painel: Connect → *Session pooler*. Anote host, porta (**5432**), usuário e database. **Não** use
 o Transaction pooler (6543): os controllers usam transações com `db.connect()`.
 
-- [ ] **Passo 2: preencher o `.env`**
+- [x] **Passo 2: preencher o `.env`**
 
 ```
 DB_HOST=<host do session pooler>
@@ -379,7 +379,7 @@ DB_POOL_MAX=10
 
 Guarde o `.env` de casa antes de sobrescrever — você vai querer voltar para o Postgres local.
 
-- [ ] **Passo 3: subir e exercitar**
+- [x] **Passo 3: subir e exercitar**
 
 ```bash
 cd backend && npm run dev
@@ -391,7 +391,7 @@ Depois, noutro terminal:
 curl -s http://localhost:8080/health
 ```
 
-- [ ] **Passo 4: criar a primeira conta**
+- [x] **Passo 4: criar a primeira conta**
 
 ```bash
 cd backend && npm run criar-professor -- --cpf <cpf> --nome "<nome>" --senha "<senha>" --email <email>
@@ -399,15 +399,63 @@ cd backend && npm run criar-professor -- --cpf <cpf> --nome "<nome>" --senha "<s
 
 Use uma conta de teste, não dados reais — o repositório tem convenção sobre isso.
 
-- [ ] **Passo 5: exercitar o caminho que usa transação**
+- [x] **Passo 5: exercitar o caminho que usa transação**
 
 Login, cadastrar um treino com dois blocos, editar esse treino, iniciar uma sessão e finalizar. É o
 caminho que mais depende de `BEGIN … COMMIT` — se o pooler estivesse em transaction mode, é aqui que
 quebraria.
 
-- [ ] **Passo 6: registrar no relatório**
+- [x] **Passo 6: registrar no relatório**
 
-Latência sentida, qualquer erro de SSL ou de conexão, e o resultado do fluxo do passo 5.
+**Relatório da Tarefa 4 — 06/09/2026.**
+
+*O plano mandava o Session pooler pelo motivo errado.* A justificativa dada era transação, mas a
+Direct connection também transaciona — é conexão direta. O motivo real apareceu no DNS:
+`db.<ref>.supabase.co` resolve **só em IPv6** (nenhum registro A), porque IPv4 na conexão direta é
+add-on pago. O pooler tem IPv4 (`aws-0-sa-east-1.pooler.supabase.com` → `15.229.150.166`). Desta
+máquina o IPv6 até funciona — TCP na 5432 fechou em 97 ms —, então a Direct rodaria hoje; ficou de
+fora porque depender de IPv6 numa conexão doméstica é frágil, e ela também gasta conexão real do
+teto de 60.
+
+*A Tarefa 1 estava quebrada, e o plano a deu por concluída.* `ssl: { rejectUnauthorized: true }`
+**sem `ca`** não conecta ao Supabase: eles assinam com raiz própria (`Supabase Root 2021 CA`), que
+não está na loja do Node, e o `pg` estoura `SELF_SIGNED_CERT_IN_CHAIN` antes da autenticação.
+Verificação ligada sem âncora de confiança não aceita menos — recusa tudo. Os testes daquela tarefa
+passavam porque só conferiam o objeto de configuração, nunca uma conexão. Corrigido no commit
+`1a9d0d1`: a raiz pública vai em `backend/db/prod-ca-2021.crt`, `DB_SSL_CA` troca o arquivo, e
+caminho inexistente falha na carga em vez de cair para sem-ca em silêncio. Cinco testes novos, um
+deles apontado a esse erro. Suítes: **256** nas duas (eram 251).
+
+*A impressão digital da CA foi conferida.* O arquivo veio do painel (HTTPS verificado pelo
+navegador) e o SHA-256 bate com a raiz que o pooler serve de fato — `8070:25AD…CAFA`. Importava
+porque eu poderia ter extraído a CA do próprio handshake, e aí, com alguém no meio, teria guardado a
+CA dele.
+
+*Prova de conexão antes de subir a API:* Postgres **17.6**, usuário `postgres`, banco `postgres`,
+**262 ms** na primeira consulta (handshake TLS incluído) e os 79 exercícios do seed no lugar.
+
+*Latência sentida, com a API local falando com São Paulo:* login **270–430 ms**; leituras
+**49–142 ms**; escritas com transação **170–464 ms**. A edição de treino (passo 5) foi a mais cara,
+464 ms, o que faz sentido — é a que renumera letras passando pela letra temporária.
+
+*Fluxo do passo 5, 26 chamadas, nenhum erro de SSL ou de conexão:* login do professor → cadastro de
+aluno → treino com **dois blocos** → leitura mostrando `A, B` → edição que remove o bloco B e
+acrescenta cardio no A → login do aluno → `meutreino` devolvendo um bloco com 3 exercícios →
+iniciar sessão → **iniciar de novo devolveu a mesma sessão** (o índice único parcial funcionou) →
+duas séries lançadas → três exercícios concluídos → finalizar, com **duração de 59 s calculada pelo
+servidor** → histórico com 1 item → detalhe trazendo `bloco_letra: "A"`, observação, calorias e as
+séries → sugestão do próximo bloco → descarte da sessão nova.
+
+**Nada indica transaction mode.** Todo caminho com `BEGIN … COMMIT` passou, inclusive a edição de
+treino e o início de sessão.
+
+*Dados de teste que ficaram no banco real:* professor `#1` (CPF 12345678901), aluno `#2`
+(22233344455), treino `#1` e a sessão `#1` finalizada. Senha `teste123` nos dois. Ficam de
+propósito — é a conta pela qual dá para entrar hoje —, mas devem sair quando a conta de verdade do
+dono existir.
+
+*A API foi derrubada ao fim, e a porta 8080 conferida como liberada*, por causa do histórico de
+porta órfã nesta máquina.
 
 ---
 
