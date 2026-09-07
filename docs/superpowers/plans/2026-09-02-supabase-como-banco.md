@@ -255,7 +255,7 @@ Esperado: **11 linhas, todas com `relrowsecurity = true`**. Qualquer `false` é 
 a internet — ligue com `alter table <nome> enable row level security` e investigue por que o trigger
 não pegou.
 
-- [ ] **Passo 4: tirar `public` dos schemas expostos**
+- [x] **Passo 4: tirar `public` dos schemas expostos**
 
 No painel: Settings → API → *Exposed schemas* → remover `public`. É a segunda camada: o RLS já nega
 tudo, mas as duas juntas significam que religar uma não abre o banco sozinha.
@@ -334,8 +334,22 @@ mutável. Corrigido no Supabase e **também no `backend/db/triggers.sql`**, para
 divergir — commit `e5b85d2`. Então **houve commit nesta tarefa**, ao contrário do que o passo 8
 previa. As duas suítes do backend seguem em 251 (250 passando + 1 skip).
 
-*Pendente, porque é no painel e exige a conta do dono:* o **passo 4**, tirar `public` dos *Exposed
-schemas*.
+*Passo 4 cumprido pelo dono no painel, em 06/09/2026.* No painel novo o campo não está mais em
+"API Settings": é **Data API → Exposed schemas**, em
+`/dashboard/project/<ref>/settings/api`, e a tela lista *schemas, tables and functions* — só o
+primeiro campo é editável, os outros dois espelham o que ficou alcançável.
+
+Removido `public`, sobrou `graphql_public` como único schema exposto, e ele tem **zero tabela**: só a
+função `graphql`, o placeholder do pg_graphql que o Supabase instala. O teste de fumaça repetido
+depois da mudança devolve **404 `PGRST205`** nas quatro tabelas, em vez do 401 anterior — o
+PostgREST deixou de rotear para elas, e agora resolve os nomes contra `graphql_public`. É a diferença
+entre "roteia e nega" e "não conhece".
+
+**Contagem final das camadas: três, não duas.** O plano previa grant/RLS como as duas, mas o
+levantamento mostrou que *nenhum* papel da Data API tem `SELECT` nas tabelas — nem o
+`service_role`. Então: (1) sem grant, (2) RLS sem política, (3) schema fora da Data API. A obra de
+sincronização do APK vai desfazer a terceira e substituir a segunda por políticas de verdade; a
+primeira precisará de `grant` explícito.
 
 ---
 
