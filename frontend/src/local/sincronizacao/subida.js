@@ -106,6 +106,10 @@ export async function subir(bd, cliente, { token }) {
   let enviadas = 0
   let repetidas = 0
   let falhas = 0
+  // Contadas à parte porque dizem outra coisa: falha de rede é o estado do
+  // aparelho, não um problema daquela sessão. É o que o motor usa para decidir
+  // se está offline.
+  let falhasDeRede = 0
 
   for (const { id_sessao: idSessao } of pendentes) {
     const pacote = await montarPacote(bd, idSessao)
@@ -129,9 +133,10 @@ export async function subir(bd, cliente, { token }) {
 
       // O resto não pode segurar a fila: a sessão seguinte pode ser a que sobe.
       falhas += 1
+      if (erro?.tipo === 'rede') falhasDeRede += 1
       console.error('[sincronizacao] sessão', idSessao, erro?.tipo ?? '', erro?.message ?? erro)
     }
   }
 
-  return { enviadas, repetidas, falhas }
+  return { enviadas, repetidas, falhas, falhasDeRede }
 }

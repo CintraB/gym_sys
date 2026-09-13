@@ -95,7 +95,7 @@ describe('subida', () => {
     const cliente = { rpc: vi.fn().mockResolvedValue({ id_sessao: 999, criada: true }) }
 
     const resultado = await subir(bd, cliente, { token: 'tok' })
-    expect(resultado).toEqual({ enviadas: 1, repetidas: 0, falhas: 0 })
+    expect(resultado).toEqual({ enviadas: 1, repetidas: 0, falhas: 0, falhasDeRede: 0 })
 
     const segunda = await subir(bd, cliente, { token: 'tok' })
     expect(segunda.enviadas).toBe(0)
@@ -107,7 +107,7 @@ describe('subida', () => {
     const cliente = { rpc: vi.fn().mockResolvedValue({ id_sessao: 999, criada: false }) }
 
     const resultado = await subir(bd, cliente, { token: 'tok' })
-    expect(resultado).toEqual({ enviadas: 0, repetidas: 1, falhas: 0 })
+    expect(resultado).toEqual({ enviadas: 0, repetidas: 1, falhas: 0, falhasDeRede: 0 })
     expect(await sessoesPendentes(bd)).toHaveLength(0)
   })
 
@@ -117,6 +117,9 @@ describe('subida', () => {
 
     const resultado = await subir(bd, cliente, { token: 'tok' })
     expect(resultado.falhas).toBe(1)
+    // Contada como falha de REDE: e o que diz ao motor que o aparelho esta
+    // offline, e nao que aquela sessao tem problema.
+    expect(resultado.falhasDeRede).toBe(1)
     expect(await sessoesPendentes(bd)).toHaveLength(1)
   })
 
@@ -149,6 +152,6 @@ describe('subida', () => {
     }
 
     const resultado = await subir(bd, cliente, { token: 'tok' })
-    expect(resultado).toEqual({ enviadas: 1, repetidas: 0, falhas: 1 })
+    expect(resultado).toEqual({ enviadas: 1, repetidas: 0, falhas: 1, falhasDeRede: 0 })
   })
 })
