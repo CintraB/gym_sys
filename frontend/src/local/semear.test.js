@@ -2,6 +2,7 @@
 import { describe, it, expect } from 'vitest'
 import { semear, SEMENTE_PUBLICA } from './semear.js'
 import { verificarSenha } from './senha.js'
+import { abrirBancoDeTeste } from './bancoDeTeste.js'
 
 /**
  * Os testes semeiam com a semente PÚBLICA, sempre explícita.
@@ -13,10 +14,7 @@ import { verificarSenha } from './senha.js'
 const CONTA_PADRAO = SEMENTE_PUBLICA.conta
 
 /** Banco vazio, com o mesmo contrato que o driver do aparelho oferece. */
-async function bancoVazio() {
-  const { criarBancoSqlite } = await import('../../../backend/src/config/sqlite.js')
-  return criarBancoSqlite({ arquivo: ':memory:' })
-}
+const bancoVazio = abrirBancoDeTeste
 
 const linhas = async (bd, sql) => (await bd.query(sql)).rows
 

@@ -8,6 +8,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { despachar } from './roteador.js'
 import { configurarPool } from './banco.js'
+import { abrirBancoDeTeste } from './bancoDeTeste.js'
 
 /**
  * As duas rotas de senha dentro do aplicativo, sobre SQLite e com os
@@ -22,10 +23,9 @@ import { configurarPool } from './banco.js'
 const SENHA = 'senha123'
 
 async function bancoDeTeste() {
-  const { criarBancoSqlite } = await import('../../../backend/src/config/sqlite.js')
   const raiz = join(process.cwd(), '..', 'backend', 'db')
 
-  const bd = criarBancoSqlite({ arquivo: ':memory:' })
+  const bd = await abrirBancoDeTeste()
   bd.aplicarSql(readFileSync(join(raiz, 'schema.sql'), 'utf8'))
   bd.aplicarSql(readFileSync(join(raiz, 'seed.sql'), 'utf8'))
   configurarPool(bd)

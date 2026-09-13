@@ -1,4 +1,5 @@
 import schemaSql from '../../../backend/db/schema.sql?raw'
+import schemaLocalSql from './schemaLocal.sql?raw'
 import catalogoSql from '../../../backend/db/seed.sql?raw'
 import { criarHashComSal } from './senha.js'
 
@@ -65,6 +66,9 @@ const SENHA_DOS_EXEMPLOS = 'treino123'
  */
 export async function semear(bd, semente = SEMENTE) {
   bd.aplicarSql(schemaSql)
+  // Depois do schema compartilhado e antes de qualquer consulta: o resto da
+  // abertura já pode contar com a tabela de envios.
+  bd.aplicarSql(schemaLocalSql)
 
   const { rows } = await bd.query('SELECT COUNT(*)::int AS n FROM usuario')
   if (rows[0].n > 0) return

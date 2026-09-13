@@ -9,6 +9,7 @@ import { join } from 'node:path'
 import { TABELA } from './rotas.js'
 import { despachar, escolherRota } from './roteador.js'
 import { configurarPool } from './banco.js'
+import { abrirBancoDeTeste } from './bancoDeTeste.js'
 
 // A partir da raiz do projeto, e nao de import.meta.url: dentro do Vite o
 // import.meta.url do modulo transformado nao e uma URL file://, e fileURLToPath
@@ -86,10 +87,9 @@ describe('tabela de rotas do app', () => {
 
 /** Banco de teste em SQLite, com o schema e o seed de verdade. */
 async function bancoDeTeste() {
-  const { criarBancoSqlite } = await import('../../../backend/src/config/sqlite.js')
   const raiz = join(process.cwd(), '..', 'backend', 'db')
 
-  const bd = criarBancoSqlite({ arquivo: ':memory:' })
+  const bd = await abrirBancoDeTeste()
   bd.aplicarSql(readFileSync(join(raiz, 'schema.sql'), 'utf8'))
   bd.aplicarSql(readFileSync(join(raiz, 'seed.sql'), 'utf8'))
   configurarPool(bd)
