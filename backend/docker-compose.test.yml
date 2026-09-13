@@ -1,0 +1,28 @@
+# Postgres descartável para a suíte de RLS (`npm run test:rls`).
+#
+# Separado do docker-compose.yml de propósito: aquele tem volume nomeado e
+# aplica schema/seed só na criação do volume. Aqui o banco precisa nascer vazio
+# a cada execução, para provar que os arquivos SQL rodam do zero — que é como
+# vão rodar no Supabase — e para nunca encostar nos dados de desenvolvimento.
+services:
+  db-teste:
+    image: postgres:16-alpine
+    container_name: gymsys-db-rls
+    environment:
+      POSTGRES_USER: gymsys
+      POSTGRES_PASSWORD: gymsys
+      POSTGRES_DB: gymsys_rls
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+      PGUSER: gymsys
+      PGDATABASE: gymsys_rls
+    ports:
+      - "5433:5432"
+    # tmpfs: os dados morrem com o container. Não há o que limpar depois.
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+      start_period: 3s

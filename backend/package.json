@@ -10,7 +10,7 @@
   "scripts": {
     "dev": "node --watch server.js",
     "start": "node server.js",
-    "test": "node --test --disable-warning=ExperimentalWarning",
+    "test": "node --test \"test/*.test.js\" --disable-warning=ExperimentalWarning",
     "test:sqlite": "npm test --banco=sqlite",
     "criar-professor": "node scripts/criarProfessor.js",
     "criar-admin": "node scripts/criarAdmin.js",
@@ -20,6 +20,9 @@
     "db:reset": "docker compose down -v && docker compose up -d --wait",
     "db:logs": "docker compose logs -f db",
     "db:psql": "docker compose exec db psql",
+    "rls:up": "docker compose -f docker-compose.test.yml up -d --wait",
+    "rls:down": "docker compose -f docker-compose.test.yml down",
+    "test:rls": "npm run rls:up && node --test \"test-rls/*.test.js\" --disable-warning=ExperimentalWarning",
     "dados-exemplo": "node scripts/dadosExemplo.js"
   },
   "keywords": [],
