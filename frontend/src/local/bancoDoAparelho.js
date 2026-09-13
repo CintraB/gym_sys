@@ -20,6 +20,10 @@ export const COLUNAS_BOOLEANAS = new Set([
   'ver',
   'alterar',
   'apagar',
+  // De `tentativa_login`, que e trava da Edge Function do servidor: o app nunca
+  // le essa tabela, mas o schema.sql inteiro nasce no aparelho, e a lista fala
+  // do schema e nao do que o app usa.
+  'sucesso',
 ])
 
 /** O SQLite recusa boolean como parâmetro, e grava Date como nulo, calado. */

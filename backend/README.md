@@ -247,6 +247,46 @@ nunca sobrescreve nem apaga.
 Senha `senha123` para os usuários que o script criar. Não use em banco com dados reais: as contas
 nascem com senha conhecida.
 
+### Autorização no banco (RLS)
+
+A API autoriza no Express, com `autenticar` + `exigirPerfil`. Quando o APK passar a falar direto
+com o banco (o PostgREST do Supabase, leva 3 da sincronização), essa camada deixa de estar no
+caminho — e a autorização precisa existir **também** em SQL. É o que estes arquivos fazem.
+
+Ordem de aplicação, num banco novo:
+
+```bash
+psql -U <usuario> -d <banco> -f db/schema.sql
+psql -U <usuario> -d <banco> -f db/rls.sql
+psql -U <usuario> -d <banco> -f db/sincronizacao.sql
+```
+
+| Arquivo | O que tem dentro |
+|---|---|
+| `db/rls.sql` | `registrar_tentativa`, as funções de identidade (`auth_id_valido`, `auth_e_professor`, `auth_e_admin`), os `GRANT`s por coluna, o `ENABLE ROW LEVEL SECURITY` e todas as políticas |
+| `db/sincronizacao.sql` | Só a `sincronizar_sessao(jsonb)`, a subida de uma sessão inteira em uma chamada |
+| `db/migracao-v8-uuid.sql` | Para um banco **que já existe**: a coluna `uuid` nas quatro tabelas que sobem do aparelho, os índices únicos e a tabela `tentativa_login`. Faça backup antes |
+
+Os dois primeiros ficam fora do `schema.sql` pelo mesmo motivo do `triggers.sql`: são plpgsql, e o
+`pg-mem` da suíte principal não executa plpgsql. Por isso também **não** são montados no
+`docker-compose.yml` de desenvolvimento.
+
+Quem prova que isso funciona é `npm run test:rls`, numa suíte à parte que sobe um Postgres
+descartável — ver `test-rls/README.md`. Um teste vermelho ali é vulnerabilidade, não teste
+desatualizado.
+
+Três coisas que valem saber antes de mexer:
+
+- **`auth_id_valido()` replica o corte de sessão do `src/middlewares/auth.js`**, inclusive o
+  truncamento do `iat` para segundos e a comparação não-estrita. Mudar um lado sem o outro faz as
+  duas portas discordarem sobre o mesmo token.
+- **O grant filtra coluna; a política filtra linha.** É o grant por coluna que mantém `senha` fora
+  do alcance de todo `SELECT`, inclusive o do próprio dono.
+- **`sincronizar_sessao` é `SECURITY INVOKER` de propósito.** Ela não é uma porta que escapa do
+  RLS: é só a forma de mandar o pacote junto, e as políticas de escrita continuam valendo lá dentro.
+
+A Data API do Supabase **continua fechada** — abri-la é assunto da leva 3.
+
 ## Execução
 
 ```plaintext
