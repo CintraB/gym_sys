@@ -44,6 +44,8 @@ interface Opcoes {
   usuario?: Usuario | null
   carregando?: boolean
   sair?: () => void
+  /** Para telas que fazem a pessoa entrar de novo — a sincronização faz. */
+  entrar?: (cpf: string, senha: string) => Promise<Usuario>
 }
 
 /**
@@ -55,12 +57,19 @@ interface Opcoes {
  */
 export function renderizar(
   ui: ReactElement,
-  { rota = '/', caminho, usuario = PROFESSOR, carregando = false, sair = () => {} }: Opcoes = {},
+  {
+    rota = '/',
+    caminho,
+    usuario = PROFESSOR,
+    carregando = false,
+    sair = () => {},
+    entrar = async () => usuario as Usuario,
+  }: Opcoes = {},
 ) {
   const valor = {
     usuario,
     carregando,
-    entrar: async () => usuario as Usuario,
+    entrar,
     sair,
     atualizarUsuario: () => {},
   }

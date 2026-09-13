@@ -7,6 +7,7 @@ import { Sincronizacao } from './Sincronizacao'
 const entrarNaSincronizacao = vi.fn()
 const sincronizar = vi.fn()
 const sair = vi.fn()
+const entrarNoApp = vi.fn()
 let estadoAtual = { ligada: false, online: null as boolean | null, ultima: null, ocupada: false }
 
 vi.mock('../local/sincronizacao/doApp.js', () => ({
@@ -27,14 +28,14 @@ describe('tela de sincronizacao', () => {
   })
 
   it('deixa claro que da para usar o app sem ativar', () => {
-    renderizar(<Sincronizacao />)
+    renderizar(<Sincronizacao />, { entrar: entrarNoApp })
     expect(screen.getByText(/continua funcionando normalmente/i)).toBeInTheDocument()
   })
 
   // O aviso não pode ser nota de rodapé depois do fato: apagar o histórico é
   // decisão dela, e precisa estar visível antes de digitar a senha.
   it('avisa que o historico local vai embora ANTES de entrar', async () => {
-    renderizar(<Sincronizacao />)
+    renderizar(<Sincronizacao />, { entrar: entrarNoApp })
     await userEvent.click(screen.getByRole('button', { name: /ativar sincroniza/i }))
 
     expect(screen.getByText(/ser[áa] apagado/i)).toBeInTheDocument()
@@ -43,7 +44,7 @@ describe('tela de sincronizacao', () => {
 
   it('so entra depois de confirmar, com CPF e senha', async () => {
     entrarNaSincronizacao.mockResolvedValue({ exerciciosDaFicha: 12, blocos: 3 })
-    renderizar(<Sincronizacao />)
+    renderizar(<Sincronizacao />, { entrar: entrarNoApp })
 
     await userEvent.click(screen.getByRole('button', { name: /ativar sincroniza/i }))
     await userEvent.type(screen.getByLabelText(/cpf/i), '11111111111')
@@ -58,9 +59,24 @@ describe('tela de sincronizacao', () => {
     )
   })
 
+  // O recomeço troca a linha do usuário pela do servidor, com o id de lá, e o
+  // token do app aponta para o id antigo — sem entrar de novo, a pessoa é
+  // jogada para o login logo depois de ativar. Aconteceu no emulador.
+  it('entra de novo no app depois de ativar, com a mesma credencial', async () => {
+    entrarNaSincronizacao.mockResolvedValue({ exerciciosDaFicha: 12, blocos: 3 })
+    renderizar(<Sincronizacao />, { entrar: entrarNoApp })
+
+    await userEvent.click(screen.getByRole('button', { name: /ativar sincroniza/i }))
+    await userEvent.type(screen.getByLabelText(/cpf/i), '11111111111')
+    await userEvent.type(screen.getByLabelText(/senha/i), 'senha123')
+    await userEvent.click(screen.getByRole('button', { name: /confirmar e ativar/i }))
+
+    await waitFor(() => expect(entrarNoApp).toHaveBeenCalledWith('11111111111', 'senha123'))
+  })
+
   it('falha de rede ao ativar nao vira erro tecnico na tela', async () => {
     entrarNaSincronizacao.mockRejectedValue({ tipo: 'rede', message: 'Sem conexão com o servidor' })
-    renderizar(<Sincronizacao />)
+    renderizar(<Sincronizacao />, { entrar: entrarNoApp })
 
     await userEvent.click(screen.getByRole('button', { name: /ativar sincroniza/i }))
     await userEvent.type(screen.getByLabelText(/cpf/i), '111')
@@ -72,7 +88,7 @@ describe('tela de sincronizacao', () => {
 
   it('ligada: mostra quantos treinos faltam subir', async () => {
     estadoAtual = { ligada: true, online: true, ultima: null, ocupada: false }
-    renderizar(<Sincronizacao />)
+    renderizar(<Sincronizacao />, { entrar: entrarNoApp })
 
     expect(await screen.findByText(/2 treino\(s\) aguardando/i)).toBeInTheDocument()
   })
@@ -80,7 +96,7 @@ describe('tela de sincronizacao', () => {
   it('sem rede, diz que os treinos ficam guardados — e nao que deu erro', async () => {
     estadoAtual = { ligada: true, online: true, ultima: null, ocupada: false }
     sincronizar.mockResolvedValue({ online: false })
-    renderizar(<Sincronizacao />)
+    renderizar(<Sincronizacao />, { entrar: entrarNoApp })
 
     await userEvent.click(screen.getByRole('button', { name: /sincronizar agora/i }))
 
@@ -90,7 +106,7 @@ describe('tela de sincronizacao', () => {
   it('token vencido pede para ativar de novo, sem falar em sair do app', async () => {
     estadoAtual = { ligada: true, online: true, ultima: null, ocupada: false }
     sincronizar.mockResolvedValue({ precisaEntrarDeNovo: true })
-    renderizar(<Sincronizacao />)
+    renderizar(<Sincronizacao />, { entrar: entrarNoApp })
 
     await userEvent.click(screen.getByRole('button', { name: /sincronizar agora/i }))
 
@@ -102,7 +118,7 @@ describe('tela de sincronizacao', () => {
   it('sucesso diz quantos subiram', async () => {
     estadoAtual = { ligada: true, online: true, ultima: null, ocupada: false }
     sincronizar.mockResolvedValue({ enviadas: 3, repetidas: 0, falhas: 0, online: true })
-    renderizar(<Sincronizacao />)
+    renderizar(<Sincronizacao />, { entrar: entrarNoApp })
 
     await userEvent.click(screen.getByRole('button', { name: /sincronizar agora/i }))
 

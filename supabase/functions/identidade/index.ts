@@ -19,10 +19,32 @@ const RESPOSTAS = {
   excesso: { status: 429, erro: "Muitas tentativas. Tente de novo em alguns minutos." },
 } as const;
 
+/**
+ * CORS.
+ *
+ * O APK roda numa pagina `https://localhost` (o esquema do Capacitor), entao
+ * toda chamada daqui e cross-origin. Sem estes cabecalhos o WebView recusa a
+ * resposta ANTES de o JavaScript ve-la, e o erro que chega e um
+ * `TypeError: Failed to fetch` sem status nenhum -- indistinguivel de "sem
+ * internet".
+ *
+ * Nao foi pego por teste nenhum porque o Node nao aplica CORS: a suite inteira
+ * passava com a funcao publicada e inalcancavel pelo aparelho. Descoberto no
+ * emulador, em 13/09/2026.
+ *
+ * `*` porque a funcao nao guarda cookie nem sessao: a credencial vai no corpo,
+ * e a resposta so tem valor para quem ja sabe CPF e senha.
+ */
+const CORS = {
+  "access-control-allow-origin": "*",
+  "access-control-allow-headers": "authorization, apikey, content-type",
+  "access-control-allow-methods": "POST, OPTIONS",
+};
+
 function json(corpo: unknown, status = 200) {
   return new Response(JSON.stringify(corpo), {
     status,
-    headers: { "content-type": "application/json" },
+    headers: { ...CORS, "content-type": "application/json" },
   });
 }
 
@@ -66,6 +88,10 @@ const sql = postgres(Deno.env.get("SUPABASE_DB_URL")!, {
 });
 
 Deno.serve(async (requisicao: Request) => {
+  // O preflight vem antes de qualquer POST com content-type: se ele nao for
+  // respondido, a requisicao de verdade nem chega a sair.
+  if (requisicao.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
+
   if (requisicao.method !== "POST") return json({ erro: "Método não permitido" }, 405);
 
   let corpo: { cpf?: unknown; senha?: unknown };

@@ -6,6 +6,7 @@ import { Cartao } from './ui/Cartao'
 import { Aviso } from './ui/Aviso'
 import { Selo } from './ui/Selo'
 import { sincronizacaoDoApp } from '../local/sincronizacao/doApp.js'
+import { useAuth } from '../auth/useAuth'
 
 /**
  * Ativa e opera a sincronização com o servidor.
@@ -16,6 +17,7 @@ import { sincronizacaoDoApp } from '../local/sincronizacao/doApp.js'
  */
 export function Sincronizacao() {
   const motor = sincronizacaoDoApp()
+  const { entrar } = useAuth()
   const [estado, setEstado] = useState(motor.estado())
   const [pendentes, setPendentes] = useState<number | null>(null)
   const [entrando, setEntrando] = useState(false)
@@ -44,6 +46,16 @@ export function Sincronizacao() {
     setOcupadoAqui(true)
     try {
       const conta = await motor.entrarNaSincronizacao({ cpf, senha })
+
+      // Entrar de novo, por dentro: o recomeço troca a linha do usuário pela do
+      // servidor, com o **id de lá**, e o token do app aponta para o id antigo
+      // — a próxima requisição viraria 401 e jogaria a pessoa para o login logo
+      // depois de ativar. Apareceu no emulador em 13/09/2026.
+      //
+      // A credencial é a mesma que acabou de ser digitada e validada, e o
+      // caminho é o normal do app: token novo, contexto atualizado.
+      await entrar(cpf, senha)
+
       setResumo(`Pronto. Sua ficha veio do servidor: ${conta.exerciciosDaFicha} exercício(s).`)
       setEntrando(false)
       setSenha('')

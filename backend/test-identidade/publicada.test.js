@@ -2,12 +2,14 @@ import { after, before, describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { decodeJwt } from "jose";
 import {
+  CHAVE,
   PADRAO_HASH,
   chamarIdentidade,
   comUsuarioDeTeste,
   encerrar,
   exigirAmbiente,
   limparTentativas,
+  URL_FUNCAO,
 } from "./ajuda.js";
 
 describe("a função de identidade publicada", () => {
@@ -69,6 +71,38 @@ describe("a função de identidade publicada", () => {
       const { status, corpo } = await chamarIdentidade({ cpf, senha });
       assert.equal(status, 403);
       assert.equal(corpo.token, undefined);
+    });
+  });
+
+  // Sem CORS o APK não alcança a função: o WebView recusa a resposta antes de
+  // o JavaScript vê-la, e o que chega é `TypeError: Failed to fetch`, sem
+  // status — indistinguível de "sem internet". Passou despercebido porque o
+  // Node não aplica CORS: a suíte inteira ficava verde com a função
+  // inalcançável pelo aparelho. Descoberto no emulador em 13/09/2026.
+  it("responde ao preflight, senão o APK nunca alcança a função", async () => {
+    const resposta = await fetch(URL_FUNCAO, {
+      method: "OPTIONS",
+      headers: {
+        origin: "https://localhost",
+        "access-control-request-method": "POST",
+        "access-control-request-headers": "content-type, apikey",
+      },
+    });
+
+    assert.ok(resposta.status < 400, `preflight respondeu ${resposta.status}`);
+    assert.equal(resposta.headers.get("access-control-allow-origin"), "*");
+    assert.match(resposta.headers.get("access-control-allow-headers") ?? "", /content-type/i);
+  });
+
+  it("a resposta do login também traz o cabeçalho de origem", async () => {
+    await comUsuarioDeTeste({}, async ({ cpf, senha }) => {
+      const resposta = await fetch(URL_FUNCAO, {
+        method: "POST",
+        headers: { apikey: CHAVE, "content-type": "application/json", origin: "https://localhost" },
+        body: JSON.stringify({ cpf, senha }),
+      });
+      assert.equal(resposta.status, 200);
+      assert.equal(resposta.headers.get("access-control-allow-origin"), "*");
     });
   });
 
