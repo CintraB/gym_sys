@@ -126,10 +126,24 @@ function ModoLeitura({
         '/alunos/treino/sessao',
         idBloco ? { id_bloco: idBloco } : {},
       )
-      await anunciarTreino(data)
+
+      // A notificação é disparada SEM `await`, e a razão é concreta: na
+      // primeira vez ela chama `requestPermissions()`, que abre o diálogo do
+      // Android por cima do app e só resolve quando alguém responde. Esperando
+      // por ela, a tela ficava presa — o treino já existia no banco, mas o
+      // botão continuava desabilitado e a pessoa não conseguia treinar até
+      // fechar o aplicativo. Apareceu no emulador em 13/09/2026.
+      //
+      // Notificação é enfeite: `anunciarTreino` nunca lança (é `aSalvo`), e o
+      // treino não depende dela.
+      void anunciarTreino(data)
       aoIniciar()
     } catch (e) {
       setErro(mensagemDeErro(e, 'Não foi possível iniciar o treino.'))
+    } finally {
+      // No `finally`, e não só no `catch`: antes, o caminho de sucesso contava
+      // com o desmonte da tela para "soltar" o botão. Qualquer coisa que
+      // atrasasse a troca deixava o botão desabilitado para sempre.
       setIniciando(false)
     }
   }

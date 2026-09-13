@@ -382,6 +382,32 @@ describe('MeuTreino — barra de notificação', () => {
     await waitFor(() => expect(anunciarTreino).toHaveBeenCalledWith(SESSAO_ATIVA))
   })
 
+  // Na primeira vez, `anunciarTreino` pede permissão de notificação, e o
+  // diálogo do Android só resolve quando alguém responde. Esperar por ela
+  // prendia o app: a sessão nascia no banco e o botão ficava desabilitado para
+  // sempre, sem erro nenhum. Apareceu no emulador em 13/09/2026.
+  it('a notificação não segura o início do treino', async () => {
+    responder({ '/alunos/treino/sessao': null })
+    post.mockResolvedValue({ data: SESSAO_ATIVA } as never)
+    // Nunca resolve — é o diálogo de permissão aberto na tela.
+    anunciarTreino.mockReturnValue(new Promise(() => {}))
+
+    const usuario = userEvent.setup()
+    renderizar(<MeuTreino />, { usuario: ALUNO })
+
+    await screen
+      .findByRole('button', { name: /iniciar treino/i })
+      .then((botao) => usuario.click(botao))
+    await usuario.click(await screen.findByRole('button', { name: /^iniciar$/i }))
+
+    // A sessão foi criada e a tela seguiu em frente, sem esperar a permissão.
+    await waitFor(() => expect(post).toHaveBeenCalledWith('/alunos/treino/sessao', {}))
+    await waitFor(() => {
+      const botao = screen.queryByRole('button', { name: /iniciar treino/i })
+      if (botao) expect(botao).not.toBeDisabled()
+    })
+  })
+
   it('limpa a notificação ao finalizar', async () => {
     responder({ '/alunos/treino/sessao': SESSAO_ATIVA })
     post.mockResolvedValue({

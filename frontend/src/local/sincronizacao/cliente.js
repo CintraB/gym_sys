@@ -92,6 +92,13 @@ export function criarCliente({ url, chave, buscar = fetch }) {
 
     if (!resposta.ok) {
       const tipo = tipoDoStatus(resposta.status)
+
+      // O detalhe técnico vai para o console, e só a mensagem legível vai para
+      // a tela. Sem isto, um 401 do PostgREST chega como "sua sessão expirou" e
+      // a causa real — que pode ser relógio, política ou token malformado —
+      // não sobra em lugar nenhum para quem for investigar.
+      console.error('[sincronizacao]', resposta.status, endereco, JSON.stringify(dados))
+
       throw new ErroSincronizacao(tipo, mensagemPara(tipo, dados), dados)
     }
 
