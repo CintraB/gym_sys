@@ -145,4 +145,70 @@ describe('SelecaoBuscavel', () => {
     montar()
     expect(screen.queryByRole('button', { name: 'Limpar' })).not.toBeInTheDocument()
   })
+
+  /**
+   * Medidas tiradas do emulador (Pixel 6, API 36) em 13/09/2026, com o teclado
+   * do Android aberto na tela de montar treino: a viewport cai de 842 para 530
+   * e o campo fica em 374-422. Antes do flip a lista abria de 426 a 682 — 152px
+   * fora da tela, e das 6 opções filtradas só uma aparecia inteira.
+   */
+  describe('posição da lista', () => {
+    function fingirGeometria({ alturaJanela, topo, base }: { alturaJanela: number; topo: number; base: number }) {
+      const original = Element.prototype.getBoundingClientRect
+      window.innerHeight = alturaJanela
+      Element.prototype.getBoundingClientRect = function () {
+        return { top: topo, bottom: base, height: base - topo, left: 0, right: 0, width: 300, x: 0, y: topo, toJSON: () => ({}) } as DOMRect
+      }
+      return () => {
+        Element.prototype.getBoundingClientRect = original
+      }
+    }
+
+    it('abre para baixo quando há espaço sobrando abaixo do campo', async () => {
+      const restaurar = fingirGeometria({ alturaJanela: 842, topo: 200, base: 248 })
+      try {
+        const { usuario } = montar()
+        await usuario.click(screen.getByRole('combobox', { name: 'Exercício' }))
+
+        expect(screen.getByRole('listbox').closest('[data-posicao]')).toHaveAttribute(
+          'data-posicao',
+          'abaixo',
+        )
+      } finally {
+        restaurar()
+      }
+    })
+
+    it('abre para cima quando o teclado come o espaço de baixo', async () => {
+      const restaurar = fingirGeometria({ alturaJanela: 530, topo: 374, base: 422 })
+      try {
+        const { usuario } = montar()
+        await usuario.click(screen.getByRole('combobox', { name: 'Exercício' }))
+
+        expect(screen.getByRole('listbox').closest('[data-posicao]')).toHaveAttribute(
+          'data-posicao',
+          'acima',
+        )
+      } finally {
+        restaurar()
+      }
+    })
+
+    it('encolhe a lista para caber no espaço que sobrou, em vez de vazar da tela', async () => {
+      // 60px abaixo (216 - 148 - 8) e 92 acima (100 - 8): não cabe inteira de
+      // lado nenhum, então vai para o maior e se limita a ele.
+      const restaurar = fingirGeometria({ alturaJanela: 216, topo: 100, base: 148 })
+      try {
+        const { usuario } = montar()
+        await usuario.click(screen.getByRole('combobox', { name: 'Exercício' }))
+
+        const lista = screen.getByRole('listbox')
+        const limite = Number.parseInt(lista.style.maxHeight, 10)
+        expect(limite).toBeGreaterThan(0)
+        expect(limite).toBeLessThanOrEqual(100)
+      } finally {
+        restaurar()
+      }
+    })
+  })
 })

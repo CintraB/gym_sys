@@ -10,6 +10,19 @@ export interface OpcaoBuscavel {
   grupo?: string
 }
 
+/** Altura que a lista gostaria de ter — o `max-h-64` que ela sempre teve. */
+const ALTURA_DESEJADA = 256
+/** Respiro entre a lista e a borda da área visível. */
+const MARGEM = 8
+/**
+ * Piso para abrir de bom grado para baixo: cabem ~4 opções.
+ *
+ * Não é 96 (duas linhas) porque no caso que motivou isto sobravam exatamente
+ * 100px abaixo contra 366 acima — tecnicamente "cabia", e o professor via duas
+ * opções de seis quando podia ver todas.
+ */
+const ESPACO_MINIMO = 160
+
 interface Props {
   rotulo?: string
   valor: string | number
@@ -49,6 +62,7 @@ export function SelecaoBuscavel({
   const [aberto, setAberto] = useState(false)
   const [digitado, setDigitado] = useState('')
   const [ativo, setAtivo] = useState(0)
+  const [posicao, setPosicao] = useState({ paraCima: false, alturaMax: ALTURA_DESEJADA })
 
   const raiz = useRef<HTMLDivElement>(null)
   const campo = useRef<HTMLInputElement>(null)
@@ -100,6 +114,54 @@ export function SelecaoBuscavel({
   useEffect(() => {
     itemAtivo.current?.scrollIntoView({ block: 'nearest' })
   }, [ativo, aberto])
+
+  /**
+   * Decide se a lista abre para baixo ou para cima, e o quanto ela pode medir.
+   *
+   * Medido no emulador em 13/09/2026: com o teclado do Android aberto a
+   * viewport cai de 842 para 530px. Abrindo sempre para baixo com altura fixa,
+   * a lista do campo de exercício vazava 152px por fora da tela e só uma das
+   * seis opções filtradas aparecia inteira — rolar a página alcançava o resto,
+   * mas o professor escolhe exercício dezenas de vezes por ficha.
+   *
+   * O `scrollIntoView` do item ativo, acima, não resolve isto: ele rola dentro
+   * da lista, e aqui quem está fora da tela é o container inteiro.
+   */
+  useEffect(() => {
+    if (!aberto) return
+
+    function medir() {
+      const caixa = campo.current?.getBoundingClientRect()
+      if (!caixa) return
+
+      // visualViewport é o que encolhe com o teclado nos navegadores que o
+      // expõem; innerHeight cobre o resto (e o jsdom dos testes).
+      const alturaJanela = window.visualViewport?.height ?? window.innerHeight
+      const abaixo = alturaJanela - caixa.bottom - MARGEM
+      const acima = caixa.top - MARGEM
+
+      const paraCima = abaixo < ESPACO_MINIMO && acima > abaixo
+      const espaco = Math.max(0, paraCima ? acima : abaixo)
+
+      setPosicao((atual) => {
+        const alturaMax = Math.min(ALTURA_DESEJADA, espaco)
+        if (atual.paraCima === paraCima && atual.alturaMax === alturaMax) return atual
+        return { paraCima, alturaMax }
+      })
+    }
+
+    medir()
+    // O teclado subindo dispara resize; rolar a página muda a posição do campo.
+    // O `true` na captura pega a rolagem de qualquer ancestral, não só a janela.
+    window.addEventListener('resize', medir)
+    window.addEventListener('scroll', medir, true)
+    window.visualViewport?.addEventListener('resize', medir)
+    return () => {
+      window.removeEventListener('resize', medir)
+      window.removeEventListener('scroll', medir, true)
+      window.visualViewport?.removeEventListener('resize', medir)
+    }
+  }, [aberto])
 
   function abrir() {
     if (desabilitado || aberto) return
@@ -207,13 +269,26 @@ export function SelecaoBuscavel({
         </div>
 
         {aberto && (
-          <div className="absolute inset-x-0 top-full z-20 mt-1 overflow-hidden rounded-xl border border-borda bg-superficie shadow-lg">
+          <div
+            data-posicao={posicao.paraCima ? 'acima' : 'abaixo'}
+            className={cn(
+              'absolute inset-x-0 z-20 overflow-hidden rounded-xl border border-borda bg-superficie shadow-lg',
+              posicao.paraCima ? 'bottom-full mb-1' : 'top-full mt-1',
+            )}
+          >
             {filtradas.length === 0 ? (
               <p className="px-4 py-3 text-sm text-texto-suave">
                 {`Nenhum ${substantivo} encontrado`}
               </p>
             ) : (
-              <ul id={idLista} role="listbox" className="max-h-64 overflow-y-auto py-1">
+              <ul
+                id={idLista}
+                role="listbox"
+                // A altura vem da medição, não de uma classe fixa: é o que
+                // impede a lista de vazar para fora da área visível.
+                style={{ maxHeight: `${posicao.alturaMax}px` }}
+                className="overflow-y-auto py-1"
+              >
                 {grupos.map(([grupo, lista]) => {
                   const itens = lista.map((opcao) => {
                     const indice = posicaoDe(opcao)
