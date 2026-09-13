@@ -25,6 +25,7 @@ import { Selo } from '../../components/ui/Selo'
 import { Painel } from '../../components/ui/Painel'
 import { useConfirmacao } from '../../components/ui/Confirmacao'
 import { cn } from '../../lib/cn'
+import { sincronizarSeHouver } from '../../local/sincronizacao/gatilho'
 import type {
   ExercicioDoTreino,
   PedidoProprio,
@@ -372,6 +373,10 @@ function ModoExecucao({
       const { data } = await api.post<SessaoCompleta>('/alunos/treino/sessao/finalizar', corpo)
       setResumo(data)
       await limparTreino()
+      // Acabou de nascer uma sessão para subir. Sem `await` e com o erro
+      // engolido de propósito: a tela de resumo não pode esperar a rede nem
+      // virar erro por causa dela — o que não subir agora sobe na próxima.
+      sincronizarSeHouver()
     } catch (e) {
       setErro(mensagemDeErro(e, 'Não foi possível finalizar.'))
       setFinalizando(false)

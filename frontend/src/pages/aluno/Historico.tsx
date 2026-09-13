@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react'
-import { Check, History, Timer, X } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { Check, CloudOff, History, Timer, X } from 'lucide-react'
 import { api } from '../../lib/api'
 import { useRequisicao } from '../../lib/useRequisicao'
 import {
@@ -18,6 +18,7 @@ import { Carregando, Esqueleto } from '../../components/ui/Carregando'
 import { Vazio } from '../../components/ui/Vazio'
 import { Painel } from '../../components/ui/Painel'
 import { cn } from '../../lib/cn'
+import { sessoesNaoEnviadas } from '../../local/sincronizacao/gatilho'
 import type { ItemHistoricoSessao, SessaoCompleta, SessaoExercicio } from '../../types'
 
 /**
@@ -36,11 +37,22 @@ const PERIODOS = [
 export default function Historico() {
   const [sessaoAberta, setSessaoAberta] = useState<number | null>(null)
   const [dias, setDias] = useState<number | null>(null)
+  const [naoEnviadas, setNaoEnviadas] = useState<Set<number>>(new Set())
 
   const sessoes = useRequisicao<ItemHistoricoSessao[]>(
     () => api.get<ItemHistoricoSessao[]>('/alunos/sessoes').then((r) => r.data),
     [],
   )
+
+  // Só tem efeito no APK, e só com a sincronização ativa. Na web a promessa
+  // resolve com um conjunto vazio e nenhum selo aparece.
+  useEffect(() => {
+    let valido = true
+    sessoesNaoEnviadas().then((ids) => valido && setNaoEnviadas(ids))
+    return () => {
+      valido = false
+    }
+  }, [sessoes.dados])
 
   // O recorte é no cliente: a lista de sessões já vem inteira do servidor, e
   // filtrar aqui evita uma ida à rede a cada toque num botão.
@@ -122,6 +134,14 @@ export default function Historico() {
                       {sessao.bloco_letra && (
                         <Selo tom="acento">
                           {rotularBloco(sessao.bloco_letra, sessao.bloco_nome)}
+                        </Selo>
+                      )}
+                      {/* Tom neutro, e não de alerta: não ter subido ainda é o
+                          caso normal de quem treinou sem rede, e não um
+                          problema para a pessoa resolver. */}
+                      {naoEnviadas.has(sessao.id_sessao) && (
+                        <Selo tom="neutro">
+                          <CloudOff className="size-3" aria-hidden /> não enviado
                         </Selo>
                       )}
                     </div>

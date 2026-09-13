@@ -22,6 +22,14 @@ async function iniciar() {
     const { instalarAdaptador } = await import('./lib/api')
 
     instalarAdaptador(ligarAppLocal({ driver: await abrirBancoDoAparelho() }))
+
+    // Sobe o que ficou pendente, sem segurar a abertura: o `await` aqui faria
+    // a tela esperar a rede, que é justamente o que o app offline não pode
+    // fazer. Sem token guardado ou sem pendência, isto não toca a rede.
+    const { sincronizacaoDoApp } = await import('./local/sincronizacao/doApp.js')
+    sincronizacaoDoApp()
+      .sincronizar()
+      .catch((erro) => console.error('[sincronizacao] na abertura:', erro))
   }
 
   ReactDOM.createRoot(document.getElementById('root')!).render(
