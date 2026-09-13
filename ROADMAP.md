@@ -274,9 +274,15 @@ identidade já existem.
 - [x] **Leva 3 — o recomeço e a subida. Data API reaberta.** A ordem da spec não funcionava: a
       sessão referencia a linha da ficha, e com a ficha vindo da semente local o servidor recusava
       por chave estrangeira. Então a leva passou a entregar antes o **recomeço** (baixar usuário,
-      catálogo e ficha, substituindo o banco local) e depois a subida. Suíte 
-      (11 testes) prova, de fora, que reabrir a Data API não reabriu o buraco, e que o pacote do
-      app é o que  espera. **Falta rodar no aparelho.**
+      catálogo e ficha, substituindo o banco local) e depois a subida. A suíte `npm run test:dataapi`
+      (11 testes) prova, de fora, que reabrir a Data API não reabriu o buraco, e que o pacote que o
+      app monta é o que `sincronizar_sessao` espera.
+
+      **Rodado no emulador em 13/09**, e é o que fecha a leva: um treino feito no aparelho aparece
+      no site sozinho, sincronizar de novo não duplica, e treino feito em **modo avião** sobe quando
+      a rede volta. O emulador achou dois bugs que nenhum teste pegava — a Edge Function sem CORS
+      (o WebView recusava a resposta antes do JavaScript vê-la) e o token do app apontando para o id
+      antigo depois do recomeço, que jogava a pessoa para o login.
 - [ ] **Leva 4 — a descida recorrente.** Ficha editada no navegador aparecendo no app, e a regra de
       não descer com sessão aberta. O recomeço inicial saiu para a leva 3, porque a subida dependia
       dele.
