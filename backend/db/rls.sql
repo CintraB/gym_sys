@@ -213,3 +213,64 @@ CREATE POLICY sessao_serie_le ON sessao_serie FOR SELECT TO authenticated
                     AND s.id_aluno = auth_id_valido()));
 CREATE POLICY sessao_serie_professor_le ON sessao_serie FOR SELECT TO authenticated
   USING (auth_e_professor() OR auth_e_admin());
+
+-- ---------------------------------------------------------------------------
+-- Politicas de escrita.
+-- ---------------------------------------------------------------------------
+--
+-- A premissa aceita na spec: o aluno passa a inserir sessao sem os controllers,
+-- e pode gravar duracao absurda. O que o RLS garante e que ele escreve na
+-- PROPRIA linha -- nao adultera sessao de outro aluno nem escreve ficha.
+
+CREATE POLICY sessao_aluno_cria ON sessao_treino FOR INSERT TO authenticated
+  WITH CHECK (id_aluno = auth_id_valido());
+
+CREATE POLICY sessao_ex_aluno_cria ON sessao_exercicio FOR INSERT TO authenticated
+  WITH CHECK (EXISTS (SELECT 1 FROM sessao_treino s
+                       WHERE s.id_sessao = sessao_exercicio.id_sessao
+                         AND s.id_aluno = auth_id_valido()));
+
+CREATE POLICY sessao_serie_aluno_cria ON sessao_serie FOR INSERT TO authenticated
+  WITH CHECK (EXISTS (SELECT 1 FROM sessao_exercicio se
+                        JOIN sessao_treino s ON s.id_sessao = se.id_sessao
+                       WHERE se.id = sessao_serie.id_sessao_exercicio
+                         AND s.id_aluno = auth_id_valido()));
+
+CREATE POLICY pedido_aluno_cria ON pedido_treino FOR INSERT TO authenticated
+  WITH CHECK (id_aluno = auth_id_valido());
+
+-- O professor escreve a ficha. Nao ha politica de escrita de ficha para aluno
+-- nenhum: a ausencia e a regra.
+CREATE POLICY treino_professor_escreve ON treino FOR INSERT TO authenticated
+  WITH CHECK (auth_e_professor() OR auth_e_admin());
+CREATE POLICY treino_professor_atualiza ON treino FOR UPDATE TO authenticated
+  USING (auth_e_professor() OR auth_e_admin())
+  WITH CHECK (auth_e_professor() OR auth_e_admin());
+
+CREATE POLICY bloco_professor_escreve ON treino_bloco FOR INSERT TO authenticated
+  WITH CHECK (auth_e_professor() OR auth_e_admin());
+CREATE POLICY bloco_professor_atualiza ON treino_bloco FOR UPDATE TO authenticated
+  USING (auth_e_professor() OR auth_e_admin())
+  WITH CHECK (auth_e_professor() OR auth_e_admin());
+
+CREATE POLICY ex_professor_escreve ON ex_usuario FOR INSERT TO authenticated
+  WITH CHECK (auth_e_professor() OR auth_e_admin());
+CREATE POLICY ex_professor_atualiza ON ex_usuario FOR UPDATE TO authenticated
+  USING (auth_e_professor() OR auth_e_admin())
+  WITH CHECK (auth_e_professor() OR auth_e_admin());
+
+CREATE POLICY exercicio_professor_cria ON exercicio FOR INSERT TO authenticated
+  WITH CHECK (auth_e_professor() OR auth_e_admin());
+
+CREATE POLICY pedido_professor_fecha ON pedido_treino FOR UPDATE TO authenticated
+  USING (auth_e_professor() OR auth_e_admin())
+  WITH CHECK (auth_e_professor() OR auth_e_admin());
+
+-- Usuario: o professor cria e edita aluno. Nao ha politica de UPDATE para o
+-- proprio usuario -- trocar a propria senha continua sendo rota da API, com a
+-- senha atual exigida, e nao ha caminho por aqui para se promover.
+CREATE POLICY usuario_professor_cria ON usuario FOR INSERT TO authenticated
+  WITH CHECK (auth_e_professor() OR auth_e_admin());
+CREATE POLICY usuario_professor_edita ON usuario FOR UPDATE TO authenticated
+  USING (auth_e_professor() OR auth_e_admin())
+  WITH CHECK (auth_e_professor() OR auth_e_admin());
