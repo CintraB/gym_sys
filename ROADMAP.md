@@ -271,10 +271,15 @@ identidade já existem.
       que as políticas da leva 1 aceitam, com a trava de tentativas no banco. Suíte
       `npm run test:identidade` (25 testes), incluindo a ponte que põe o token real no container da
       leva 1.
-- [ ] **Leva 3 — a subida. Reabre a Data API.** Transporte de rede no APK, camada de sincronização,
-      pacote fechado e os estados na tela.
-- [ ] **Leva 4 — a descida.** Substituição da ficha, esperar a sessão terminar, primeira
-      sincronização recomeçando o banco local.
+- [x] **Leva 3 — o recomeço e a subida. Data API reaberta.** A ordem da spec não funcionava: a
+      sessão referencia a linha da ficha, e com a ficha vindo da semente local o servidor recusava
+      por chave estrangeira. Então a leva passou a entregar antes o **recomeço** (baixar usuário,
+      catálogo e ficha, substituindo o banco local) e depois a subida. Suíte 
+      (11 testes) prova, de fora, que reabrir a Data API não reabriu o buraco, e que o pacote do
+      app é o que  espera. **Falta rodar no aparelho.**
+- [ ] **Leva 4 — a descida recorrente.** Ficha editada no navegador aparecendo no app, e a regra de
+      não descer com sessão aberta. O recomeço inicial saiu para a leva 3, porque a subida dependia
+      dele.
 - [ ] **Leva 5 — professor online.** Telas de professor escrevendo no servidor quando há rede, e
       somente leitura sem ela.
 
