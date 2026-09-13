@@ -25,4 +25,16 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_sessao_exercicio_uuid ON sessao_exercicio 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_sessao_serie_uuid     ON sessao_serie (uuid);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_pedido_treino_uuid    ON pedido_treino (uuid);
 
+-- Trava de forca bruta da Edge Function de identidade: a API tem o
+-- express-rate-limit na memoria do processo, mas a Edge Function e sem estado.
+-- Guarda o CPF digitado, e nao o id: CPF que nao existe tambem precisa contar.
+CREATE TABLE IF NOT EXISTS tentativa_login (
+    id           BIGSERIAL PRIMARY KEY,
+    cpf          VARCHAR(11) NOT NULL,
+    sucesso      BOOLEAN     NOT NULL,
+    ocorrida_em  TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_tentativa_cpf ON tentativa_login (cpf, ocorrida_em);
+
 COMMIT;

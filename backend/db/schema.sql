@@ -48,6 +48,23 @@ CREATE TABLE IF NOT EXISTS usuario (
 );
 
 -- Permissoes por usuario. Ainda nao usada pela API.
+-- Trava de forca bruta da Edge Function de identidade.
+--
+-- A API tem o express-rate-limit, que guarda contagem na memoria do processo.
+-- A Edge Function e sem estado: sem esta tabela, a porta nova ficaria sem
+-- limite de tentativas. Decisao dele em 13/09/2026.
+--
+-- Guarda o CPF digitado, e nao o id do usuario: CPF que nao existe tambem
+-- precisa contar, senao varrer CPFs sairia de graca.
+CREATE TABLE IF NOT EXISTS tentativa_login (
+    id           BIGSERIAL PRIMARY KEY,
+    cpf          VARCHAR(11) NOT NULL,
+    sucesso      BOOLEAN     NOT NULL,
+    ocorrida_em  TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_tentativa_cpf ON tentativa_login (cpf, ocorrida_em);
+
 CREATE TABLE IF NOT EXISTS regras_usuario (
     regra_cpf       VARCHAR(11) PRIMARY KEY REFERENCES usuario (cpf),
     ver             BOOLEAN     NOT NULL DEFAULT TRUE,
