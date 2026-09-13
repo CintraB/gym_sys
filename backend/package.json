@@ -25,6 +25,7 @@
     "test:rls": "npm run rls:up && node --test --test-concurrency=1 \"test-rls/*.test.js\" --disable-warning=ExperimentalWarning",
     "test:identidade:offline": "node --test \"test-identidade/nucleo.test.js\" --disable-warning=ExperimentalWarning",
     "test:identidade": "node --test --test-concurrency=1 \"test-identidade/*.test.js\" --disable-warning=ExperimentalWarning",
+    "test:dataapi": "node --test --test-concurrency=1 \"test-dataapi/*.test.js\" --disable-warning=ExperimentalWarning",
     "dados-exemplo": "node scripts/dadosExemplo.js"
   },
   "keywords": [],

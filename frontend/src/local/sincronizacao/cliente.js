@@ -30,9 +30,22 @@ function tipoDoStatus(status) {
 export function criarCliente({ url, chave, buscar = fetch }) {
   const base = url.replace(/\/$/, '')
 
-  async function pedir(endereco, { token, metodo = 'GET', corpo } = {}) {
+  async function pedir(endereco, { token, metodo = 'GET', corpo, perfil = true } = {}) {
     const cabecalhos = { apikey: chave, 'content-type': 'application/json' }
     if (token) cabecalhos.Authorization = `Bearer ${token}`
+
+    // O schema `public` é exposto mas **não** é o padrão deste projeto — a
+    // lista de Exposed schemas começa em `graphql_public`, e o PostgREST usa o
+    // primeiro. Sem nomear o perfil, toda consulta volta 404 "Could not find
+    // the table 'graphql_public.usuario'", que parece tabela inexistente e não
+    // schema errado.
+    //
+    // Nomear em vez de depender da ordem: a ordem é configuração invisível no
+    // painel, e o app não deve quebrar se alguém a mexer.
+    if (perfil) {
+      if (metodo === 'GET') cabecalhos['Accept-Profile'] = 'public'
+      else cabecalhos['Content-Profile'] = 'public'
+    }
 
     let resposta
     try {
@@ -71,6 +84,10 @@ export function criarCliente({ url, chave, buscar = fetch }) {
     rpc: (nome, argumentos, opcoes = {}) =>
       pedir(`${base}/rest/v1/rpc/${nome}`, { ...opcoes, metodo: 'POST', corpo: argumentos }),
     // Sem token: é ela que emite. O `verify_jwt` da função é `false`.
-    funcao: (nome, corpo) => pedir(`${base}/functions/v1/${nome}`, { metodo: 'POST', corpo }),
+    //
+    // `perfil: false` porque Edge Function não é PostgREST: o header de schema
+    // não significa nada ali.
+    funcao: (nome, corpo) =>
+      pedir(`${base}/functions/v1/${nome}`, { metodo: 'POST', corpo, perfil: false }),
   }
 }

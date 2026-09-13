@@ -26,6 +26,21 @@ describe('cliente do Supabase', () => {
     expect(config.headers.Authorization).toBe('Bearer tok')
   })
 
+  // O schema `public` é exposto mas não é o padrão do projeto: sem nomear o
+  // perfil, a resposta é 404 "graphql_public.usuario", que parece tabela
+  // inexistente e manda quem investiga para o lado errado.
+  it('nomeia o schema public, em vez de depender da ordem da lista', async () => {
+    const buscar = vi.fn().mockResolvedValue(respostaFalsa({ corpo: [] }))
+    const cliente = criarCliente({ ...OPCOES, buscar })
+
+    await cliente.rest('/usuario?select=id', { token: 'tok' })
+    expect(buscar.mock.calls[0][1].headers['Accept-Profile']).toBe('public')
+
+    await cliente.rpc('sincronizar_sessao', { pacote: {} }, { token: 'tok' })
+    // Em escrita o header é outro: Accept-Profile diz de onde LER.
+    expect(buscar.mock.calls[1][1].headers['Content-Profile']).toBe('public')
+  })
+
   it('falha de rede vira tipo "rede", que e o caso normal', async () => {
     const buscar = vi.fn().mockRejectedValue(new TypeError('Failed to fetch'))
     const cliente = criarCliente({ ...OPCOES, buscar })
