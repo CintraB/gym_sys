@@ -199,13 +199,29 @@ curl -s -X POST "<URL>/functions/v1/identidade" \
 
 Escrever a resposta aqui embaixo, nesta caixa, antes de seguir. A Tarefa 3 lê daqui.
 
-> **Resultado do spike (preencher):**
-> - `SUPABASE_JWKS` traz chave com `kty: "oct"` e `tem_k: true`? ____
-> - **Se sim:** a Tarefa 3 assina com ela. Nenhum passo humano.
-> - **Se não:** o Cristhian precisa cadastrar, no painel do projeto, em *Edge Functions → Secrets*,
->   o secret `JWT_SEGREDO` com o valor do *legacy JWT secret* (*Settings → API → JWT Settings*).
->   **Avisar e esperar** — a Tarefa 3 não roda sem isso.
-> - `db_papel` = ____ , `db_porta` = ____ , `registrar_tentativa_ok` = ____
+> **Resultado do spike — rodado em 13/09/2026:**
+>
+> - `SUPABASE_JWKS` traz chave com `kty: "oct"`? **NÃO.** Uma chave só, e assimétrica:
+>   `{ kty: "EC", alg: "ES256", tem_k: false }`. O projeto já migrou para chaves de assinatura
+>   assimétricas, e o que a função recebe é a **pública** — serve para verificar, nunca para
+>   assinar.
+> - Uma segunda sonda listou os **nomes** de todas as variáveis injetadas (nunca os valores):
+>   `DENO_DEPLOYMENT_ID`, `DENO_REGION`, `SB_EXECUTION_ID`, `SB_REGION`, `SUPABASE_ANON_KEY`,
+>   `SUPABASE_DB_URL`, `SUPABASE_FUNCTION_SLUG`, `SUPABASE_JWKS`, `SUPABASE_PUBLISHABLE_KEYS`,
+>   `SUPABASE_SECRET_KEYS`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_URL`. **Não há segredo de
+>   assinatura entre elas.**
+> - **Portanto, o passo humano é obrigatório:** o Cristhian cadastra, no painel do projeto, em
+>   *Edge Functions → Secrets*, o secret `JWT_SEGREDO` com o valor do *legacy JWT secret*
+>   (*Project Settings → API Keys → JWT Settings → JWT Secret*). A Tarefa 3 não roda sem isso.
+> - `db_papel` = **postgres** (dono das tabelas, ignora RLS — é o que permite ler a coluna `senha`),
+>   `db_porta` = **5432** (conexão direta, não o pooler), `registrar_tentativa_ok` = **true**
+>   (a função `SECURITY DEFINER` da leva 1 responde), `usuarios_visiveis` = 3.
+>
+> **Risco que fica aberto até a leva 3:** o legacy HS256 continuar sendo aceito pelo PostgREST
+> agora que a chave corrente é ES256. A evidência a favor é que a `anon` key legada — que é um JWT
+> HS256 assinado com esse mesmo segredo — segue ativa (`disabled: false`). A prova definitiva só
+> vem quando a Data API abrir, na leva 3; a ponte da Tarefa 5 prova o formato das claims contra as
+> políticas, que é o que dá para provar agora.
 
 - [ ] **Passo 5: limpar a tentativa que o spike gravou**
 
