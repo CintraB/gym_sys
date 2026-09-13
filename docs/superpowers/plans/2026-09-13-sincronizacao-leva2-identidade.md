@@ -966,11 +966,24 @@ SUPABASE_CHAVE_PUBLICA=sb_publishable_...
 
 E acrescentar os valores reais no `backend/.env`, que não é versionado.
 
-- [ ] **Passo 6: provar que a suíte pega o vazamento**
+- [ ] **Passo 6: provar que a asserção da hash detecta mesmo**
 
-Em `index.ts`, troque o objeto `usuario` da resposta por `usuario` (a linha inteira do banco) e
-republique. O teste **"a resposta NUNCA traz a hash da senha" tem de ficar vermelho**. Desfaça e
-republique.
+**Não republicar uma versão que devolve a hash.** Este passo pedia isso, e estava errado: a função
+é pública (`verify_jwt: false`), e uma versão assim vaza senha de verdade enquanto estiver no ar —
+o classificador de permissão barrou a publicação em 13/09/2026, corretamente. Das quebras
+propositais deste plano, é a única que expõe dado real.
+
+A prova equivalente, sem publicar nada: o padrão vive em `PADRAO_HASH`, no `ajuda.js`, e
+`nucleo.test.js` o exercita contra uma hash gerada por `criarHashComSal`. É o que impede a
+asserção de ser vacuamente verdadeira — um padrão que nunca bate em nada passaria para sempre.
+
+```js
+it("o PADRAO_HASH reconhece uma hash de verdade, e não confunde com JSON comum", async () => {
+  const hash = await criarHashComSal("senha123");
+  assert.ok(PADRAO_HASH.test(JSON.stringify({ usuario: { senha: hash } })));
+  assert.ok(!PADRAO_HASH.test(JSON.stringify({ token: "a.b.c", usuario: { id: 1 } })));
+});
+```
 
 - [ ] **Passo 7: commit**
 

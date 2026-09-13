@@ -1,6 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { criarHashComSal } from "../src/lib/senha.js";
+import { PADRAO_HASH } from "./ajuda.js";
 import {
   LIMITE_FALHAS,
   VALIDADE_DIAS,
@@ -96,6 +97,18 @@ describe("núcleo da identidade", () => {
       assert.equal(decisao.cargo, cargo);
       assert.deepEqual(decisao.perfis, lista);
     }
+  });
+
+  // Prova que o detector detecta. Sem isto, "a resposta da função não bate no
+  // PADRAO_HASH" seria verdade também se o padrão nunca batesse em nada — o
+  // teste passaria para sempre sem provar nada.
+  //
+  // É assim, e não publicando de propósito uma função que devolve a hash: essa
+  // versão vazaria senha num endpoint público enquanto estivesse no ar.
+  it("o PADRAO_HASH reconhece uma hash de verdade, e não confunde com JSON comum", async () => {
+    const hash = await criarHashComSal("senha123");
+    assert.ok(PADRAO_HASH.test(JSON.stringify({ usuario: { senha: hash } })));
+    assert.ok(!PADRAO_HASH.test(JSON.stringify({ token: "a.b.c", usuario: { id: 1 } })));
   });
 
   it("as claims são as que o RLS da leva 1 lê", () => {
