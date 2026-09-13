@@ -294,6 +294,39 @@ Três coisas que valem saber antes de mexer:
 
 A Data API do Supabase **continua fechada** — abri-la é assunto da leva 3.
 
+### A função de identidade (Edge Function)
+
+A segunda porta de autenticação do projeto, e a que o APK vai usar a partir da leva 3. Vive em
+`supabase/functions/identidade/` e troca CPF + senha por um JWT que as políticas de RLS aceitam.
+
+```http
+POST <URL do projeto>/functions/v1/identidade
+apikey: <chave publishable>
+{ "cpf": "111.111.111-11", "senha": "..." }
+```
+
+| Resposta | Quando |
+|---|---|
+| `200 { token, expira_em, usuario: { id, nome, cargo, perfis } }` | Credencial correta. O token vale **30 dias** |
+| `401 { erro: "CPF ou senha incorretos" }` | Senha errada **ou** CPF inexistente — a mesma resposta para os dois, de propósito |
+| `403 { erro: "Usuário inativo. Procure a academia." }` | Conta desativada, mesma regra de `authController` |
+| `429 { erro: "Muitas tentativas..." }` | 20 falhas na janela de 15 minutos, contadas em `tentativa_login` |
+| `400 { erro: "Informe CPF e senha" }` | Corpo incompleto |
+
+Três coisas a saber antes de mexer nela:
+
+- **`verify_jwt` é `false`**, e tem de ser: é ela que **emite** o token, então exigir um para entrar
+  seria circular. A proteção é a `apikey`, a trava de tentativas e nunca dizer se o erro foi o CPF
+  ou a senha.
+- **A chave que assina vem do secret `JWT_SEGREDO`**, cadastrado no painel em *Edge Functions →
+  Secrets* com o valor do *legacy JWT secret*. O `SUPABASE_JWKS` que a plataforma injeta traz só a
+  chave pública `EC/ES256` — serve para verificar, nunca para assinar.
+- **O deploy é pelo MCP**, não pela CLI: esta máquina não tem o Supabase CLI nem o Deno. O código é
+  dividido em `nucleo.ts` (sem I/O, testado em Node, que roda TypeScript direto) e `index.ts` (HTTP,
+  banco e assinatura), justamente para que a maior parte seja testável sem o runtime.
+
+Quem prova tudo isso é `npm run test:identidade` — ver `test-identidade/README.md`.
+
 O SQL foi aplicado no projeto do Supabase em **13/09/2026**, nesta ordem: `migracao-v8-uuid.sql`
 (o banco já tinha dados), `rls.sql` e `sincronizacao.sql`. O `advisor` de segurança do Supabase fica
 com um `INFO` esperado — `admin_user`, `regras_usuario` e `tentativa_login` têm RLS ligado e

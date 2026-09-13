@@ -242,12 +242,44 @@ Cada uma entrega algo verificável sozinha:
 
 ### 6.4 O que fica de fora
 
-- **Sincronizar com o servidor.** O app standalone e a instância de casa seriam dois bancos
-  separados, sem conversa. Juntar os dois é outra arquitetura — ids locais versus ids do servidor,
-  fila de escrita, resolução de conflito. Só encarar se, depois de usar em campo, isso virar
-  necessidade real.
+- ~~**Sincronizar com o servidor.**~~ **Virou necessidade real depois do teste de campo, e está em
+  andamento** — ver 6.5. O texto original desta linha segue abaixo, porque a ressalva que ele fazia
+  (é outra arquitetura) continua verdadeira e é o que justificou cinco levas em vez de uma.
+
+  > O app standalone e a instância de casa seriam dois bancos separados, sem conversa. Juntar os
+  > dois é outra arquitetura — ids locais versus ids do servidor, fila de escrita, resolução de
+  > conflito. Só encarar se, depois de usar em campo, isso virar necessidade real.
 - **PWA com cache de leitura** e **Tailscale**: resolvem outro problema (o app real, com o PC
   ligado). O Tailscale continua valendo pelo item 1.3, mas não atende a este objetivo.
+
+### 6.5 Sincronização do APK com o servidor
+
+O banco do servidor virou o Supabase, e o APK passa a falar com ele **direto pelo PostgREST** —
+sem o PC de casa ligado, que é a dependência que essa escolha existe para remover. Desenho em
+`docs/superpowers/specs/2026-09-07-sincronizacao-do-apk-design.md`.
+
+Cinco levas, e **a ordem é segurança**: a Data API só reabre na leva 3, quando as políticas e a
+identidade já existem.
+
+- [x] **Leva 1 — o SQL.** Coluna `uuid` nas quatro tabelas que sobem, `tentativa_login`, funções de
+      identidade, `GRANT`s por coluna, 31 políticas de RLS e `sincronizar_sessao`. Suíte
+      `npm run test:rls` (53 testes) num Postgres de verdade, porque o `pg-mem` não executa plpgsql.
+      **Aplicado no projeto do Supabase em 13/09/2026**, e a aplicação achou um buraco que o
+      container não via: `authenticated` nascia com `TRUNCATE` em toda tabela, e `TRUNCATE` ignora
+      RLS.
+- [x] **Leva 2 — a identidade.** A Edge Function `identidade`: CPF + senha viram um JWT de 30 dias
+      que as políticas da leva 1 aceitam, com a trava de tentativas no banco. Suíte
+      `npm run test:identidade` (25 testes), incluindo a ponte que põe o token real no container da
+      leva 1.
+- [ ] **Leva 3 — a subida. Reabre a Data API.** Transporte de rede no APK, camada de sincronização,
+      pacote fechado e os estados na tela.
+- [ ] **Leva 4 — a descida.** Substituição da ficha, esperar a sessão terminar, primeira
+      sincronização recomeçando o banco local.
+- [ ] **Leva 5 — professor online.** Telas de professor escrevendo no servidor quando há rede, e
+      somente leitura sem ela.
+
+As levas 1 e 2 não tocaram o aplicativo: **o APK instalado continua o de 13/09**, funcionando como
+sempre.
 
 
 ## 7. Se um dia virar produto
