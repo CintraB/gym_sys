@@ -29,10 +29,18 @@ Ligar o app direto ao Postgres nunca foi opção: o WebView do Android não abre
 | De onde vem o token que o RLS confere | **Edge Function** no Supabase autentica CPF + senha contra `usuario` e emite o JWT |
 | O que sincroniza | Execução e **pedido de treino** sobem; ficha e catálogo descem |
 | Identidade das linhas que sobem | Coluna `uuid`, gerada no aparelho, em **quatro** tabelas |
-| O que já está no celular | A primeira sincronização **recomeça** o banco local |
+| O que já está no celular | A primeira sincronização **recomeça** o banco local — reafirmado em 13/09/2026 (ver nota abaixo) |
 | Telas de professor no app | Editáveis **quando online**, somente leitura sem rede |
 | Por onde a escrita do professor passa | PostgREST, o mesmo caminho da sincronização |
 | Como a sincronização detecta o que subir | **Pacote fechado**, identificado por `uuid` |
+
+**Nota de 13/09/2026 — "recomeça o banco local" agora custa alguma coisa.** Quando esta spec foi
+escrita, o celular dele não tinha histórico nenhum, e recomeçar era grátis. Depois ele reinstalou o
+APK e fez dois treinos de verdade. Perguntado se essas sessões deveriam subir antes do recomeço, ele
+**escolheu aceitar perdê-las** — são treinos de teste, e subir exigiria gerar `uuid` retroativo para
+linhas que nasceram sem ele. A decisão vale para o histórico que existir no aparelho quando a leva 4
+chegar, não só para esses dois: **a primeira sincronização não preserva sessão local.** Isso precisa
+estar na tela antes de rodar, não só nesta spec.
 
 Duas correções que o brainstorming trouxe sobre a spec anterior:
 
@@ -60,8 +68,8 @@ Consequência: a função confere as senhas que **já existem** no banco. Ningu�
 **Armadilha descoberta no caminho:** `Buffer` **não é global** no Edge runtime, ao contrário do Node
 — precisa `import { Buffer } from "node:buffer"`. Foi o que fez a primeira versão do spike falhar.
 
-A função `teste-scrypt-descartavel` ficou no projeto e deve ser removida pelo painel — o MCP não tem
-ferramenta de remoção.
+A função `teste-scrypt-descartavel` ficou no projeto e **foi removida por ele em 12/09/2026** pelo
+painel — o MCP não tem ferramenta de remoção. A lista de Edge Functions do projeto está vazia.
 
 ## Arquitetura
 
@@ -94,15 +102,20 @@ projeto** — o que o RLS verifica em `auth.jwt()`.
 - **A função não exige JWT** (`verify_jwt: false`): ela é quem emite o token. A proteção dela é a
   `apikey` e nunca revelar se o erro foi CPF inexistente ou senha errada — a API já se comporta
   assim.
-- **O limite de tentativas fica em aberto para o plano resolver.** A API tem `LIMITE_LOGIN_*` no
-  `express-rate-limit`, que guarda contagem em memória do processo; Edge Function é sem estado e sem
-  limitador embutido. Ou uma tabela de tentativas no Postgres, ou aceitar consciente que o limite
-  existe só na API. **Não inventar aqui**: é decisão com custo, e o plano deve apresentá-la.
+- **O limite de tentativas é uma tabela no Postgres** — decidido por ele em 13/09/2026, entre as
+  duas opções que esta seção deixara em aberto. A API tem `LIMITE_LOGIN_*` no `express-rate-limit`,
+  que guarda contagem em memória do processo; Edge Function é sem estado e sem limitador embutido,
+  e deixar a porta nova sem trava de tentativas não passou. A função registra a tentativa e recusa
+  depois de N falhas numa janela.
+
+  **Consequência de escopo:** a tabela é SQL, então ela **nasce na leva 1** junto com o resto do
+  esquema, mesmo só passando a ser usada na leva 2. Sai da leva 1 já com política e grant próprios:
+  ninguém além da função precisa lê-la.
 - **Usuário inativo não recebe token**, mesma regra de `authController:24`.
 - **O corte de sessão continua valendo.** O `iat` do token é comparado com
   `usuario.sessoes_invalidadas_em` — não na função, e sim no RLS, a cada acesso (ver abaixo). Sem
   isso, o app seria a única porta onde token roubado sobrevive à troca de senha.
-- **Validade de 30 dias**, contra os 7 do token da API. Ficar mais de um mês sem rede significa não
+- **Validade de 30 dias**, contra os 7 do token da API — confirmado por ele em 13/09/2026. Ficar mais de um mês sem rede significa não
   sincronizar até logar de novo, e logar de novo exige rede — não afeta treinar, que é local. O dano
   de um token roubado é ler e escrever as sessões daquele aluno, e o corte de sessão é a alavanca de
   revogação.
@@ -255,8 +268,8 @@ existem. Reabrir antes recria exatamente o buraco que a spec anterior fechou.
 
 | Leva | O que entrega | Como se prova sozinha |
 |---|---|---|
-| **1. O SQL** | `migracao-v8-uuid.sql`, funções auxiliares, políticas RLS, `sincronizar_sessao`, suíte `npm run test:rls` | A suíte nova passa no container local. Nada do app muda. **A Data API continua fechada.** |
-| **2. A identidade** | A Edge Function de verdade, com o limite de tentativas decidido | Ela emite token que as políticas da leva 1 aceitam, e recusa inativo, senha errada e CPF inexistente do mesmo jeito |
+| **1. O SQL** | `migracao-v8-uuid.sql`, funções auxiliares, políticas RLS, `sincronizar_sessao`, a tabela de tentativas de login, suíte `npm run test:rls` | A suíte nova passa no container local. Nada do app muda. **A Data API continua fechada.** |
+| **2. A identidade** | A Edge Function de verdade, usando a tabela de tentativas criada na leva 1 | Ela emite token que as políticas da leva 1 aceitam, e recusa inativo, senha errada e CPF inexistente do mesmo jeito |
 | **3. A subida** | Transporte de rede no APK, camada de sincronização, pacote fechado, estados na tela. **Reabre a Data API** | Sessão feita em modo avião aparece no site depois da rede voltar. Subir duas vezes dá uma linha só |
 | **4. A descida** | Substituição da ficha, esperar sessão terminar, primeira sincronização recomeçando o banco local | Ficha editada no navegador aparece no app. Com sessão aberta, a descida não roda |
 | **5. Professor online** | Telas de professor escrevendo no servidor quando online, somente leitura sem rede | Pedido feito no app aparece no site; ficha montada no app com rede vale, e sem rede a tela não deixa editar |
