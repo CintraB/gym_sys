@@ -149,3 +149,67 @@ ALTER TABLE sessao_treino    ENABLE ROW LEVEL SECURITY;
 ALTER TABLE sessao_exercicio ENABLE ROW LEVEL SECURITY;
 ALTER TABLE sessao_serie     ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tentativa_login  ENABLE ROW LEVEL SECURITY;
+
+-- ---------------------------------------------------------------------------
+-- Camada 3: as politicas. Leitura.
+-- ---------------------------------------------------------------------------
+--
+-- Uma politica por acao e por papel, e nao uma politica generica com OR: com
+-- politicas separadas, o Postgres soma (OR) as PERMISSIVE automaticamente, e
+-- cada uma fica legivel sozinha. Vermelho aqui e vulnerabilidade, nao teste
+-- desatualizado -- mesma regra do seguranca.test.js.
+
+CREATE POLICY usuario_le_a_si ON usuario FOR SELECT TO authenticated
+  USING (id = auth_id_valido());
+
+CREATE POLICY usuario_professor_le ON usuario FOR SELECT TO authenticated
+  USING (auth_e_professor() OR auth_e_admin());
+
+-- Catalogo e publico para quem esta autenticado: nao tem dono nem dado pessoal.
+CREATE POLICY exercicio_le ON exercicio FOR SELECT TO authenticated
+  USING (auth_id_valido() IS NOT NULL);
+
+CREATE POLICY treino_le_o_proprio ON treino FOR SELECT TO authenticated
+  USING (id_aluno = auth_id_valido());
+CREATE POLICY treino_professor_le ON treino FOR SELECT TO authenticated
+  USING (auth_e_professor() OR auth_e_admin());
+
+-- treino_bloco nao tem id_aluno: o dono vem pelo treino. EXISTS em vez de IN
+-- porque o planejador para no primeiro acerto.
+CREATE POLICY bloco_le_o_proprio ON treino_bloco FOR SELECT TO authenticated
+  USING (EXISTS (SELECT 1 FROM treino t
+                  WHERE t.id_treino = treino_bloco.id_treino
+                    AND t.id_aluno = auth_id_valido()));
+CREATE POLICY bloco_professor_le ON treino_bloco FOR SELECT TO authenticated
+  USING (auth_e_professor() OR auth_e_admin());
+
+-- ex_usuario tem id_user desnormalizado; usar ele evita um join por linha.
+CREATE POLICY ex_le_o_proprio ON ex_usuario FOR SELECT TO authenticated
+  USING (id_user = auth_id_valido());
+CREATE POLICY ex_professor_le ON ex_usuario FOR SELECT TO authenticated
+  USING (auth_e_professor() OR auth_e_admin());
+
+CREATE POLICY pedido_le_o_proprio ON pedido_treino FOR SELECT TO authenticated
+  USING (id_aluno = auth_id_valido());
+CREATE POLICY pedido_professor_le ON pedido_treino FOR SELECT TO authenticated
+  USING (auth_e_professor() OR auth_e_admin());
+
+CREATE POLICY sessao_le_a_propria ON sessao_treino FOR SELECT TO authenticated
+  USING (id_aluno = auth_id_valido());
+CREATE POLICY sessao_professor_le ON sessao_treino FOR SELECT TO authenticated
+  USING (auth_e_professor() OR auth_e_admin());
+
+CREATE POLICY sessao_ex_le ON sessao_exercicio FOR SELECT TO authenticated
+  USING (EXISTS (SELECT 1 FROM sessao_treino s
+                  WHERE s.id_sessao = sessao_exercicio.id_sessao
+                    AND s.id_aluno = auth_id_valido()));
+CREATE POLICY sessao_ex_professor_le ON sessao_exercicio FOR SELECT TO authenticated
+  USING (auth_e_professor() OR auth_e_admin());
+
+CREATE POLICY sessao_serie_le ON sessao_serie FOR SELECT TO authenticated
+  USING (EXISTS (SELECT 1 FROM sessao_exercicio se
+                   JOIN sessao_treino s ON s.id_sessao = se.id_sessao
+                  WHERE se.id = sessao_serie.id_sessao_exercicio
+                    AND s.id_aluno = auth_id_valido()));
+CREATE POLICY sessao_serie_professor_le ON sessao_serie FOR SELECT TO authenticated
+  USING (auth_e_professor() OR auth_e_admin());
