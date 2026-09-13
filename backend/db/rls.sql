@@ -104,3 +104,48 @@ REVOKE ALL ON FUNCTION auth_e_admin()     FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION auth_id_valido()   TO authenticated;
 GRANT EXECUTE ON FUNCTION auth_e_professor() TO authenticated;
 GRANT EXECUTE ON FUNCTION auth_e_admin()     TO authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Camada 1: o GRANT. Sem ele o RLS e redundante; sem o RLS ele e buraco.
+-- ---------------------------------------------------------------------------
+
+-- O anon nao ganha nada em lugar nenhum, e continua assim depois desta leva.
+REVOKE ALL ON ALL TABLES IN SCHEMA public FROM anon;
+
+-- Coluna a coluna onde importa: `senha` fica de fora, e nao ha SELECT que a
+-- alcance -- nem o do proprio dono. As politicas filtram linha; o grant filtra
+-- coluna, e sao coisas diferentes.
+GRANT SELECT (id, nome, cpf, email, titulo, aluno, professor, admin, ativo, criado_em)
+  ON usuario TO authenticated;
+GRANT INSERT, UPDATE (nome, cpf, email, titulo, aluno, professor, ativo, atualizado_em, atualizado_por)
+  ON usuario TO authenticated;
+
+GRANT SELECT, INSERT          ON exercicio      TO authenticated;
+GRANT SELECT, INSERT, UPDATE  ON treino         TO authenticated;
+GRANT SELECT, INSERT, UPDATE  ON treino_bloco   TO authenticated;
+GRANT SELECT, INSERT, UPDATE  ON ex_usuario     TO authenticated;
+GRANT SELECT, INSERT, UPDATE  ON pedido_treino  TO authenticated;
+GRANT SELECT, INSERT          ON sessao_treino  TO authenticated;
+GRANT SELECT, INSERT          ON sessao_exercicio TO authenticated;
+GRANT SELECT, INSERT          ON sessao_serie   TO authenticated;
+
+-- SERIAL precisa da sequencia, senao o INSERT permitido falha na hora de gerar
+-- o id -- e o erro nao parece de permissao.
+GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO authenticated;
+
+-- admin_user e regras_usuario ficam de fora de proposito: o app nunca as toca.
+
+-- ---------------------------------------------------------------------------
+-- Camada 2: liga o RLS. A partir daqui, sem politica ninguem ve linha nenhuma.
+-- ---------------------------------------------------------------------------
+
+ALTER TABLE usuario          ENABLE ROW LEVEL SECURITY;
+ALTER TABLE exercicio        ENABLE ROW LEVEL SECURITY;
+ALTER TABLE treino           ENABLE ROW LEVEL SECURITY;
+ALTER TABLE treino_bloco     ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ex_usuario       ENABLE ROW LEVEL SECURITY;
+ALTER TABLE pedido_treino    ENABLE ROW LEVEL SECURITY;
+ALTER TABLE sessao_treino    ENABLE ROW LEVEL SECURITY;
+ALTER TABLE sessao_exercicio ENABLE ROW LEVEL SECURITY;
+ALTER TABLE sessao_serie     ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tentativa_login  ENABLE ROW LEVEL SECURITY;
