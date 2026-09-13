@@ -76,7 +76,9 @@ CREATE TABLE IF NOT EXISTS pedido_treino (
     -- antigos onde o default era FALSE.
     ativo       BOOLEAN      NOT NULL DEFAULT TRUE,
     observacao  VARCHAR(255),
-    criado_em   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+    criado_em   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    -- Ver sessao_treino.uuid.
+    uuid        UUID
 );
 
 CREATE TABLE IF NOT EXISTS treino (
@@ -148,7 +150,15 @@ CREATE TABLE IF NOT EXISTS sessao_treino (
     -- Livres, preenchidos ao finalizar. NULL é o estado de toda sessão já
     -- registrada antes desta coluna existir.
     observacao        VARCHAR(200),
-    calorias          INTEGER
+    calorias          INTEGER,
+    -- Identidade da linha no aparelho, gerada por crypto.randomUUID() antes de
+    -- subir. Nula nas linhas que ja existiam quando a sincronizacao chegou, e
+    -- nas que nascem aqui pela API - so o que vem do APK a preenche.
+    --
+    -- O indice unico sobre ela e a garantia de idempotencia: subir o mesmo
+    -- pacote duas vezes resulta numa linha so. A marca de "ja subiu" que o app
+    -- guarda e atalho, nao garantia.
+    uuid              UUID
 );
 
 CREATE TABLE IF NOT EXISTS sessao_exercicio (
@@ -156,7 +166,9 @@ CREATE TABLE IF NOT EXISTS sessao_exercicio (
     id_sessao      INTEGER   NOT NULL REFERENCES sessao_treino (id_sessao) ON DELETE CASCADE,
     id_ex_usuario  INTEGER   NOT NULL REFERENCES ex_usuario (id) ON DELETE CASCADE,
     concluido      BOOLEAN   NOT NULL DEFAULT FALSE,
-    concluido_em   TIMESTAMPTZ
+    concluido_em   TIMESTAMPTZ,
+    -- Ver sessao_treino.uuid.
+    uuid           UUID
 );
 
 -- Um lançamento por série realizada (peso e repetição de verdade, não o
@@ -167,7 +179,9 @@ CREATE TABLE IF NOT EXISTS sessao_serie (
     id_sessao_exercicio  INTEGER   NOT NULL REFERENCES sessao_exercicio (id) ON DELETE CASCADE,
     carga                INTEGER   NOT NULL,
     repeticoes           VARCHAR(30) NOT NULL,
-    criado_em            TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    criado_em            TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    -- Ver sessao_treino.uuid.
+    uuid                 UUID
 );
 
 CREATE INDEX IF NOT EXISTS idx_usuario_cpf        ON usuario (cpf);
@@ -192,3 +206,11 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_sessao_aberta_por_aluno
 CREATE UNIQUE INDEX IF NOT EXISTS idx_sessao_exercicio_unico
     ON sessao_exercicio (id_sessao, id_ex_usuario);
 CREATE INDEX IF NOT EXISTS idx_sessao_serie_exercicio ON sessao_serie (id_sessao_exercicio);
+
+-- Um por tabela, e nao um so: os uuid vivem em tabelas diferentes e nunca sao
+-- comparados entre si. Nulo nao entra em indice unico, entao as linhas antigas
+-- sem uuid nao colidem.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_sessao_treino_uuid    ON sessao_treino (uuid);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_sessao_exercicio_uuid ON sessao_exercicio (uuid);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_sessao_serie_uuid     ON sessao_serie (uuid);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_pedido_treino_uuid    ON pedido_treino (uuid);

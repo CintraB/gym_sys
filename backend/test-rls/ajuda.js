@@ -5,6 +5,10 @@
  * porque o pg-mem não executa plpgsql nem RLS. Cada arquivo de teste pede um
  * banco limpo: o schema inteiro é reaplicado num schema `public` recriado, o
  * que é rápido e evita um teste enxergar a sujeira do outro.
+ *
+ * É por isso que `test:rls` roda com `--test-concurrency=1`: são todos o mesmo
+ * banco, e dois arquivos em paralelo derrubariam o schema um do outro no meio
+ * da execução ("schema public already exists", e tabela sumindo do nada).
  */
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
