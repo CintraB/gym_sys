@@ -32,8 +32,10 @@ antes das políticas prontas recria o buraco que a spec anterior fechou.
   `docker-compose.yml` de desenvolvimento nesta leva.
 - **A suíte atual não pode mudar de resultado:** 260 no backend (nos dois bancos) e 264 no front.
   Se `npm test` mudar de número, algo saiu do lugar.
-- **Um commit por tarefa**, direto na `main`, sem push. Mensagem em pt-BR sem acento no corpo, e a
-  linha `Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>` ao final.
+- **Um commit por tarefa**, direto na `main`, sem push. Mensagem em pt-BR sem acento no corpo, e
+  **sem `Co-Authored-By`** — só o Cristhian assina os commits deste repositório, como em todos os
+  planos anteriores. Esta linha já esteve escrita ao contrário aqui, e os commits da leva 1
+  precisaram ser reescritos por causa disso.
 - **Nunca usar `sed -i`** em arquivo-fonte nesta máquina, e não mandar texto acentuado por `curl`
   no Git Bash.
 - **Decidido em 13/09/2026 e já refletido na spec:** o limite de tentativas é tabela no Postgres
