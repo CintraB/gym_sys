@@ -19,6 +19,19 @@ export default defineConfig(({ mode }) => ({
    */
   define: {
     'import.meta.env.VITE_MODO_APP': JSON.stringify(mode === 'standalone' ? 'standalone' : 'web'),
+    // Endereço e chave do Supabase, para a sincronização do APK.
+    //
+    // Ficam aqui, e não num `.env` (que o git ignora), pelo mesmo motivo do
+    // VITE_MODO_APP: sem o valor no bundle, o APK sai sem saber com quem
+    // falar, e o build passa. Os dois são **públicos** por natureza — a chave
+    // publishable só identifica o projeto, e quem a tem não passa do `anon`,
+    // que a leva 1 deixou sem privilégio nenhum.
+    'import.meta.env.VITE_SUPABASE_URL': JSON.stringify(
+      process.env.VITE_SUPABASE_URL ?? 'https://aluowtzsucntaqszpcsy.supabase.co',
+    ),
+    'import.meta.env.VITE_SUPABASE_CHAVE': JSON.stringify(
+      process.env.VITE_SUPABASE_CHAVE ?? 'sb_publishable_-N20EOAF4uGmU0gkZ6wIJA_KygxFqJz',
+    ),
   },
   plugins: [
     react(),

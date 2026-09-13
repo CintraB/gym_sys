@@ -7,6 +7,7 @@ import { Botao } from '../../components/ui/Botao'
 import { Cartao } from '../../components/ui/Cartao'
 import { SeletorTema } from '../../components/ui/SeletorTema'
 import { TrocarSenha } from '../../components/TrocarSenha'
+import { Sincronizacao } from '../../components/Sincronizacao'
 
 export default function Perfil() {
   const { usuario, sair } = useAuth()
@@ -46,6 +47,10 @@ export default function Perfil() {
           </div>
         ))}
       </Cartao>
+
+      {/* Só no APK: na versão web o navegador já fala com o servidor direto, e
+          não existe banco local para sincronizar. */}
+      {import.meta.env.VITE_MODO_APP === 'standalone' && <Sincronizacao />}
 
       <div className="space-y-2">
         <h2 className="px-1 text-sm font-medium text-texto-suave">Aparência</h2>
