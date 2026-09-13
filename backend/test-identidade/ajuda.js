@@ -83,3 +83,34 @@ export async function comUsuarioDeTeste(dados, callback) {
 }
 
 export const encerrar = () => db.end();
+
+/** Os únicos papéis que o PostgREST assume. Lista branca, não interpolação. */
+const PAPEIS = new Set(["anon", "authenticated"]);
+
+/**
+ * Conecta ao container de RLS como o PostgREST faria: o papel sai da claim
+ * `role` do token, e não de um valor fixo.
+ *
+ * É diferente do `conectarComo` da suíte de RLS, que força `authenticated`
+ * porque lá as claims são forjadas e o papel é o que se quer testar. Aqui as
+ * claims vêm da função de verdade, e usar `role` é o que torna a ponte
+ * sensível a ela: com `conectarComo`, emitir `role: "anon"` passava batido —
+ * conferido em 13/09/2026, publicando a função com o role errado de propósito.
+ *
+ * Papel fora da lista branca vira `anon`: o PostgREST recusaria o token, e
+ * cair para o visitante é o equivalente mais próximo que dá para reproduzir
+ * aqui — nunca escalar para `authenticated`.
+ */
+export async function conectarComoPostgREST(claims) {
+  const { default: pg } = await import("pg");
+  const { CONEXAO } = await import("../test-rls/ajuda.js");
+
+  const cliente = new pg.Client(CONEXAO);
+  await cliente.connect();
+  await cliente.query("SELECT set_config('request.jwt.claims', $1, false)", [
+    JSON.stringify(claims),
+  ]);
+  const papel = PAPEIS.has(claims.role) ? claims.role : "anon";
+  await cliente.query(`SET ROLE ${papel}`);
+  return cliente;
+}
