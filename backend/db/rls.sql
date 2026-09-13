@@ -109,8 +109,22 @@ GRANT EXECUTE ON FUNCTION auth_e_admin()     TO authenticated;
 -- Camada 1: o GRANT. Sem ele o RLS e redundante; sem o RLS ele e buraco.
 -- ---------------------------------------------------------------------------
 
+-- Zera os dois papeis antes de conceder qualquer coisa.
+--
+-- Citar `authenticated` aqui nao e excesso: no Supabase os dois nascem com ALL
+-- em toda tabela do schema, por default privilege da plataforma. Revogando so
+-- de `anon` -- que foi como este arquivo nasceu --, `authenticated` ficava com
+-- TRUNCATE e TRIGGER em TODA tabela, inclusive admin_user e regras_usuario.
+-- TRUNCATE **ignora RLS**: com a Data API aberta, qualquer conta logada
+-- esvaziaria o banco, e politica nenhuma veria passar. Achado em 13/09/2026,
+-- aplicando este arquivo no projeto real.
+--
+-- E a mesma licao de 06/09 em outra roupa: REVOKE que nao cita quem tem o
+-- privilegio roda sem erro e sem efeito.
+REVOKE ALL ON ALL TABLES    IN SCHEMA public FROM anon, authenticated;
+REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM anon, authenticated;
+
 -- O anon nao ganha nada em lugar nenhum, e continua assim depois desta leva.
-REVOKE ALL ON ALL TABLES IN SCHEMA public FROM anon;
 
 -- Coluna a coluna onde importa: `senha` fica de fora, e nao ha SELECT que a
 -- alcance -- nem o do proprio dono. As politicas filtram linha; o grant filtra
@@ -135,6 +149,21 @@ GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO authenticated;
 
 -- admin_user e regras_usuario ficam de fora de proposito: o app nunca as toca.
 
+-- A funcao de trigger do triggers.sql nasceu com EXECUTE para PUBLIC, como toda
+-- funcao. Chamar uma funcao `RETURNS trigger` fora de um trigger nao leva a
+-- lugar nenhum, mas nao ha motivo para ela ficar ao alcance do visitante.
+--
+-- O IF evita quebrar quem aplica rls.sql sem ter aplicado triggers.sql antes --
+-- e o caso do container da suite.
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+              WHERE n.nspname = 'public' AND p.proname = 'atualizar_timestamp') THEN
+    EXECUTE 'REVOKE ALL ON FUNCTION public.atualizar_timestamp() FROM PUBLIC';
+  END IF;
+END
+$$;
+
 -- ---------------------------------------------------------------------------
 -- Camada 2: liga o RLS. A partir daqui, sem politica ninguem ve linha nenhuma.
 -- ---------------------------------------------------------------------------
@@ -151,7 +180,50 @@ ALTER TABLE sessao_serie     ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tentativa_login  ENABLE ROW LEVEL SECURITY;
 
 -- ---------------------------------------------------------------------------
--- Camada 3: as politicas. Leitura.
+-- Camada 3: as politicas.
+-- ---------------------------------------------------------------------------
+--
+-- `CREATE POLICY` nao tem `IF NOT EXISTS`, e este arquivo e aplicado de novo a
+-- cada leva da sincronizacao. Sem estes DROP, a segunda aplicacao para no
+-- primeiro CREATE e deixa metade das mudancas de fora -- ou nenhuma, se quem
+-- aplicou usou transacao.
+--
+-- Um DROP nomeado por politica, e nao um laco sobre pg_policies: o laco
+-- apagaria tambem politica criada fora daqui, e a lista explicita quebra na
+-- cara de quem renomear uma sem atualizar as duas pontas.
+DROP POLICY IF EXISTS usuario_le_a_si           ON usuario;
+DROP POLICY IF EXISTS usuario_professor_le      ON usuario;
+DROP POLICY IF EXISTS exercicio_le              ON exercicio;
+DROP POLICY IF EXISTS treino_le_o_proprio       ON treino;
+DROP POLICY IF EXISTS treino_professor_le       ON treino;
+DROP POLICY IF EXISTS bloco_le_o_proprio        ON treino_bloco;
+DROP POLICY IF EXISTS bloco_professor_le        ON treino_bloco;
+DROP POLICY IF EXISTS ex_le_o_proprio           ON ex_usuario;
+DROP POLICY IF EXISTS ex_professor_le           ON ex_usuario;
+DROP POLICY IF EXISTS pedido_le_o_proprio       ON pedido_treino;
+DROP POLICY IF EXISTS pedido_professor_le       ON pedido_treino;
+DROP POLICY IF EXISTS sessao_le_a_propria       ON sessao_treino;
+DROP POLICY IF EXISTS sessao_professor_le       ON sessao_treino;
+DROP POLICY IF EXISTS sessao_ex_le              ON sessao_exercicio;
+DROP POLICY IF EXISTS sessao_ex_professor_le    ON sessao_exercicio;
+DROP POLICY IF EXISTS sessao_serie_le           ON sessao_serie;
+DROP POLICY IF EXISTS sessao_serie_professor_le ON sessao_serie;
+DROP POLICY IF EXISTS sessao_aluno_cria         ON sessao_treino;
+DROP POLICY IF EXISTS sessao_ex_aluno_cria      ON sessao_exercicio;
+DROP POLICY IF EXISTS sessao_serie_aluno_cria   ON sessao_serie;
+DROP POLICY IF EXISTS pedido_aluno_cria         ON pedido_treino;
+DROP POLICY IF EXISTS treino_professor_escreve  ON treino;
+DROP POLICY IF EXISTS treino_professor_atualiza ON treino;
+DROP POLICY IF EXISTS bloco_professor_escreve   ON treino_bloco;
+DROP POLICY IF EXISTS bloco_professor_atualiza  ON treino_bloco;
+DROP POLICY IF EXISTS ex_professor_escreve      ON ex_usuario;
+DROP POLICY IF EXISTS ex_professor_atualiza     ON ex_usuario;
+DROP POLICY IF EXISTS exercicio_professor_cria  ON exercicio;
+DROP POLICY IF EXISTS pedido_professor_fecha    ON pedido_treino;
+DROP POLICY IF EXISTS usuario_professor_cria    ON usuario;
+DROP POLICY IF EXISTS usuario_professor_edita   ON usuario;
+
+-- Leitura.
 -- ---------------------------------------------------------------------------
 --
 -- Uma politica por acao e por papel, e nao uma politica generica com OR: com

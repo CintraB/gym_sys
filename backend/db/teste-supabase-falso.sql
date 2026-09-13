@@ -34,3 +34,17 @@ $$;
 
 GRANT USAGE ON SCHEMA public TO anon, authenticated;
 GRANT USAGE ON SCHEMA auth   TO anon, authenticated;
+
+-- A plataforma da os dois papeis com ALL em toda tabela do schema public, por
+-- default privilege -- e nao "sem nada", que e como um Postgres puro nasce.
+--
+-- Reproduzir isso aqui nao e detalhe: descoberto em 13/09/2026, ao aplicar o
+-- rls.sql no projeto real. O REVOKE citava so `anon`, entao `authenticated`
+-- ficou com TRUNCATE e TRIGGER em TODA tabela, inclusive admin_user e
+-- regras_usuario. TRUNCATE **ignora RLS**: com a Data API aberta, qualquer
+-- conta logada esvaziaria o banco, e nenhuma politica veria isso passar.
+--
+-- Sem estas duas linhas o container nascia mais fechado que o Supabase, e a
+-- suite dava verde num estado que nao existe em producao.
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES    TO anon, authenticated;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO anon, authenticated;

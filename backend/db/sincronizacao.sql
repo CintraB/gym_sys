@@ -17,6 +17,11 @@ LANGUAGE plpgsql
 -- funcao. Ela nao e uma porta que escapa do RLS -- e so a forma de mandar o
 -- pacote junto. DEFINER aqui anularia as politicas de escrita inteiras.
 SECURITY INVOKER
+-- Fixo mesmo sendo INVOKER: aqui ele nao evita escalada (a funcao ja roda com
+-- os privilegios de quem chama), evita a funcao escrever na tabela errada se o
+-- search_path do chamador apontar para outro schema. Com ele, todo nome tem de
+-- vir qualificado -- e e o que o linter do Supabase cobra.
+SET search_path = ''
 AS $$
 DECLARE
   v_uuid          UUID    := (pacote ->> 'uuid')::UUID;
@@ -37,12 +42,12 @@ BEGIN
 
   -- Idempotencia: uuid ja gravado devolve o que existe, sem tocar em nada. O
   -- app pode ter morrido entre inserir e marcar que subiu.
-  SELECT id_sessao INTO v_id_sessao FROM sessao_treino WHERE uuid = v_uuid;
+  SELECT id_sessao INTO v_id_sessao FROM public.sessao_treino WHERE uuid = v_uuid;
   IF FOUND THEN
     RETURN jsonb_build_object('id_sessao', v_id_sessao, 'criada', false);
   END IF;
 
-  INSERT INTO sessao_treino (
+  INSERT INTO public.sessao_treino (
     id_treino, id_bloco, id_aluno, iniciado_em, finalizado_em,
     duracao_segundos, observacao, calorias, uuid
   ) VALUES (
@@ -61,7 +66,7 @@ BEGIN
   FOR v_exercicio IN
     SELECT * FROM jsonb_array_elements(coalesce(pacote -> 'exercicios', '[]'::jsonb))
   LOOP
-    INSERT INTO sessao_exercicio (id_sessao, id_ex_usuario, concluido, concluido_em, uuid)
+    INSERT INTO public.sessao_exercicio (id_sessao, id_ex_usuario, concluido, concluido_em, uuid)
     VALUES (
       v_id_sessao,
       (v_exercicio ->> 'id_ex_usuario')::INTEGER,
@@ -74,7 +79,7 @@ BEGIN
     FOR v_serie IN
       SELECT * FROM jsonb_array_elements(coalesce(v_exercicio -> 'series', '[]'::jsonb))
     LOOP
-      INSERT INTO sessao_serie (id_sessao_exercicio, carga, repeticoes, uuid)
+      INSERT INTO public.sessao_serie (id_sessao_exercicio, carga, repeticoes, uuid)
       VALUES (
         v_id_sessao_ex,
         (v_serie ->> 'carga')::INTEGER,

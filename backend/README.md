@@ -285,7 +285,19 @@ Três coisas que valem saber antes de mexer:
 - **`sincronizar_sessao` é `SECURITY INVOKER` de propósito.** Ela não é uma porta que escapa do
   RLS: é só a forma de mandar o pacote junto, e as políticas de escrita continuam valendo lá dentro.
 
+- **O `REVOKE` do topo cita `anon` e `authenticated`.** No Supabase os dois nascem com `ALL` em
+  toda tabela do schema, por default privilege da plataforma — não "sem nada", como num Postgres
+  puro. Revogando só de `anon`, o `authenticated` fica com `TRUNCATE` e `TRIGGER` em tudo, e
+  **`TRUNCATE` ignora RLS**.
+- **`rls.sql` pode ser reaplicado.** `CREATE POLICY` não tem `IF NOT EXISTS`, então o arquivo dropa
+  cada política pelo nome antes de recriá-la.
+
 A Data API do Supabase **continua fechada** — abri-la é assunto da leva 3.
+
+O SQL foi aplicado no projeto do Supabase em **13/09/2026**, nesta ordem: `migracao-v8-uuid.sql`
+(o banco já tinha dados), `rls.sql` e `sincronizacao.sql`. O `advisor` de segurança do Supabase fica
+com um `INFO` esperado — `admin_user`, `regras_usuario` e `tentativa_login` têm RLS ligado e
+**nenhuma** política, que é justamente o que as deixa inalcançáveis.
 
 ## Execução
 

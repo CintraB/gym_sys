@@ -36,6 +36,13 @@ com o Supabase. **Aplicá-lo no projeto real sobrescreveria objetos da plataform
 No Supabase aplicam-se apenas, nesta ordem: `schema.sql` (ou `migracao-v8-uuid.sql`, num banco que
 já existe), `rls.sql` e `sincronizacao.sql`.
 
+**Mas ele precisa imitar a plataforma de verdade, e não um Postgres puro.** O Supabase concede
+`ALL` a `anon` e `authenticated` em toda tabela do schema, por default privilege. Enquanto o falso
+não reproduzia isso, o container nascia mais fechado que a produção e a suíte dava verde num estado
+que não existe: o `REVOKE` do `rls.sql` citava só `anon`, e `authenticated` ficava com `TRUNCATE` e
+`TRIGGER` em todas as tabelas. **`TRUNCATE` ignora RLS.** Só apareceu ao aplicar no projeto real,
+em 13/09/2026 — e hoje três testes pegam.
+
 ## Os arquivos
 
 | Arquivo | O que prova |
@@ -44,7 +51,7 @@ já existe), `rls.sql` e `sincronizacao.sql`.
 | `uuid.test.js` | A coluna `uuid` existe nas quatro tabelas, aceita nulo e o índice único recusa repetição — a idempotência da sincronização |
 | `tentativas.test.js` | `registrar_tentativa` conta só a janela de 15 min, zera no acerto, e a tabela não é legível por ninguém |
 | `identidade.test.js` | `auth_id_valido` aplica o corte de sessão igual ao backend, e os perfis vêm do banco, não do JWT |
-| `grants.test.js` | `anon` não lê nada, a coluna `senha` não sai nem para o dono, e o RLS está ligado em toda tabela alcançável |
+| `grants.test.js` | `anon` não lê nada, a coluna `senha` não sai nem para o dono, ninguém tem `TRUNCATE`/`TRIGGER`, o RLS está ligado em toda tabela alcançável e o `rls.sql` pode ser reaplicado |
 | `leitura.test.js` | O aluno lê o próprio e nada do vizinho; o professor lê os alunos |
 | `escrita.test.js` | O aluno só cria sessão e pedido para si, não escreve ficha e não se promove |
 | `sincronizar.test.js` | A subida é atômica, idempotente e não escapa do RLS |

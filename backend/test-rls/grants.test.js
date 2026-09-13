@@ -48,6 +48,44 @@ describe("grants", () => {
     }
   });
 
+  it("aplicar o rls.sql duas vezes não quebra", async () => {
+    // `CREATE POLICY` não tem `IF NOT EXISTS`, e o arquivo vai ser reaplicado a
+    // cada leva da sincronização. Sem os DROP do topo da seção de políticas, a
+    // segunda aplicação para no primeiro CREATE — foi o que aconteceu ao
+    // reaplicar no Supabase em 13/09/2026.
+    await banco.aplicar("rls.sql");
+
+    const { rows } = await banco.pool.query(
+      "SELECT count(*)::int AS total FROM pg_policies WHERE schemaname = 'public'",
+    );
+    assert.equal(rows[0].total, 31, "a reaplicação mudou o número de políticas");
+  });
+
+  it("ninguém tem TRUNCATE nem TRIGGER em tabela nenhuma", async () => {
+    // TRUNCATE **ignora RLS**: quem o tem esvazia a tabela sem política nenhuma
+    // ver. TRIGGER deixa pendurar código na tabela dos outros.
+    //
+    // Não é hipótese: no Supabase os dois papéis nascem com ALL por default
+    // privilege, e a primeira versão deste arquivo revogava só de `anon` —
+    // `authenticated` ficou com os dois em toda tabela, inclusive nas duas que
+    // deviam estar fora de alcance. Achado ao aplicar no projeto real.
+    const { rows } = await banco.pool.query(
+      `SELECT table_name, grantee, privilege_type
+         FROM information_schema.role_table_grants
+        WHERE table_schema = 'public'
+          AND grantee IN ('anon', 'authenticated')
+          AND privilege_type IN ('TRUNCATE', 'TRIGGER', 'REFERENCES', 'DELETE')
+        ORDER BY table_name, grantee, privilege_type`,
+    );
+    assert.deepEqual(
+      rows,
+      [],
+      `privilégio perigoso concedido: ${rows
+        .map((l) => `${l.grantee}:${l.privilege_type} em ${l.table_name}`)
+        .join(", ")}`,
+    );
+  });
+
   it("o RLS está ligado em toda tabela que o app alcança", async () => {
     // Asserção sobre o catálogo, e não sobre "um SELECT volta vazio": a Tarefa
     // 6 vai criar políticas de leitura, e um teste escrito como "nem o dono
