@@ -36,6 +36,28 @@ export const limparTentativas = (cpf) =>
   db.query("DELETE FROM tentativa_login WHERE cpf = $1", [cpf]);
 
 /**
+ * Um CPF que não existe, diferente a cada chamada.
+ *
+ * Fixo não serve: a trava de tentativas conta por CPF numa janela de 15
+ * minutos, e um CPF fixo acumula as falhas de **todas** as execuções da suíte.
+ * Depois de algumas rodadas seguidas a função passa a responder 429 no lugar
+ * de 401, e metade dos testes fica vermelha por contaminação — não por bug.
+ * Aconteceu em 13/09/2026, rodando a suíte várias vezes em sequência.
+ */
+export const cpfInexistente = () =>
+  String(80_000_000_000 + Math.floor(Math.random() * 9_000_000_000));
+
+/**
+ * Zera a trava de tentativas da faixa de CPFs de teste.
+ *
+ * Chamado no `before` de cada arquivo: garante que a suíte comece do mesmo
+ * estado, não importa o que ficou de execuções anteriores ou de um teste
+ * interrompido no meio.
+ */
+export const limparTentativasDeTeste = () =>
+  db.query("DELETE FROM tentativa_login WHERE cpf LIKE '8%' OR cpf LIKE '9%'");
+
+/**
  * O formato do banco: 64 hex de sal, dois-pontos, 128 hex de hash.
  *
  * Mora aqui, e não embutido na asserção, porque um teste offline o exercita

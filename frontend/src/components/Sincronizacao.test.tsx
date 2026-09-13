@@ -48,7 +48,7 @@ describe('tela de sincronizacao', () => {
 
     await userEvent.click(screen.getByRole('button', { name: /ativar sincroniza/i }))
     await userEvent.type(screen.getByLabelText(/cpf/i), '11111111111')
-    await userEvent.type(screen.getByLabelText(/senha/i), 'senha123')
+    await userEvent.type(screen.getByLabelText('Senha'), 'senha123')
     await userEvent.click(screen.getByRole('button', { name: /confirmar e ativar/i }))
 
     await waitFor(() =>
@@ -68,7 +68,7 @@ describe('tela de sincronizacao', () => {
 
     await userEvent.click(screen.getByRole('button', { name: /ativar sincroniza/i }))
     await userEvent.type(screen.getByLabelText(/cpf/i), '11111111111')
-    await userEvent.type(screen.getByLabelText(/senha/i), 'senha123')
+    await userEvent.type(screen.getByLabelText('Senha'), 'senha123')
     await userEvent.click(screen.getByRole('button', { name: /confirmar e ativar/i }))
 
     await waitFor(() => expect(entrarNoApp).toHaveBeenCalledWith('11111111111', 'senha123'))
@@ -80,7 +80,7 @@ describe('tela de sincronizacao', () => {
 
     await userEvent.click(screen.getByRole('button', { name: /ativar sincroniza/i }))
     await userEvent.type(screen.getByLabelText(/cpf/i), '111')
-    await userEvent.type(screen.getByLabelText(/senha/i), 'x')
+    await userEvent.type(screen.getByLabelText('Senha'), 'x')
     await userEvent.click(screen.getByRole('button', { name: /confirmar e ativar/i }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent(/sem conex/i)

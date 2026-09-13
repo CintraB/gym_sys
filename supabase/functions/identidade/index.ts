@@ -84,7 +84,23 @@ const sql = postgres(Deno.env.get("SUPABASE_DB_URL")!, {
   // prepare: false e obrigatorio quando a conexao passa pelo pooler em modo
   // transacao -- o statement preparado nao sobrevive a troca de conexao.
   prepare: false,
-  max: 2,
+
+  // UMA conexao por instancia, e ociosa por pouco tempo.
+  //
+  // Isto nao e economia: Edge Function escala em muitas instancias, cada uma
+  // com o proprio pool, e o Postgres tem um teto de conexoes que nao escala
+  // junto. Com `max: 2` e sem `idle_timeout`, rodar a suite tres vezes seguidas
+  // deixou **42 conexoes ociosas** no banco, e os testes passaram a falhar de
+  // formas que nao se repetiam -- medido em 13/09/2026.
+  //
+  // O sintoma em producao seria pior que teste vermelho: o app do celular
+  // falhando de vez em quando, sem explicacao, quando o banco recusa conexao
+  // nova porque as antigas nao voltaram.
+  max: 1,
+  idle_timeout: 10,
+  // Falhar rapido e melhor que segurar a requisicao: quem chama tem
+  // retentativa, e uma conexao pendurada consome a vaga de outra pessoa.
+  connect_timeout: 10,
 });
 
 Deno.serve(async (requisicao: Request) => {

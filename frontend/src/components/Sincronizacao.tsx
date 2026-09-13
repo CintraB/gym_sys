@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { AlertTriangle, CloudOff, LogOut, RefreshCw, Wifi } from 'lucide-react'
 import { Botao } from './ui/Botao'
-import { Campo } from './ui/Campo'
+import { Campo, CampoSenha } from './ui/Campo'
 import { Cartao } from './ui/Cartao'
 import { Aviso } from './ui/Aviso'
 import { Selo } from './ui/Selo'
@@ -125,9 +125,13 @@ export function Sincronizacao() {
               inputMode="numeric"
               autoComplete="username"
             />
-            <Campo
+            {/* CampoSenha, e não Campo com type="password": ele traz o olho de
+                mostrar e o aviso de Caps Lock, que é o mesmo que a tela de
+                login oferece. Aqui a senha é digitada de memória e sem
+                gerenciador — não ter como conferir o que se digitou faz a
+                pessoa errar e culpar a sincronização. */}
+            <CampoSenha
               rotulo="Senha"
-              type="password"
               value={senha}
               onChange={(e) => setSenha(e.target.value)}
               autoComplete="current-password"

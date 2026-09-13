@@ -66,6 +66,32 @@ describe('cliente do Supabase', () => {
     expect(erro.tipo).toBe('politica')
   })
 
+  // O PostgREST fala inglês e vocabulário de banco: "JWT issued at future",
+  // "permission denied for table usuario". Isso não pode chegar à tela — a
+  // pessoa não tem o que fazer com essa informação. Apareceu no aparelho.
+  it('erro do PostgREST nao chega em ingles na tela', async () => {
+    const buscar = vi.fn().mockResolvedValue(
+      respostaFalsa({ status: 401, corpo: { message: 'JWT issued at future' } }),
+    )
+    const cliente = criarCliente({ ...OPCOES, buscar })
+
+    const erro = await cliente.rest('/treino', { token: 'tok' }).catch((e) => e)
+    expect(erro.message).not.toMatch(/JWT|issued/i)
+    expect(erro.message).toMatch(/sincroniza|expirou/i)
+    // O original continua disponível para o log.
+    expect(erro.detalhe.message).toBe('JWT issued at future')
+  })
+
+  it('mensagem da NOSSA funcao passa, porque ja e escrita para ser lida', async () => {
+    const buscar = vi.fn().mockResolvedValue(
+      respostaFalsa({ status: 401, corpo: { erro: 'CPF ou senha incorretos' } }),
+    )
+    const cliente = criarCliente({ ...OPCOES, buscar })
+
+    const erro = await cliente.funcao('identidade', {}).catch((e) => e)
+    expect(erro.message).toBe('CPF ou senha incorretos')
+  })
+
   it('500 vira "servidor"', async () => {
     const buscar = vi.fn().mockResolvedValue(respostaFalsa({ status: 500, corpo: {} }))
     const cliente = criarCliente({ ...OPCOES, buscar })

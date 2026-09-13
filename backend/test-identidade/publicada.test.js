@@ -6,6 +6,8 @@ import {
   PADRAO_HASH,
   chamarIdentidade,
   comUsuarioDeTeste,
+  cpfInexistente,
+  limparTentativasDeTeste,
   encerrar,
   exigirAmbiente,
   limparTentativas,
@@ -13,7 +15,10 @@ import {
 } from "./ajuda.js";
 
 describe("a função de identidade publicada", () => {
-  before(() => exigirAmbiente());
+  before(async () => {
+    exigirAmbiente();
+    await limparTentativasDeTeste();
+  });
   after(() => encerrar());
 
   it("emite token para quem acertou a senha", async () => {
@@ -26,7 +31,17 @@ describe("a função de identidade publicada", () => {
       const claims = decodeJwt(corpo.token);
       assert.equal(claims.sub, String(id));
       assert.equal(claims.role, "authenticated");
-      assert.ok(claims.exp - claims.iat === 30 * 24 * 60 * 60, "o token vale 30 dias");
+
+      // A validade conta de AGORA, e não de `exp - iat`: o `iat` nasce recuado
+      // de propósito, para o token nunca parecer emitido no futuro para quem o
+      // valida do outro lado. Medir a diferença entre os dois somaria o recuo.
+      const agora = Math.floor(Date.now() / 1000);
+      const diasDeValidade = (claims.exp - agora) / (24 * 60 * 60);
+      assert.ok(
+        diasDeValidade > 29.9 && diasDeValidade <= 30,
+        `o token devia valer 30 dias, vale ${diasDeValidade.toFixed(2)}`,
+      );
+      assert.ok(claims.iat < agora, "o iat precisa nascer no passado");
     });
   });
 
@@ -50,8 +65,9 @@ describe("a função de identidade publicada", () => {
   });
 
   it("senha errada e CPF inexistente respondem a MESMA coisa", async () => {
-    const inexistente = await chamarIdentidade({ cpf: "99999999999", senha: "qualquer" });
-    await limparTentativas("99999999999");
+    const cpfQueNaoExiste = cpfInexistente();
+    const inexistente = await chamarIdentidade({ cpf: cpfQueNaoExiste, senha: "qualquer" });
+    await limparTentativas(cpfQueNaoExiste);
 
     const comSenhaErrada = await comUsuarioDeTeste({}, ({ cpf }) =>
       chamarIdentidade({ cpf, senha: "errada" }),

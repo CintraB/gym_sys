@@ -110,15 +110,38 @@ export async function avaliarLogin({
 }
 
 /**
+ * Recuo do `iat`, para absorver diferenca de relogio entre quem emite e quem
+ * valida.
+ *
+ * A funcao roda na borda e o PostgREST roda junto do banco: sao maquinas
+ * diferentes, e alguns segundos de diferenca bastam para o token nascer "no
+ * futuro" e ser recusado com `JWT issued at future` -- aconteceu no aparelho
+ * dele em 13/09/2026, com o mesmo token que funcionava daqui.
+ *
+ * Token com `iat` no passado e sempre valido; no futuro, qualquer validador
+ * rigoroso recusa. Nao ha motivo para emitir exatamente "agora".
+ *
+ * **O tamanho do recuo tem um limite, e ele nao e arbitrario:**
+ * `auth_id_valido()` recusa token cujo `iat` seja anterior a
+ * `usuario.sessoes_invalidadas_em`. Recuar demais faria quem troca a senha e
+ * entra na sincronizacao em seguida receber um token ja vencido pelo corte.
+ * 30 segundos cobre o desvio de relogio real e mantem essa janela curta.
+ */
+const RECUO_DO_IAT = 30;
+
+/**
  * As claims que o RLS da leva 1 le. `sub` vai como STRING porque e o que o JWT
  * manda, e `auth_id_valido()` faz o cast para INTEGER do lado do banco.
  */
 export function montarClaims(id: number, agoraEmSegundos: number) {
+  const emitido = agoraEmSegundos - RECUO_DO_IAT;
   return {
     sub: String(id),
     role: "authenticated",
     aud: "authenticated",
-    iat: agoraEmSegundos,
+    iat: emitido,
+    // A validade conta de agora, e nao do `iat` recuado: o recuo e um detalhe
+    // de relogio, nao deve encurtar os 30 dias.
     exp: agoraEmSegundos + VALIDADE_DIAS * 24 * 60 * 60,
   };
 }

@@ -1,12 +1,22 @@
 import { after, before, describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { db } from "../src/config/db.js";
-import { chamarIdentidade, comUsuarioDeTeste, encerrar, exigirAmbiente } from "./ajuda.js";
+import {
+  chamarIdentidade,
+  comUsuarioDeTeste,
+  encerrar,
+  exigirAmbiente,
+  limparTentativasDeTeste,
+} from "./ajuda.js";
 
 const LIMITE = 20;
 
 describe("trava de tentativas da função", () => {
-  before(() => exigirAmbiente());
+  before(async () => {
+    exigirAmbiente();
+    // Sem isto, a contagem de uma execução anterior entra nesta.
+    await limparTentativasDeTeste();
+  });
   after(() => encerrar());
 
   it("cada falha é registrada no banco", async () => {

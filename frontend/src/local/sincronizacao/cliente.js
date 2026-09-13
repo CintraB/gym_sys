@@ -27,6 +27,26 @@ function tipoDoStatus(status) {
   return 'servidor'
 }
 
+/**
+ * A mensagem que a pessoa vê.
+ *
+ * O PostgREST responde em inglês e em vocabulário de banco de dados — "JWT
+ * issued at future", "permission denied for table usuario". Repassar isso à
+ * tela é jogar na pessoa um problema que não é dela e que ela não tem como
+ * resolver. Aconteceu no aparelho dele em 13/09/2026.
+ *
+ * A mensagem do **nosso** servidor passa: a Edge Function responde em `erro`,
+ * em português, e ela foi escrita para ser lida ("CPF ou senha incorretos").
+ * O texto original fica em `detalhe`, para o log.
+ */
+function mensagemPara(tipo, dados) {
+  if (typeof dados?.erro === 'string') return dados.erro
+
+  if (tipo === 'credencial') return 'Sua sessão de sincronização expirou. Ative de novo.'
+  if (tipo === 'politica') return 'O servidor recusou o acesso a esses dados.'
+  return 'O servidor não conseguiu responder agora. Tente de novo em instantes.'
+}
+
 export function criarCliente({ url, chave, buscar = fetch }) {
   const base = url.replace(/\/$/, '')
 
@@ -72,8 +92,7 @@ export function criarCliente({ url, chave, buscar = fetch }) {
 
     if (!resposta.ok) {
       const tipo = tipoDoStatus(resposta.status)
-      const mensagem = dados?.message ?? dados?.erro ?? `Servidor respondeu ${resposta.status}`
-      throw new ErroSincronizacao(tipo, mensagem, dados)
+      throw new ErroSincronizacao(tipo, mensagemPara(tipo, dados), dados)
     }
 
     return dados

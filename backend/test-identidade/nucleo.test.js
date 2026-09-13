@@ -117,7 +117,22 @@ describe("núcleo da identidade", () => {
     assert.equal(claims.sub, "7", "auth_id_valido() faz cast de sub para INTEGER");
     assert.equal(claims.role, "authenticated", "é a claim que o PostgREST usa no SET ROLE");
     assert.equal(claims.aud, "authenticated");
-    assert.equal(claims.iat, agora, "auth_id_valido() compara iat com sessoes_invalidadas_em");
-    assert.equal(claims.exp, agora + VALIDADE_DIAS * 24 * 60 * 60);
+    assert.equal(claims.exp, agora + VALIDADE_DIAS * 24 * 60 * 60, "a validade conta de agora");
+  });
+
+  // A função emite na borda e o PostgREST valida junto do banco: alguns
+  // segundos de diferença de relógio bastam para o token nascer "no futuro" e
+  // ser recusado com `JWT issued at future`. Aconteceu no aparelho dele.
+  it("o iat nasce no passado, nunca no futuro", () => {
+    const agora = 1_760_000_000;
+    const claims = montarClaims(7, agora);
+
+    assert.ok(claims.iat < agora, "iat exatamente igual a agora vira futuro no validador vizinho");
+    const recuo = agora - claims.iat;
+    assert.ok(recuo >= 10, `recuo de ${recuo}s é pouco para desvio de relógio real`);
+    // O limite de cima não é estético: `auth_id_valido()` recusa token anterior
+    // a `sessoes_invalidadas_em`, então recuar demais quebraria quem troca a
+    // senha e ativa a sincronização em seguida.
+    assert.ok(recuo <= 60, `recuo de ${recuo}s abre janela demais contra o corte de sessão`);
   });
 });
