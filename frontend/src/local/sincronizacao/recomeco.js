@@ -1,6 +1,21 @@
 import { criarHashComSal } from '../senha.js'
 
 /**
+ * O `sub` do token, sem verificar assinatura.
+ *
+ * Verificar aqui não faria sentido: quem valida é o servidor, a cada chamada.
+ * Isto é só para saber qual das linhas devolvidas é a de quem está entrando.
+ */
+function idDoToken(token) {
+  try {
+    const claims = JSON.parse(atob(token.split('.')[1]))
+    return Number(claims.sub)
+  } catch {
+    return null
+  }
+}
+
+/**
  * Troca o banco local pelo que o servidor tem.
  *
  * É o que faz a subida ser possível: `sessao_exercicio.id_ex_usuario` aponta
@@ -14,14 +29,28 @@ import { criarHashComSal } from '../senha.js'
 export async function recomecar(bd, cliente, { token, senha }) {
   // A rede toda ANTES de tocar no banco: se a ficha não vier, o aparelho fica
   // exatamente como estava, com a ficha velha, em vez de meio recomeçado.
-  const [usuarios, exercicios, treinos] = await Promise.all([
+  const [usuarios, exercicios] = await Promise.all([
     cliente.rest('/usuario?select=id,nome,cpf,email,titulo,aluno,professor,admin,ativo', { token }),
     cliente.rest('/exercicio?select=id_exercicio,nome_exercicio,tipo', { token }),
-    cliente.rest('/treino?select=*,treino_bloco(*),ex_usuario(*)&ativo=eq.true', { token }),
   ])
 
-  const dono = usuarios[0]
+  // Quem é o dono do token, entre o que veio.
+  //
+  // Para aluno, a política devolve só a própria linha. Para professor e admin
+  // devolve a academia inteira — `usuarios[0]` seria outra pessoa qualquer.
+  const meuId = idDoToken(token)
+  const dono = usuarios.find((u) => u.id === meuId) ?? usuarios[0]
   if (!dono) throw new Error('o servidor não devolveu usuário nenhum para este token')
+
+  // O filtro por aluno **não** é redundante com o RLS, e essa foi a armadilha:
+  // a política de leitura de `treino` deixa professor e admin verem os treinos
+  // de todos. Sem o filtro, quem dá aula baixava a ficha da academia inteira
+  // para o aparelho — e a primeira delas quebrava, porque o professor que a
+  // montou não é o dono deste aparelho e não existe no banco local.
+  const treinos = await cliente.rest(
+    `/treino?select=*,treino_bloco(*),ex_usuario(*)&id_aluno=eq.${dono.id}&ativo=eq.true`,
+    { token },
+  )
 
   // A hash não desce, e não vai descer: a coluna `senha` não é selecionável por
   // papel nenhum. Mas a pessoa acabou de digitar a senha e a Edge Function
@@ -69,6 +98,36 @@ export async function recomecar(bd, cliente, { token, senha }) {
         dono.ativo,
       ],
     )
+
+    // Quem montou a ficha precisa existir aqui: `treino.id_professor`
+    // referencia `usuario(id)`, e sem a linha o INSERT do treino morre com
+    // "FOREIGN KEY constraint failed" — erro que não diz nada a quem o vê.
+    //
+    // O nome vem do servidor quando a política deixa (professor e admin leem
+    // os outros); para aluno, que só enxerga a própria linha, entra uma linha
+    // mínima só para sustentar a referência. A tela mostra "Montado por
+    // Professor", que é melhor que não abrir.
+    const professores = [...new Set(treinos.map((t) => t.id_professor))].filter(
+      (id) => id !== dono.id,
+    )
+    for (const idProfessor of professores) {
+      const conhecido = usuarios.find((u) => u.id === idProfessor)
+      await bd.query(
+        `INSERT INTO usuario (id, nome, senha, cpf, email, titulo, aluno, professor, admin, ativo)
+         VALUES ($1, $2, $3, $4, $5, $6, FALSE, TRUE, FALSE, $7)`,
+        [
+          idProfessor,
+          conhecido?.nome ?? 'Professor',
+          // Sem hash utilizável: esta linha existe para a referência, e ninguém
+          // entra por ela neste aparelho.
+          'sem-senha-local',
+          conhecido?.cpf ?? String(idProfessor).padStart(11, '0'),
+          conhecido?.email ?? 'professor@local',
+          conhecido?.titulo ?? String(idProfessor).padStart(12, '0'),
+          conhecido?.ativo ?? true,
+        ],
+      )
+    }
 
     for (const exercicio of exercicios) {
       await bd.query(

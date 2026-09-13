@@ -38,6 +38,7 @@ const RAIZ = join(AQUI, '..', '..')
 const APK = join(RAIZ, 'frontend', 'android', 'app', 'build', 'outputs', 'apk', 'debug', 'app-debug.apk')
 
 const CPF_DE_TESTE = '90900900902'
+const CPF_DO_PROFESSOR = '90900900903'
 const SENHA_DE_TESTE = 'teste123'
 
 const backend = (caminho) => import(`file:///${join(RAIZ, 'backend', 'src', caminho).replace(/\\/g, '/')}`)
@@ -94,8 +95,19 @@ async function prepararServidor() {
   const { criarHashComSal } = await backend('lib/senha.js')
 
   const apagar = async () => {
+    // O professor de teste sai sempre, mesmo que a conta principal já tenha
+    // ido: um `return` cedo aqui deixaria a linha dele para trás no servidor a
+    // cada execução interrompida.
+    const apagarProfessor = () =>
+      db
+        .query('DELETE FROM tentativa_login WHERE cpf = $1', [CPF_DO_PROFESSOR])
+        .then(() => db.query('DELETE FROM usuario WHERE cpf = $1', [CPF_DO_PROFESSOR]))
+
     const { rows } = await db.query('SELECT id FROM usuario WHERE cpf = $1', [CPF_DE_TESTE])
-    if (rows.length === 0) return
+    if (rows.length === 0) {
+      await apagarProfessor()
+      return
+    }
     const id = rows[0].id
     await db.query(
       `DELETE FROM sessao_serie WHERE id_sessao_exercicio IN (
@@ -117,21 +129,39 @@ async function prepararServidor() {
     await db.query('DELETE FROM pedido_treino WHERE id_aluno = $1', [id])
     await db.query('DELETE FROM tentativa_login WHERE cpf = $1', [CPF_DE_TESTE])
     await db.query('DELETE FROM usuario WHERE id = $1', [id])
+    await apagarProfessor()
   }
 
   await apagar()
 
+  // A conta de teste é **admin e professor**, como a dele — e não aluno puro.
+  //
+  // A primeira versão desta suíte usava aluno puro, professor de si mesmo, e
+  // por isso não viu dois bugs que apareceram no aparelho dele na primeira
+  // tentativa: o recomeço baixando a ficha de TODOS (a política deixa professor
+  // ver os treinos alheios) e a ficha montada por outra pessoa quebrando a
+  // chave estrangeira. Conta de teste boa demais não testa nada.
   const { rows } = await db.query(
     `INSERT INTO usuario (nome, senha, cpf, email, titulo, aluno, professor, admin, ativo)
-     VALUES ('Teste do Emulador', $1, $2, 'emulador@exemplo.invalido', '909009009021', TRUE, FALSE, FALSE, TRUE)
+     VALUES ('Teste do Emulador', $1, $2, 'emulador@exemplo.invalido', '909009009021', TRUE, TRUE, TRUE, TRUE)
      RETURNING id`,
     [await criarHashComSal(SENHA_DE_TESTE), CPF_DE_TESTE],
   )
   const id = rows[0].id
 
+  // Um segundo professor, que NÃO é o dono do aparelho: é ele quem "monta" a
+  // ficha, reproduzindo o caso real.
+  const { rows: outros } = await db.query(
+    `INSERT INTO usuario (nome, senha, cpf, email, titulo, aluno, professor, admin, ativo)
+     VALUES ('Professor de Teste', $1, $2, 'prof@exemplo.invalido', '909009009031', FALSE, TRUE, FALSE, TRUE)
+     RETURNING id`,
+    [await criarHashComSal(SENHA_DE_TESTE), CPF_DO_PROFESSOR],
+  )
+  const idProfessor = outros[0].id
+
   const { rows: treinos } = await db.query(
-    'INSERT INTO treino (id_aluno, id_professor) VALUES ($1, $1) RETURNING id_treino',
-    [id],
+    'INSERT INTO treino (id_aluno, id_professor) VALUES ($1, $2) RETURNING id_treino',
+    [id, idProfessor],
   )
   const { rows: blocos } = await db.query(
     `INSERT INTO treino_bloco (id_treino, letra, nome, ordem)

@@ -156,9 +156,17 @@ export const CASOS = [
         throw new Error(alerta ? `${erro.message} — a tela diz: "${alerta}"` : erro.message)
       }
 
-      const usuarios = await tela.consultar('SELECT id, cpf FROM usuario')
-      if (usuarios.length !== 1 || usuarios[0].id !== conta.id) {
-        throw new Error(`o usuário local devia ser o ${conta.id} do servidor: ${JSON.stringify(usuarios)}`)
+      // O dono precisa estar lá com o id do servidor. Pode haver outras linhas
+      // — os professores que montaram as fichas entram só para sustentar a
+      // referência —, mas nenhuma pode ser de aluno.
+      const usuarios = await tela.consultar('SELECT id, cpf, aluno FROM usuario')
+      const eu = usuarios.find((u) => u.id === conta.id)
+      if (!eu) {
+        throw new Error(`o dono ${conta.id} não está no banco local: ${JSON.stringify(usuarios)}`)
+      }
+      const outrosAlunos = usuarios.filter((u) => u.id !== conta.id && u.aluno)
+      if (outrosAlunos.length > 0) {
+        throw new Error(`baixou aluno que não é o dono: ${JSON.stringify(outrosAlunos)}`)
       }
       const exercicios = await tela.consultar('SELECT COUNT(*) AS n FROM ex_usuario')
       return `usuário ${usuarios[0].id} e ${exercicios[0].n} exercício(s), vindos do servidor`
@@ -175,6 +183,35 @@ export const CASOS = [
       const url = await tela.url()
       if (url.includes('/entrar')) throw new Error('o app caiu para a tela de login depois de ativar')
       return `segue logado em ${url}`
+    },
+  },
+
+  {
+    // A conta de teste é admin e professor, como a dele: a política deixa quem
+    // dá aula ler os treinos de todos, então sem filtro o recomeço baixaria a
+    // academia inteira — e a primeira ficha alheia quebraria a chave
+    // estrangeira, porque quem a montou não existe neste aparelho. Foi o que
+    // aconteceu com ele em 13/09/2026, na primeira tentativa real.
+    nome: 'quem dá aula baixa só a própria ficha, e ela abre mesmo montada por outro',
+    async rodar({ tela, conta }) {
+      const treinos = await tela.consultar('SELECT id_treino, id_aluno, id_professor FROM treino')
+      const alheios = treinos.filter((t) => t.id_aluno !== conta.id)
+      if (alheios.length > 0) {
+        throw new Error(`baixou ficha de outro aluno: ${JSON.stringify(alheios)}`)
+      }
+      if (treinos.length === 0) throw new Error('não baixou ficha nenhuma')
+
+      // Quem montou a ficha não é o dono do aparelho — e precisa existir aqui,
+      // senão o INSERT do treino morre com FOREIGN KEY constraint failed.
+      const professor = treinos[0].id_professor
+      if (professor === conta.id) {
+        throw new Error('o cenário perdeu a graça: a ficha devia vir de outro professor')
+      }
+      const linha = await tela.consultar(`SELECT nome FROM usuario WHERE id = ${professor}`)
+      if (linha.length !== 1) {
+        throw new Error(`o professor ${professor} não existe no banco do aparelho`)
+      }
+      return `ficha do aluno ${conta.id}, montada por "${linha[0].nome}"`
     },
   },
 

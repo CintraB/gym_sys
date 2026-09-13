@@ -61,11 +61,20 @@ export function Sincronizacao() {
       setSenha('')
     } catch (falha) {
       const e = falha as { tipo?: string; message?: string }
-      setErro(
-        e.tipo === 'rede'
-          ? 'Sem conexão com o servidor. Tente quando tiver internet.'
-          : (e.message ?? 'Não foi possível ativar a sincronização.'),
-      )
+      console.error('[sincronizacao] ativar:', e)
+
+      if (e.tipo === 'rede') {
+        setErro('Sem conexão com o servidor. Tente quando tiver internet.')
+      } else if (e.tipo) {
+        // Veio do cliente, já em português e escrito para ser lido.
+        setErro(e.message ?? 'Não foi possível ativar a sincronização.')
+      } else {
+        // Qualquer outra coisa é erro técnico — do SQLite, do driver, de um
+        // campo que mudou de nome. "run: FOREIGN KEY constraint failed (code
+        // 787)" chegou assim na tela dele em 13/09/2026, e não há nada que a
+        // pessoa possa fazer com isso. O detalhe fica no console.
+        setErro('Não foi possível ativar a sincronização. Tente de novo.')
+      }
     } finally {
       setOcupadoAqui(false)
     }
