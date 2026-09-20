@@ -13,7 +13,6 @@ import { Painel } from './ui/Painel'
 import { Botao } from './ui/Botao'
 import { limparTreino } from '../lib/notificacoes'
 import { useNotificacaoDeTreino } from '../lib/useNotificacaoDeTreino'
-import { sincronizarSeHouver } from '../local/sincronizacao/gatilho'
 import type { SessaoCompleta } from '../types'
 
 export interface ItemNav {
@@ -37,15 +36,6 @@ export function AppShell({ itens, children }: { itens: ItemNav[]; children: Reac
   useEffect(() => {
     salvarUltimaRota(pathname)
   }, [pathname])
-
-  // Abrir o app é gatilho de sincronização, e não só finalizar um treino: é o
-  // que sobe o que ficou para trás quando a rede voltou, e é o que mantém o
-  // contato diário com o servidor — sem ele, o projeto gratuito do Supabase
-  // conta a semana como inativa e pausa (aconteceu em 19/09/2026). Fora do
-  // modo standalone a função não faz nada: o próprio import some no build web.
-  useEffect(() => {
-    sincronizarSeHouver()
-  }, [])
 
   useNotificacaoDeTreino()
 

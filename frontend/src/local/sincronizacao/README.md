@@ -40,8 +40,10 @@ Três detalhes que sustentam isso:
 - **Falha de rede não gasta o dia.** A marca é gravada depois da resposta, então servidor fora do
   ar não empurra a próxima tentativa para 20 h adiante.
 
-A `AppShell` chama o gatilho ao montar. Até 19/09/2026 o motor documentava que rodava "ao abrir o
-app", mas a única chamada existente era a de `MeuTreino` ao finalizar um treino.
+Quem dispara na abertura é o `main.tsx`, que chama `sincronizar()` direto antes do primeiro render
+— e não o `sincronizarSeHouver` do `gatilho.ts`, que é o caminho das telas (hoje só `MeuTreino`, ao
+finalizar um treino). Procurar pelo gatilho e concluir que a abertura não sincronizava foi um erro
+de leitura cometido em 20/09/2026; a chamada está lá desde a leva 3.
 
 ## O selo diz três coisas, e "conectado" é a menos provável
 
