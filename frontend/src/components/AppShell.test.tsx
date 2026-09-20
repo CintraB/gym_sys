@@ -27,6 +27,12 @@ vi.mock('@capacitor/local-notifications', () => ({
   LocalNotifications: { addListener: vi.fn(async () => ({ remove: vi.fn() })) },
 }))
 
+const sincronizarSeHouver = vi.fn()
+vi.mock('../local/sincronizacao/gatilho', () => ({
+  sincronizarSeHouver: () => sincronizarSeHouver(),
+  sessoesNaoEnviadas: async () => new Set(),
+}))
+
 import { api } from '../lib/api'
 import { AppShell, type ItemNav } from './AppShell'
 
@@ -234,5 +240,24 @@ describe('AppShell — sair com treino em andamento', () => {
     await usuario.click(within(painel).getByRole('button', { name: /descartar e sair/i }))
 
     await waitFor(() => expect(limparTreino).toHaveBeenCalled())
+  })
+
+  /**
+   * O gatilho só existia ao finalizar um treino, embora o motor documentasse
+   * que rodava "ao abrir o app". A diferença importa desde 19/09/2026: é a
+   * abertura que mantém o projeto gratuito do Supabase fora da pausa por
+   * inatividade, e é ela que descobre que o servidor está fora antes de haver
+   * treino parado na fila.
+   */
+  it('ao abrir o app, toca a sincronizacao', async () => {
+    get.mockResolvedValue({ data: null } as never)
+    renderizar(
+      <AppShell itens={ITENS}>
+        <div>conteúdo</div>
+      </AppShell>,
+      { usuario: ALUNO },
+    )
+
+    await waitFor(() => expect(sincronizarSeHouver).toHaveBeenCalled())
   })
 })

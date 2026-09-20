@@ -20,6 +20,38 @@ Dá para treinar o mês inteiro sem nunca ter ativado a sincronização. É por 
 Aqui o problema é resolvido por construção: o `cliente.js` usa `fetch`, não a instância do axios —
 que está com o adapter local instalado e traria o interceptor junto.
 
+## O contato diário, e por que ele existe
+
+O motor toca o servidor **uma vez por dia** mesmo sem nada para subir — uma leitura da própria
+linha em `usuario`, que é o mínimo que a RLS deixa passar.
+
+Não é enfeite: o plano gratuito do Supabase pausa o projeto com "atividade insuficiente" na
+semana, e **isso aconteceu em 19/09/2026 com o app funcionando perfeitamente**. Quatro treinos
+subiram nos seis dias anteriores, cada um em poucos segundos; nos dias sem treino o app não fazia
+requisição nenhuma, porque sem pendência ele nem acordava a rede. Pouco demais para o critério
+deles.
+
+Três detalhes que sustentam isso:
+
+- **A janela é de 20 h, não 24.** Quem abre o app sempre no mesmo horário ficaria a poucos minutos
+  de completar as 24 h e pularia o dia, abrindo buracos justamente na semana que decide a pausa.
+- **Subir um treino conta como o contato do dia.** No dia de treino a atividade sai de graça, e a
+  abertura seguinte não gasta requisição para dizer "oi".
+- **Falha de rede não gasta o dia.** A marca é gravada depois da resposta, então servidor fora do
+  ar não empurra a próxima tentativa para 20 h adiante.
+
+A `AppShell` chama o gatilho ao montar. Até 19/09/2026 o motor documentava que rodava "ao abrir o
+app", mas a única chamada existente era a de `MeuTreino` ao finalizar um treino.
+
+## O selo diz três coisas, e "conectado" é a menos provável
+
+`online` nasce `null` — *não verificado* —, e só uma tentativa de verdade o resolve. A tela tratava
+`null` como "conectado", então o app afirmava estar em dia com o servidor sem nunca ter falado com
+ele: foi assim que seis dias de projeto pausado passaram sem nada mudar na tela.
+
+Junto do selo vai a data do último contato, em tempo relativo (`há 6 dias`). É ela que denuncia
+sozinha um "tudo enviado" velho, sem depender de alarme nenhum.
+
 ## Os quatro tipos de falha
 
 `ErroSincronizacao.tipo` decide o que fazer, e confundi-los é o bug mais provável desta pasta:
@@ -66,7 +98,7 @@ errado.
 
 ## Como isso é provado
 
-- **Sem rede:** `npx vitest run src/local/sincronizacao/` — 38 testes, com cliente falso e SQLite
+- **Sem rede:** `npx vitest run src/local/sincronizacao/` — 49 testes, com cliente falso e SQLite
   em memória.
 - **Contra o servidor de verdade:** `npm run test:dataapi`, no `backend/`. É o que prova que o
   **formato** do pacote é o que `sincronizar_sessao` espera — nenhum teste com cliente falso diz

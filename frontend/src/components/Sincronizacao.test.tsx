@@ -8,7 +8,12 @@ const entrarNaSincronizacao = vi.fn()
 const sincronizar = vi.fn()
 const sair = vi.fn()
 const entrarNoApp = vi.fn()
-let estadoAtual = { ligada: false, online: null as boolean | null, ultima: null, ocupada: false }
+let estadoAtual = {
+  ligada: false,
+  online: null as boolean | null,
+  ultima: null as string | null,
+  ocupada: false,
+}
 
 vi.mock('../local/sincronizacao/doApp.js', () => ({
   sincronizacaoDoApp: () => ({
@@ -113,6 +118,39 @@ describe('tela de sincronizacao', () => {
     const alerta = await screen.findByRole('alert')
     expect(alerta).toHaveTextContent(/ative de novo/i)
     expect(alerta).not.toHaveTextContent(/sair|login/i)
+  })
+
+  /**
+   * O selo dizia "conectado" com `online` ainda em `null` — o estado de quem
+   * abriu o app e não tentou nada, porque não havia o que subir. Foi o que fez
+   * seis dias de projeto pausado passarem despercebidos em 19/09/2026.
+   */
+  it('nao afirma que esta conectado antes de ter tentado', async () => {
+    estadoAtual = { ligada: true, online: null, ultima: null, ocupada: false }
+    renderizar(<Sincronizacao />, { entrar: entrarNoApp })
+
+    expect(await screen.findByText(/n[ãa]o verificado/i)).toBeInTheDocument()
+    expect(screen.queryByText(/^conectado$/i)).not.toBeInTheDocument()
+  })
+
+  /**
+   * Em tempo relativo, e não só a data: "18/09" não diz nada a quem abre o app
+   * em 19/09 — "há 6 dias" diz tudo. É a informação que teria denunciado o
+   * servidor pausado sem precisar de nenhum alarme.
+   */
+  it('mostra ha quanto tempo foi a ultima sincronizacao', async () => {
+    const seisDiasAtras = new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString()
+    estadoAtual = { ligada: true, online: null, ultima: seisDiasAtras, ocupada: false }
+    renderizar(<Sincronizacao />, { entrar: entrarNoApp })
+
+    expect(await screen.findByText(/h[áa] 6 dias/i)).toBeInTheDocument()
+  })
+
+  it('nunca sincronizado diz isso, em vez de mostrar uma data vazia', async () => {
+    estadoAtual = { ligada: true, online: null, ultima: null, ocupada: false }
+    renderizar(<Sincronizacao />, { entrar: entrarNoApp })
+
+    expect(await screen.findByText(/nunca sincronizado/i)).toBeInTheDocument()
   })
 
   it('sucesso diz quantos subiram', async () => {

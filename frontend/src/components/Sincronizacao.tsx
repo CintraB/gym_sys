@@ -1,10 +1,11 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { AlertTriangle, CloudOff, LogOut, RefreshCw, Wifi } from 'lucide-react'
+import { AlertTriangle, Cloud, CloudOff, LogOut, RefreshCw, Wifi } from 'lucide-react'
 import { Botao } from './ui/Botao'
 import { Campo, CampoSenha } from './ui/Campo'
 import { Cartao } from './ui/Cartao'
 import { Aviso } from './ui/Aviso'
 import { Selo } from './ui/Selo'
+import { formatarDataHora, tempoRelativo } from '../lib/formato'
 import { sincronizacaoDoApp } from '../local/sincronizacao/doApp.js'
 import { useAuth } from '../auth/useAuth'
 
@@ -174,15 +175,32 @@ export function Sincronizacao() {
                 ? 'Tudo enviado.'
                 : `${pendentes} treino(s) aguardando envio.`}
           </p>
+          {/* A data é o que permite desconfiar sozinho: "tudo enviado" com a
+              última subida de duas semanas atrás diz muito mais do que
+              qualquer selo. */}
+          <p className="mt-0.5 text-xs text-texto-suave">
+            {estado.ultima
+              ? `Último contato com o servidor: ${tempoRelativo(estado.ultima)} (${formatarDataHora(estado.ultima)}).`
+              : 'Nunca sincronizado.'}
+          </p>
         </div>
-        <Selo tom={estado.online === false ? 'neutro' : 'acento'}>
-          {estado.online === false ? (
+        {/* Três estados, e não dois: `online` nasce `null` a cada abertura do
+            app e só uma tentativa de verdade o resolve. Tratar `null` como
+            "conectado" — o que esta tela fazia — é afirmar o que ninguém
+            verificou, e foi assim que o projeto ficou seis dias pausado sem
+            que nada na tela mudasse. */}
+        <Selo tom={estado.online === true ? 'acento' : 'neutro'}>
+          {estado.online === true ? (
+            <>
+              <Wifi className="size-3.5" aria-hidden /> conectado
+            </>
+          ) : estado.online === false ? (
             <>
               <CloudOff className="size-3.5" aria-hidden /> sem rede
             </>
           ) : (
             <>
-              <Wifi className="size-3.5" aria-hidden /> conectado
+              <Cloud className="size-3.5" aria-hidden /> não verificado
             </>
           )}
         </Selo>

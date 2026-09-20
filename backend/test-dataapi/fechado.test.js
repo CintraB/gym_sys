@@ -37,6 +37,24 @@ describe("a Data API reaberta continua fechada para quem não é dono", () => {
     });
   });
 
+  /**
+   * O contato diário do app, exatamente como `criarSincronizacao` o faz.
+   *
+   * Existe por causa da pausa automática do plano gratuito: sem uma requisição
+   * por dia, a semana conta como inativa e o projeto é pausado — aconteceu em
+   * 19/09/2026, com quatro treinos subidos nos seis dias anteriores. Um 403
+   * aqui não seria silencioso: a camada de tipos traduz 403 para `politica`, e
+   * o app trata isso como bug, com alarme na tela.
+   */
+  it("o contato diário do app passa pela política de leitura", async () => {
+    await comUsuarioDeTeste({}, async ({ id, cpf, senha }) => {
+      const token = await tokenDe({ cpf, senha });
+      const { status, corpo } = await rest("/usuario?select=id&limit=1", { token });
+      assert.equal(status, 200, JSON.stringify(corpo));
+      assert.deepEqual(corpo, [{ id }], "o contato diário não devolveu a própria linha");
+    });
+  });
+
   it("o aluno lê o catálogo, que é catálogo", async () => {
     await comUsuarioDeTeste({}, async ({ cpf, senha }) => {
       const token = await tokenDe({ cpf, senha });
