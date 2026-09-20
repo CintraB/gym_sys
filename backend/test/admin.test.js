@@ -355,3 +355,101 @@ test("alterar perfis de usuário inexistente devolve 404", async (t) => {
 
   assert.equal(resposta.status, 404);
 });
+
+const NOVO = {
+  cpf: "33333333333",
+  nome: "Pessoa Nova",
+  senha: "senha123",
+  email: "nova@teste.com",
+  titulo: "333333333333",
+};
+
+// O cadastro que existia antes gravava `aluno = !professor`: dava para nascer
+// aluno ou professor, nunca os dois, e nunca admin. Acumular perfis só era
+// possível depois, num segundo passo.
+test("admin cadastra usuário com mais de um perfil de uma vez", async (t) => {
+  const api = await criarApiDeTeste();
+  t.after(() => api.encerrar());
+  const token = await criarAdminELogar(api);
+
+  const resposta = await api.post(
+    "/admin/usuarios",
+    { ...NOVO, aluno: true, professor: true, admin: false },
+    { token }
+  );
+
+  assert.equal(resposta.status, 201, JSON.stringify(resposta.corpo));
+  assert.equal(resposta.corpo.usuario.aluno, true);
+  assert.equal(resposta.corpo.usuario.professor, true);
+  assert.equal(resposta.corpo.usuario.admin, false);
+  assert.equal(resposta.corpo.usuario.senha, undefined, "a resposta vazou a senha");
+});
+
+test("admin cadastra outro admin, e ele entra como admin", async (t) => {
+  const api = await criarApiDeTeste();
+  t.after(() => api.encerrar());
+  const token = await criarAdminELogar(api);
+
+  const criado = await api.post(
+    "/admin/usuarios",
+    { ...NOVO, aluno: false, professor: false, admin: true },
+    { token }
+  );
+  assert.equal(criado.status, 201, JSON.stringify(criado.corpo));
+
+  // O perfil só vale se a pessoa conseguir entrar com ele: sem o login, o
+  // teste provaria a linha no banco e não o acesso que ela dá.
+  const login = await api.post("/login", { cpf: NOVO.cpf, senha: NOVO.senha });
+  assert.equal(login.status, 200, JSON.stringify(login.corpo));
+
+  const eu = await api.get("/me", { token: login.corpo.token });
+  assert.equal(eu.corpo.cargo, "admin");
+  assert.equal(eu.corpo.perfis.admin, true);
+});
+
+test("usuário sem perfil nenhum é recusado", async (t) => {
+  const api = await criarApiDeTeste();
+  t.after(() => api.encerrar());
+  const token = await criarAdminELogar(api);
+
+  const resposta = await api.post(
+    "/admin/usuarios",
+    { ...NOVO, aluno: false, professor: false, admin: false },
+    { token }
+  );
+
+  assert.equal(resposta.status, 400, JSON.stringify(resposta.corpo));
+  assert.match(resposta.corpo.message, /ao menos um perfil/i);
+});
+
+test("CPF repetido no cadastro do admin devolve 409", async (t) => {
+  const api = await criarApiDeTeste();
+  t.after(() => api.encerrar());
+  const token = await criarAdminELogar(api);
+
+  const corpo = { ...NOVO, aluno: true, professor: false, admin: false };
+  await api.post("/admin/usuarios", corpo, { token });
+  // Título diferente: sem isso, o conflito poderia ser do título e o teste
+  // passaria sem nunca ter exercitado a checagem do CPF.
+  const repetido = await api.post(
+    "/admin/usuarios",
+    { ...corpo, titulo: "444444444444", email: "outra@teste.com" },
+    { token }
+  );
+
+  assert.equal(repetido.status, 409, JSON.stringify(repetido.corpo));
+});
+
+test("a senha do cadastro do admin passa pela mesma regra", async (t) => {
+  const api = await criarApiDeTeste();
+  t.after(() => api.encerrar());
+  const token = await criarAdminELogar(api);
+
+  const resposta = await api.post(
+    "/admin/usuarios",
+    { ...NOVO, senha: "curta", aluno: true, professor: false, admin: false },
+    { token }
+  );
+
+  assert.equal(resposta.status, 400, JSON.stringify(resposta.corpo));
+});

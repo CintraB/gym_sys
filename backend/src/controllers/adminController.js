@@ -9,11 +9,37 @@ import {
 } from "../lib/erros.js";
 import { exigirSenhaAceitavel, normalizarDigitos } from "../lib/validacao.js";
 import { tokenAposTrocaDeLogin } from "../lib/sessao.js";
+import { criarUsuario } from "../lib/usuarios.js";
 
 // A senha jamais entra aqui. É a mesma lista do professorController, com admin.
 const CAMPOS_PUBLICOS = "id, nome, cpf, email, titulo, aluno, professor, admin, ativo";
 
 const PERFIS = ["aluno", "professor", "admin"];
+
+/**
+ * Cadastra usuário com os perfis já definidos — a porta do admin.
+ *
+ * A do professor (`/professores/alunos`) continua existindo e continua
+ * excludente: ela cria aluno OU professor. Aqui os três são livres, inclusive
+ * criar outro admin, porque quem chama já é admin e já podia promover alguém
+ * pelo `alterarPerfis` logo em seguida.
+ *
+ * Os perfis vêm do corpo e não do token: é o admin dizendo o que a pessoa nova
+ * será, e `criarUsuario` recusa o conjunto vazio.
+ */
+export const cadastrarUsuario = asyncHandler(async (req, res) => {
+  const usuario = await criarUsuario({
+    dados: req.body,
+    perfis: {
+      aluno: req.body?.aluno === true,
+      professor: req.body?.professor === true,
+      admin: req.body?.admin === true,
+    },
+    criadoPor: req.usuario.id,
+  });
+
+  res.status(201).json({ message: "Usuário cadastrado com sucesso", usuario });
+});
 
 /**
  * Lista todos os usuários, com filtro por perfil e status.

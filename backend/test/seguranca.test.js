@@ -857,6 +857,21 @@ test("professor sem a flag admin não alcança as rotas de admin", async (t) => 
   const tentativas = [
     api.get("/admin/usuarios", { token: tokenProfessor }),
     api.put("/admin/usuarios/1/senha", { senha_nova: "outraSenha1" }, { token: tokenProfessor }),
+    // O cadastro do admin dá perfis livres, admin inclusive: alcançá-lo sem
+    // ser admin seria escalada de privilégio em um POST. A porta do professor
+    // (`/professores/alunos`) continua aberta para ele, e continua excludente.
+    api.post(
+      "/admin/usuarios",
+      {
+        cpf: "98765432100",
+        nome: "Escalada",
+        senha: "senha123",
+        email: "escalada@teste.com",
+        titulo: "987654321000",
+        admin: true,
+      },
+      { token: tokenProfessor }
+    ),
   ];
 
   for (const resposta of await Promise.all(tentativas)) {

@@ -488,6 +488,7 @@ Só é permitido um pedido em aberto por aluno (`409` no segundo).
 | GET | `/professores/professor/:id` | Professor por ID |
 | PUT | `/me/senha` | Troca a senha do próprio usuário |
 | GET | `/admin/usuarios` | Lista todos, com filtro por perfil e status |
+| POST | `/admin/usuarios` | Cadastra usuário já com os perfis definidos |
 | PUT | `/admin/usuarios/:id` | Altera os dados de qualquer usuário |
 | PUT | `/admin/usuarios/:id/perfis` | Promove e rebaixa perfis |
 | PUT | `/admin/usuarios/:id/senha` | Admin redefine a senha de alguém |
@@ -674,6 +675,29 @@ Fora de uma corrida, a segunda é inalcançável — o último admin ativo só p
 mesmo, e a primeira já barra isso. Ela existe para dois admins que se rebaixam ao mesmo tempo, e por
 isso a contagem roda **dentro da transação**. A contagem também confere `ativo` no alvo: sem isso,
 rebaixar um admin já inativo seria recusado sem que ninguém fosse perdido.
+
+### Duas portas para criar usuário
+
+`POST /professores/alunos` e `POST /professores/professores` são **excludentes**: gravam
+`aluno = !professor`, então ninguém nasce com dois perfis e ninguém nasce admin.
+
+`POST /admin/usuarios` recebe os mesmos campos **mais** `{ aluno, professor, admin }`, em qualquer
+combinação — inclusive criar outro admin. Não é uma brecha: quem chama já é admin e já podia
+promover a pessoa pelo `perfis` no instante seguinte. Recusa o conjunto vazio com 400, e com a
+mesma frase do `alterarPerfis`: é a mesma regra, e duas mensagens diferentes para a mesma recusa só
+confundem quem lê.
+
+As três portas passam por `criarUsuario` (`src/lib/usuarios.js`), que é dona da validação, da
+checagem de CPF ou título repetido (409) e do scrypt. É o único arquivo de `lib/` que toca o banco:
+o critério da pasta é não ter Express dentro, e ele não tem — recebe dados, devolve a linha criada,
+e quem traduz para HTTP é o controller.
+
+```http
+POST /admin/usuarios
+{ "cpf": "...", "nome": "...", "senha": "...", "titulo": "...", "email": "...",
+  "aluno": true, "professor": true, "admin": false }
+→ 201 { "message": "Usuário cadastrado com sucesso", "usuario": { ... } }
+```
 
 `PUT /admin/usuarios/:id` altera nome, CPF, e-mail e título de **qualquer** conta — a rota do
 professor só alcança aluno. Perfis, `ativo` e `senha` no corpo são ignorados: cada um tem rota

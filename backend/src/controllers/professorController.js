@@ -13,6 +13,7 @@ import {
   validarExercicioCatalogo,
 } from "../lib/validacao.js";
 import { tokenAposTrocaDeLogin } from "../lib/sessao.js";
+import { criarUsuario } from "../lib/usuarios.js";
 import { carregarBlocosDoTreino } from "./alunoController.js";
 
 const CAMPOS_PUBLICOS = "id, nome, cpf, email, titulo, aluno, professor, ativo";
@@ -86,35 +87,19 @@ export const buscarUsuarioPorCpfOuTitulo = asyncHandler(async (req, res) => {
   res.json(rows[0]);
 });
 
-async function cadastrarUsuario(req, { professor }) {
-  const dados = validarCadastroUsuario(req.body);
-
-  const { rows: existentes } = await db.query(
-    "SELECT id FROM usuario WHERE cpf = $1 OR ($2::text IS NOT NULL AND titulo = $2)",
-    [dados.cpf, dados.titulo]
-  );
-  if (existentes.length > 0) {
-    throw erroConflito("Já existe um usuário com esse CPF ou título");
-  }
-
-  const hashSenha = await criarHashComSal(dados.senha);
-  const { rows } = await db.query(
-    `INSERT INTO usuario (cpf, nome, senha, email, titulo, aluno, professor, ativo, atualizado_por)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, TRUE, $8)
-     RETURNING ${CAMPOS_PUBLICOS}`,
-    [
-      dados.cpf,
-      dados.nome,
-      hashSenha,
-      dados.email,
-      dados.titulo,
-      !professor,
-      professor,
-      req.usuario.id,
-    ]
-  );
-
-  return rows[0];
+/**
+ * A porta do professor é excludente de propósito: aluno OU professor.
+ *
+ * Quem precisa acumular perfis — ou criar um admin — passa pela porta do
+ * admin, `POST /admin/usuarios`, que chama a mesma `criarUsuario` com os três
+ * perfis livres.
+ */
+function cadastrarUsuario(req, { professor }) {
+  return criarUsuario({
+    dados: req.body,
+    perfis: { aluno: !professor, professor, admin: false },
+    criadoPor: req.usuario.id,
+  });
 }
 
 export const cadastrarAluno = asyncHandler(async (req, res) => {

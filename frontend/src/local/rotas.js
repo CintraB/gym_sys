@@ -64,6 +64,7 @@ export const TABELA = [
   { metodo: 'GET', caminho: '/professores/treino/reativar/:id', autenticado: true, perfil: 'professor', acao: professor.reativarTreino },
 
   { metodo: 'GET', caminho: '/admin/usuarios', autenticado: true, perfil: 'admin', acao: admin.listarUsuarios },
+  { metodo: 'POST', caminho: '/admin/usuarios', autenticado: true, perfil: 'admin', acao: admin.cadastrarUsuario },
   { metodo: 'PUT', caminho: '/admin/usuarios/:id', autenticado: true, perfil: 'admin', acao: admin.alterarUsuario },
   { metodo: 'PUT', caminho: '/admin/usuarios/:id/senha', autenticado: true, perfil: 'admin', acao: admin.redefinirSenha },
   { metodo: 'PUT', caminho: '/admin/usuarios/:id/perfis', autenticado: true, perfil: 'admin', acao: admin.alterarPerfis },

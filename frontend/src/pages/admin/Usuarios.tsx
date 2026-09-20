@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { KeyRound, Pencil, Search, Users as IconeUsuarios } from 'lucide-react'
+import { KeyRound, Pencil, Search, UserPlus, Users as IconeUsuarios } from 'lucide-react'
 import { api } from '../../lib/api'
 import { useRequisicao } from '../../lib/useRequisicao'
 import { useDebounce } from '../../lib/useDebounce'
@@ -14,6 +14,7 @@ import { Selo } from '../../components/ui/Selo'
 import { Vazio } from '../../components/ui/Vazio'
 import { RedefinirSenha } from './RedefinirSenha'
 import { EditarUsuario } from './EditarUsuario'
+import { NovoUsuario } from './NovoUsuario'
 import type { UsuarioAdmin } from '../../types'
 
 /** Os selos de perfil, na mesma ordem de precedência do cargo principal. */
@@ -32,6 +33,7 @@ export default function Usuarios() {
   const [status, setStatus] = useState('')
   const [redefinindo, setRedefinindo] = useState<UsuarioAdmin | null>(null)
   const [editando, setEditando] = useState<UsuarioAdmin | null>(null)
+  const [cadastrando, setCadastrando] = useState(false)
   const [sucesso, setSucesso] = useState<string | null>(null)
 
   const buscaAdiada = useDebounce(busca, 300)
@@ -48,13 +50,19 @@ export default function Usuarios() {
 
   return (
     <div className="space-y-5">
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight">Usuários</h1>
-        <p className="mt-1 text-sm text-texto-suave">
-          {usuarios.dados
-            ? contar(usuarios.dados.length, 'usuário encontrado', 'usuários encontrados')
-            : 'Carregando...'}
-        </p>
+      <header className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Usuários</h1>
+          <p className="mt-1 text-sm text-texto-suave">
+            {usuarios.dados
+              ? contar(usuarios.dados.length, 'usuário encontrado', 'usuários encontrados')
+              : 'Carregando...'}
+          </p>
+        </div>
+        <Botao onClick={() => setCadastrando(true)} className="shrink-0">
+          <UserPlus className="size-4" aria-hidden />
+          Novo usuário
+        </Botao>
       </header>
 
       {sucesso && <Aviso tipo="sucesso">{sucesso}</Aviso>}
@@ -161,6 +169,17 @@ export default function Usuarios() {
           icone={IconeUsuarios}
           titulo="Nenhum usuário encontrado"
           descricao="Ajuste a busca ou os filtros."
+        />
+      )}
+
+      {cadastrando && (
+        <NovoUsuario
+          aoFechar={() => setCadastrando(false)}
+          aoCriar={(nome) => {
+            setCadastrando(false)
+            setSucesso(`${nome} cadastrado. Passe a senha e peça que ela troque no Perfil.`)
+            usuarios.recarregar()
+          }}
         />
       )}
 
