@@ -124,8 +124,11 @@ export function Sincronizacao() {
               {/* Dizia "e substituído pelo que está no servidor", e o recomeço
                   não desce sessão nenhuma: ele apaga as três tabelas de sessão
                   e repõe identidade, catálogo e ficha. Ele ativou em
-                  20/09/2026 esperando os treinos de volta. Enquanto a leva 4
-                  não existir, o aviso tem de dizer o que de fato acontece. */}
+                  20/09/2026 esperando os treinos de volta. Sessão do servidor
+                  descendo para o app é "fora de escopo" na spec, apostando que
+                  quem treina só pelo celular não sentiria falta — e ele
+                  sentiu. Enquanto essa aposta não for revista, o aviso tem de
+                  dizer o que de fato acontece. */}
               <p className="text-texto">
                 Ao ativar, o histórico de treinos guardado <strong>neste aparelho será apagado</strong>{' '}
                 e sua ficha passa a vir do servidor. Os treinos já registrados{' '}

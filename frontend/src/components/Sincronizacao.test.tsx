@@ -51,8 +51,10 @@ describe('tela de sincronizacao', () => {
    * O aviso dizia que o histórico seria "substituído pelo que está no
    * servidor", e o recomeço não desce sessão nenhuma — ele apaga as três
    * tabelas de sessão e repõe só identidade, catálogo e ficha. Ele ativou em
-   * 20/09/2026 esperando os treinos de volta, e eles não vieram: a descida do
-   * histórico é a leva 4, que ainda não existe.
+   * 20/09/2026 esperando os treinos de volta, e eles não vieram: sessão do
+   * servidor descendo para o app está **fora de escopo** da spec da
+   * sincronização ("limitação aceita na v1"), e não é a leva 4 — essa é a
+   * descida da *ficha*.
    */
   it('nao promete que o historico volta do servidor', async () => {
     renderizar(<Sincronizacao />, { entrar: entrarNoApp })
