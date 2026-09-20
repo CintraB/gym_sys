@@ -47,6 +47,21 @@ describe('tela de sincronizacao', () => {
     expect(entrarNaSincronizacao).not.toHaveBeenCalled()
   })
 
+  /**
+   * O aviso dizia que o histórico seria "substituído pelo que está no
+   * servidor", e o recomeço não desce sessão nenhuma — ele apaga as três
+   * tabelas de sessão e repõe só identidade, catálogo e ficha. Ele ativou em
+   * 20/09/2026 esperando os treinos de volta, e eles não vieram: a descida do
+   * histórico é a leva 4, que ainda não existe.
+   */
+  it('nao promete que o historico volta do servidor', async () => {
+    renderizar(<Sincronizacao />, { entrar: entrarNoApp })
+    await userEvent.click(screen.getByRole('button', { name: /ativar sincroniza/i }))
+
+    expect(screen.getByText(/n[ãa]o voltam para c[áa]/i)).toBeInTheDocument()
+    expect(screen.queryByText(/substitu[íi]do pelo que est[áa] no servidor/i)).not.toBeInTheDocument()
+  })
+
   it('so entra depois de confirmar, com CPF e senha', async () => {
     entrarNaSincronizacao.mockResolvedValue({ exerciciosDaFicha: 12, blocos: 3 })
     renderizar(<Sincronizacao />, { entrar: entrarNoApp })

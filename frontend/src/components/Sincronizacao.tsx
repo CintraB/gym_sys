@@ -121,10 +121,16 @@ export function Sincronizacao() {
                 antes de digitar a senha, e não depois de já ter ativado. */}
             <div className="flex items-start gap-2.5 rounded-xl border border-alerta/30 bg-alerta/10 px-3.5 py-3 text-sm">
               <AlertTriangle className="mt-0.5 size-4 shrink-0 text-alerta" aria-hidden />
+              {/* Dizia "e substituído pelo que está no servidor", e o recomeço
+                  não desce sessão nenhuma: ele apaga as três tabelas de sessão
+                  e repõe identidade, catálogo e ficha. Ele ativou em
+                  20/09/2026 esperando os treinos de volta. Enquanto a leva 4
+                  não existir, o aviso tem de dizer o que de fato acontece. */}
               <p className="text-texto">
                 Ao ativar, o histórico de treinos guardado <strong>neste aparelho será apagado</strong>{' '}
-                e substituído pelo que está no servidor. Os treinos que você fizer daqui em diante
-                sobem normalmente.
+                e sua ficha passa a vir do servidor. Os treinos já registrados{' '}
+                <strong>não voltam para cá</strong> — eles continuam guardados no site. Os treinos
+                que você fizer daqui em diante sobem normalmente.
               </p>
             </div>
 
